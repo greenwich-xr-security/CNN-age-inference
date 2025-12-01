@@ -234,6 +234,75 @@ class DisplayUtils:
 
     # ------------------------------------------------------------------ #
     @staticmethod
+    def plot_mae_per_bin(
+        targets: Iterable[float],
+        predictions: Iterable[float],
+        bins: Iterable[tuple[str, float, float]],
+        *,
+        save_path=None,
+        show: bool = False,
+        title: Optional[str] = None,
+    ) -> Optional[Path]:
+        """Plot MAE per age bin for evaluation data."""
+        targets_arr = np.asarray(list(targets), dtype=float)
+        preds_arr = np.asarray(list(predictions), dtype=float)
+        if targets_arr.size == 0:
+            print("plot_mae_per_bin: no targets to plot.")
+            return None
+
+        abs_err = np.abs(preds_arr - targets_arr)
+        bin_labels = []
+        bin_mae = []
+        bin_counts = []
+        for label, lower, upper in bins:
+            mask = (targets_arr >= lower) & (targets_arr <= upper)
+            bin_labels.append(label)
+            bin_counts.append(int(mask.sum()))
+            bin_mae.append(float(abs_err[mask].mean()) if mask.any() else np.nan)
+
+        fig, ax = plt.subplots(figsize=(8, 5))
+        bar_positions = np.arange(len(bin_labels))
+        plotted_mae = np.nan_to_num(bin_mae, nan=0.0)
+        bars = ax.bar(bar_positions, plotted_mae, color="#9467bd", edgecolor="white")
+        ax.set_xticks(bar_positions)
+        ax.set_xticklabels(bin_labels, rotation=0)
+        ax.set_ylabel("MAE (years)")
+        if title:
+            ax.set_title(title)
+        ax.grid(True, axis="y", linestyle="--", linewidth=0.5, alpha=0.3)
+
+        y_top = max(1.0, np.nanmax(plotted_mae) * 1.05)
+        ax.set_ylim(0, y_top)
+        for bar, mae, count in zip(bars, bin_mae, bin_counts):
+            height = bar.get_height()
+            label_text = f"{mae:.2f} ({count})" if not np.isnan(mae) else f"n/a ({count})"
+            ax.text(
+                bar.get_x() + bar.get_width() / 2.0,
+                height + 0.02 * y_top,
+                label_text,
+                ha="center",
+                va="bottom",
+                fontsize=8,
+            )
+
+        fig.tight_layout()
+
+        saved_path = None
+        if save_path is not None:
+            save_path = Path(save_path)
+            save_path.parent.mkdir(parents=True, exist_ok=True)
+            fig.savefig(save_path)
+            saved_path = save_path
+
+        if show:
+            plt.show()
+        else:
+            plt.close(fig)
+
+        return saved_path
+
+    # ------------------------------------------------------------------ #
+    @staticmethod
     def make_square_bbox(bbox: Tuple[int, int, int, int]) -> Tuple[int, int, int, int]:
         """Compute a square bounding box centered on the given bbox."""
         if bbox is None:

@@ -176,6 +176,64 @@ class DisplayUtils:
 
     # ------------------------------------------------------------------ #
     @staticmethod
+    def plot_age_histograms(
+        train_user_ages: Iterable[float],
+        eval_user_ages: Iterable[float],
+        *,
+        save_path=None,
+        show: bool = False,
+        title: Optional[str] = None,
+    ) -> Optional[Path]:
+        """Plot side-by-side histograms of per-user ages for train and eval splits."""
+        train_arr = np.asarray(list(train_user_ages), dtype=float)
+        eval_arr = np.asarray(list(eval_user_ages), dtype=float)
+        if train_arr.size == 0 and eval_arr.size == 0:
+            print("plot_age_histograms: no data to plot.")
+            return None
+
+        combined = np.concatenate([train_arr, eval_arr]) if eval_arr.size else train_arr
+        min_age = float(np.floor(combined.min()))
+        max_age = float(np.ceil(combined.max()))
+        bin_edges = np.arange(min_age - 0.5, max_age + 1.5, 1.0)
+
+        train_counts, _ = np.histogram(train_arr, bins=bin_edges) if train_arr.size else (np.array([]), bin_edges)
+        eval_counts, _ = np.histogram(eval_arr, bins=bin_edges) if eval_arr.size else (np.array([]), bin_edges)
+        y_max = max(
+            int(train_counts.max()) if train_counts.size else 0,
+            int(eval_counts.max()) if eval_counts.size else 0,
+        )
+
+        fig, axes = plt.subplots(1, 2, figsize=(12, 5), sharex=True, sharey=True)
+        axes[0].hist(train_arr, bins=bin_edges, color="#1f77b4", edgecolor="white")
+        axes[1].hist(eval_arr, bins=bin_edges, color="#ff7f0e", edgecolor="white")
+        axes[0].set_title("Train users")
+        axes[1].set_title("Eval users")
+        for ax in axes:
+            ax.set_xlabel("Age")
+            ax.grid(True, linestyle="--", linewidth=0.5, alpha=0.3)
+        axes[0].set_ylabel("Number of users")
+        axes[0].set_xlim(bin_edges[0], bin_edges[-1])
+        axes[0].set_ylim(0, max(1, y_max + 1))
+        if title:
+            fig.suptitle(title)
+        fig.tight_layout()
+
+        saved_path = None
+        if save_path is not None:
+            save_path = Path(save_path)
+            save_path.parent.mkdir(parents=True, exist_ok=True)
+            fig.savefig(save_path)
+            saved_path = save_path
+
+        if show:
+            plt.show()
+        else:
+            plt.close(fig)
+
+        return saved_path
+
+    # ------------------------------------------------------------------ #
+    @staticmethod
     def make_square_bbox(bbox: Tuple[int, int, int, int]) -> Tuple[int, int, int, int]:
         """Compute a square bounding box centered on the given bbox."""
         if bbox is None:

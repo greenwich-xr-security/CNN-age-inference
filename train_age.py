@@ -673,6 +673,20 @@ def main() -> None:
             print(f"Saved training history plot to {history_plot_path}")
             break
 
+    # Save per-user age distribution histograms for train/test splits
+    train_user_ages = train_meta.groupby("user_id")["age"].mean().to_numpy()
+    test_user_ages = test_meta.groupby("user_id")["age"].mean().to_numpy()
+    hist_path = output_dir / "age_distribution_users.png"
+    saved_hist = DisplayUtils.plot_age_histograms(
+        train_user_ages,
+        test_user_ages,
+        save_path=hist_path,
+        show=False,
+        title="Per-user age distribution (train vs test)",
+    )
+    if saved_hist:
+        print(f"Saved per-user age histograms to {saved_hist}")
+
     print("Training complete. Best model saved on validation improvement.")
 
 

@@ -274,6 +274,7 @@ def main() -> None:
     loss_weights.validate()
     rank, world_size, local_rank, device = init_distributed(args)
     is_main = rank == 0
+    stratification_mode = "no" if args.no_stratified_user_split else args.stratification
 
     model_variant = args.model.lower()
     default_size = EFFICIENTNET_IMG_SIZES[model_variant]
@@ -312,11 +313,11 @@ def main() -> None:
             f"Loss weights -> NLL: {loss_weights.nll:.3f}, "
             f"MSE: {loss_weights.mse:.3f}, MAE: {loss_weights.mae:.3f}"
         )
-        split_desc = (
-            "Unstratified per-user split (random)."
-            if args.no_stratified_user_split
-            else "Stratified per-user split (adult/minor aware)."
-        )
+        split_desc = {
+            "no": "Unstratified per-user split (random).",
+            "minorAdults": "Stratified per-user split (adult/minor aware).",
+            "bins": "Stratified per-user split (multi-bin age labels).",
+        }.get(stratification_mode, f"Split mode: {stratification_mode}")
         print(f"Split mode: {split_desc}")
 
     model = EfficientNetAgeRegressor(model_variant).to(device)
@@ -557,6 +558,18 @@ def main() -> None:
             break
 
     if is_main:
+        train_user_ages = train_dataset.records.groupby("user_id")["age"].mean().to_numpy()
+        val_user_ages = val_dataset.records.groupby("user_id")["age"].mean().to_numpy()
+        hist_path = output_dir / "age_distribution_users_ddp.png"
+        saved_hist = DisplayUtils.plot_age_histograms(
+            train_user_ages,
+            val_user_ages,
+            save_path=hist_path,
+            show=False,
+            title="Per-user age distribution (train vs val, DDP)",
+        )
+        if saved_hist:
+            print(f"[Rank 0] Saved per-user age histograms to {saved_hist}")
         print("Distributed training complete. Best model saved based on validation improvement.")
     dist.destroy_process_group()
 

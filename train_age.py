@@ -2,6 +2,7 @@ import argparse
 import math
 import random
 from pathlib import Path
+from typing import Iterable
 
 import numpy as np
 import pandas as pd
@@ -28,6 +29,7 @@ DEFAULT_MODEL_VARIANT = "b7"
 DEFAULT_SEED = 42
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 DEFAULT_PATIENCE = 20
+CHALLENGE_PROB_TAU = 0.5  # Probability threshold to auto-allow without document
 AGE_BINS = [
     ("10-12", 10, 12),
     ("13-15", 13, 15),
@@ -290,6 +292,43 @@ def compute_age_gate_curves(
         },
     }
     return results
+
+
+def compute_challenge_fpr_table(
+    targets,
+    pred_means,
+    pred_log_vars,
+    *,
+    thresholds: Iterable[float],
+    prob_threshold: float = CHALLENGE_PROB_TAU,
+    minor_min: float = 14.0,
+    minor_max: float = 17.0,
+) -> tuple[list[dict], int]:
+    """
+    Compute FPR for minors (14-17) passing as adults when adult probability
+    exceeds prob_threshold at each age challenge threshold.
+    """
+    targets_arr = np.asarray(targets, dtype=float)
+    preds_arr = np.asarray(pred_means, dtype=float)
+    log_vars_arr = np.asarray(pred_log_vars, dtype=float)
+    minor_mask = (targets_arr >= minor_min) & (targets_arr <= minor_max)
+    minor_total = int(minor_mask.sum())
+    rows: list[dict] = []
+    for thr in thresholds:
+        adult_prob = compute_adult_probabilities(preds_arr, log_vars_arr, age_threshold=thr)
+        allow_mask = adult_prob >= prob_threshold
+        fp = int(np.logical_and(allow_mask, minor_mask).sum())
+        fpr = _safe_rate(fp, minor_total)
+        rows.append(
+            {
+                "threshold": float(thr),
+                "prob_threshold": float(prob_threshold),
+                "false_positive_rate": fpr,
+                "false_positives": fp,
+                "minor_total": minor_total,
+            }
+        )
+    return rows, minor_total
 
 
 def build_transforms(img_size: int):
@@ -647,6 +686,51 @@ def main() -> None:
                 f"Updated ROC plots ({roc_case1_path.name}, {roc_case2_path.name}), "
                 f"metrics CSV ({metrics_csv_path.name}), and saved predictions to {preds_dump_path.name}."
             )
+
+            mae_bins = [
+                ("10-12", 10, 12),
+                ("13-15", 13, 15),
+                ("16-17", 16, 17),
+            ]
+            mae_bin_path = output_dir / f"mae_eval_bins_epoch{epoch}.png"
+            mae_plot = DisplayUtils.plot_mae_per_bin(
+                val_targets,
+                val_predictions,
+                bins=mae_bins,
+                save_path=mae_bin_path,
+                show=False,
+                title="Eval MAE by age bin",
+            )
+            if mae_plot:
+                print(f"Saved eval MAE-by-bin plot to {mae_plot.name}")
+
+            # Case 1 table: challenge thresholds to reduce FP on 14-17-year-olds
+            challenge_thresholds = np.arange(20, 31, 1, dtype=float)
+            fpr_rows, minor_total = compute_challenge_fpr_table(
+                val_targets,
+                val_predictions,
+                val_log_vars,
+                thresholds=challenge_thresholds,
+                prob_threshold=CHALLENGE_PROB_TAU,
+            )
+            challenge_csv = output_dir / f"challenge_fpr_14_17_epoch{epoch}.csv"
+            with challenge_csv.open("w", encoding="utf-8") as fp:
+                fp.write("threshold,prob_threshold,false_positive_rate,false_positives,minor_total\n")
+                for row in fpr_rows:
+                    fp.write(
+                        f"{row['threshold']:.1f},{row['prob_threshold']:.3f},{row['false_positive_rate']:.6f},{row['false_positives']},{row['minor_total']}\n"
+                    )
+            if minor_total > 0:
+                sample_line = ", ".join(
+                    f"{row['threshold']:.0f}->{row['false_positive_rate']:.3f}"
+                    for row in fpr_rows[:3]
+                )
+                print(
+                    f"Saved 14-17 FP table to {challenge_csv.name} (minors={minor_total}, tau={CHALLENGE_PROB_TAU:.2f}). "
+                    f"Sample FPRs: {sample_line}"
+                )
+            else:
+                print(f"No 14-17-year-olds in eval set; wrote empty FPR table to {challenge_csv.name}.")
 
             if improvement == float("inf") or improvement >= min_delta:
                 epochs_without_improvement = 0

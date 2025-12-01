@@ -19,6 +19,8 @@ from train_age import (
     AgeDataset,
     build_transforms,
     compute_age_gate_curves,
+    compute_challenge_fpr_table,
+    CHALLENGE_PROB_TAU,
     filter_metadata,
     stratified_user_split,
     set_random_seed,
@@ -540,6 +542,51 @@ def main() -> None:
                 f"[Rank 0] Updated ROC plots ({roc_case1_path.name}, {roc_case2_path.name}), "
                 f"metrics CSV ({metrics_csv_path.name}), and predictions dump ({preds_dump_path.name})."
             )
+
+            mae_bins = [
+                ("10-12", 10, 12),
+                ("13-15", 13, 15),
+                ("16-17", 16, 17),
+            ]
+            mae_bin_path = output_dir / f"mae_eval_bins_epoch{epoch}_ddp.png"
+            mae_plot = DisplayUtils.plot_mae_per_bin(
+                targets_all,
+                preds_all,
+                bins=mae_bins,
+                save_path=mae_bin_path,
+                show=False,
+                title="Eval MAE by age bin (DDP)",
+            )
+            if mae_plot:
+                print(f"[Rank 0] Saved eval MAE-by-bin plot to {mae_plot.name}")
+
+            # Case 1 table: challenge thresholds to reduce FP on 14-17-year-olds
+            challenge_thresholds = np.arange(20, 31, 1, dtype=float)
+            fpr_rows, minor_total = compute_challenge_fpr_table(
+                targets_all,
+                preds_all,
+                log_vars_all,
+                thresholds=challenge_thresholds,
+                prob_threshold=CHALLENGE_PROB_TAU,
+            )
+            challenge_csv = output_dir / f"challenge_fpr_14_17_epoch{epoch}_ddp.csv"
+            with challenge_csv.open("w", encoding="utf-8") as fp:
+                fp.write("threshold,prob_threshold,false_positive_rate,false_positives,minor_total\n")
+                for row in fpr_rows:
+                    fp.write(
+                        f"{row['threshold']:.1f},{row['prob_threshold']:.3f},{row['false_positive_rate']:.6f},{row['false_positives']},{row['minor_total']}\n"
+                    )
+            if minor_total > 0:
+                sample_line = ", ".join(
+                    f"{row['threshold']:.0f}->{row['false_positive_rate']:.3f}"
+                    for row in fpr_rows[:3]
+                )
+                print(
+                    f"[Rank 0] Saved 14-17 FP table to {challenge_csv.name} (minors={minor_total}, tau={CHALLENGE_PROB_TAU:.2f}). "
+                    f"Sample FPRs: {sample_line}"
+                )
+            else:
+                print(f"[Rank 0] No 14-17-year-olds in eval set; wrote empty FPR table to {challenge_csv.name}.")
 
         if epochs_without_improvement >= patience:
             if is_main:

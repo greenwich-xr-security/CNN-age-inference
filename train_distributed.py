@@ -561,34 +561,6 @@ def main() -> None:
             if mae_plot:
                 print(f"[Rank 0] Saved eval MAE-by-bin plot to {mae_plot.name}")
 
-            # Case 1 table: challenge thresholds to reduce FP on 14-17-year-olds
-            challenge_thresholds = np.arange(20, 31, 1, dtype=float)
-            fpr_rows, minor_total = compute_challenge_fpr_table(
-                targets_all,
-                preds_all,
-                log_vars_all,
-                thresholds=challenge_thresholds,
-                prob_threshold=CHALLENGE_PROB_TAU,
-            )
-            challenge_csv = output_dir / f"challenge_fpr_14_17_epoch{epoch}_ddp.csv"
-            with challenge_csv.open("w", encoding="utf-8") as fp:
-                fp.write("threshold,prob_threshold,false_positive_rate,false_positives,minor_total\n")
-                for row in fpr_rows:
-                    fp.write(
-                        f"{row['threshold']:.1f},{row['prob_threshold']:.3f},{row['false_positive_rate']:.6f},{row['false_positives']},{row['minor_total']}\n"
-                    )
-            if minor_total > 0:
-                sample_line = ", ".join(
-                    f"{row['threshold']:.0f}->{row['false_positive_rate']:.3f}"
-                    for row in fpr_rows[:3]
-                )
-                print(
-                    f"[Rank 0] Saved 14-17 FP table to {challenge_csv.name} (minors={minor_total}, tau={CHALLENGE_PROB_TAU:.2f}). "
-                    f"Sample FPRs: {sample_line}"
-                )
-            else:
-                print(f"[Rank 0] No 14-17-year-olds in eval set; wrote empty FPR table to {challenge_csv.name}.")
-
         if epochs_without_improvement >= patience:
             if is_main:
                 print(

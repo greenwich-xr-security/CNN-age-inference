@@ -2,7 +2,7 @@ import argparse
 import math
 import random
 from pathlib import Path
-from typing import Iterable
+from typing import Callable, Iterable, Tuple
 
 import numpy as np
 import pandas as pd
@@ -17,7 +17,12 @@ from tqdm import tqdm
 from hands_dataset import get_dataset_root, load_combined_metadata, set_dataset_root
 from displayUtils import DisplayUtils
 from metrics import LossWeights, weighted_regression_loss
-from models import EFFICIENTNET_IMG_SIZES, EfficientNetAgeRegressor
+from models import (
+    EFFICIENTNET_IMG_SIZES,
+    EfficientNetAgeRegressor,
+    CONVNEXT_IMG_SIZES,
+    ConvNeXtAgeRegressor,
+)
 
 # Example (Windows): python train_age.py --data-root "C:\Users\Staff\OneDrive - University of Greenwich\HandsDatasets" --output-dir runs\b4_efficientnet --model b4 --img-size 380 --batch-size 32 --epochs 40 --seed 42 --lr 0.0003
 
@@ -35,6 +40,13 @@ CHALLENGE_BINS = [
     ("13-15", 13.0, 15.0),
     ("16-17", 16.0, 17.0),
 ]
+MODEL_ALIASES = {
+    "cnt": "convnext_tiny",
+    "cns": "convnext_small",
+    "cnb": "convnext_base",
+    "cnl": "convnext_large",
+    "cnx": "convnext_xlarge",
+}
 CHALLENGE_PROB_TAU = 0.5  # Probability threshold to auto-allow without document
 AGE_BINS = [
     ("10-12", 10, 12),
@@ -339,6 +351,41 @@ def compute_challenge_fpr_table(
     return rows
 
 
+def resolve_model_builder(model_name: str) -> tuple[Callable[[], nn.Module], int, str, str]:
+    """
+    Resolve a model name (including aliases) to a builder, default image size, display label, and normalized key.
+    """
+    name = model_name.lower()
+    name = MODEL_ALIASES.get(name, name)
+
+    if name in EFFICIENTNET_IMG_SIZES:
+        size = EFFICIENTNET_IMG_SIZES[name]
+        return (
+            lambda: EfficientNetAgeRegressor(name),
+            size,
+            f"EfficientNet-{name.upper()}",
+            name,
+        )
+
+    if name.startswith("convnext_"):
+        variant = name.split("_", 1)[1]
+        if variant not in CONVNEXT_IMG_SIZES:
+            raise ValueError(f"Unsupported ConvNeXt variant '{variant}'.")
+        size = CONVNEXT_IMG_SIZES[variant]
+        return (
+            lambda: ConvNeXtAgeRegressor(variant),
+            size,
+            f"ConvNeXt-{variant}",
+            name,
+        )
+
+    raise ValueError(
+        f"Unsupported model '{model_name}'. "
+        f"Expected one of {sorted(EFFICIENTNET_IMG_SIZES)} or convnext_{{tiny,small,base,large,xlarge}} "
+        f"or aliases {sorted(MODEL_ALIASES)}."
+    )
+
+
 def build_transforms(img_size: int):
     train_transform = transforms.Compose([
         transforms.RandomResizedCrop(img_size, scale=(0.7, 1.0)),
@@ -376,8 +423,10 @@ def main() -> None:
         "--model",
         type=str,
         default=DEFAULT_MODEL_VARIANT,
-        choices=sorted(EFFICIENTNET_IMG_SIZES.keys()),
-        help="EfficientNet variant to use (default: b7).",
+        help=(
+            "Backbone to use. EfficientNet: b0-b7. ConvNeXt: convnext_{tiny,small,base,large,xlarge} "
+            "or aliases cnt,cns,cnb,cnl,cnx."
+        ),
     )
     parser.add_argument(
         "--img-size",
@@ -460,12 +509,11 @@ def main() -> None:
     loss_weights.validate()
 
     set_random_seed(args.seed)
-    model_variant = args.model.lower()
-    default_size = EFFICIENTNET_IMG_SIZES[model_variant]
+    model_builder, default_size, model_desc, model_key = resolve_model_builder(args.model)
     if args.img_size is not None and args.img_size != default_size:
         print(
             f"[train] Ignoring requested --img-size {args.img_size}; "
-            f"EfficientNet-{model_variant.upper()} uses {default_size}."
+            f"{model_desc} uses {default_size}."
         )
     img_size = default_size
 
@@ -493,14 +541,14 @@ def main() -> None:
     train_meta = metadata[metadata["user_id"].isin(train_ids)]
     test_meta = metadata[metadata["user_id"].isin(test_ids)]
 
-    print(
-        f"Using dataset root: {active_root}\n"
-        f"Saving artifacts to: {output_dir}\n"
-        f"Train users: {train_meta['user_id'].nunique()} | Train images: {len(train_meta)}\n"
-        f"Test users:  {test_meta['user_id'].nunique()} | Test images:  {len(test_meta)}\n"
-        f"Model: EfficientNet-{model_variant.upper()} | Image size: {img_size} | Batch size: {args.batch_size}\n"
-        f"Epochs: {args.epochs} | Learning rate: {args.lr:.2e} | Seed: {args.seed}"
-    )
+        print(
+            f"Using dataset root: {active_root}\n"
+            f"Saving artifacts to: {output_dir}\n"
+            f"Train users: {train_meta['user_id'].nunique()} | Train images: {len(train_meta)}\n"
+            f"Test users:  {test_meta['user_id'].nunique()} | Test images:  {len(test_meta)}\n"
+            f"Model: {model_desc} | Image size: {img_size} | Batch size: {args.batch_size}\n"
+            f"Epochs: {args.epochs} | Learning rate: {args.lr:.2e} | Seed: {args.seed}"
+        )
     print(
         f"Loss weights -> NLL: {loss_weights.nll:.3f}, "
         f"MSE: {loss_weights.mse:.3f}, MAE: {loss_weights.mae:.3f}"
@@ -518,7 +566,7 @@ def main() -> None:
     train_loader = DataLoader(train_ds, batch_size=args.batch_size, shuffle=True, num_workers=0)
     test_loader = DataLoader(test_ds, batch_size=args.batch_size, shuffle=False, num_workers=0)
 
-    model = EfficientNetAgeRegressor(model_variant)
+    model = model_builder()
     if DEVICE.type == "cuda":
         gpu_count = torch.cuda.device_count()
         if gpu_count > 1:
@@ -528,7 +576,7 @@ def main() -> None:
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr)
 
     best_val_loss = float("inf")
-    best_model_path = output_dir / f"efficientnet_{model_variant}_age_regressor.pth"
+    best_model_path = output_dir / f"{model_key}_age_regressor.pth"
     history_log_path = output_dir / "history.log"
     min_delta = 0.001
     patience = max(1, int(args.patience))
@@ -754,7 +802,7 @@ def main() -> None:
     # Final challenge-threshold table (single evaluation pass using best model)
     if best_model_path.exists():
         print("Computing challenge-threshold FPR table on test set using best model...")
-        eval_model = EfficientNetAgeRegressor(model_variant)
+        eval_model = model_builder()
         state = torch.load(best_model_path, map_location=DEVICE)
         eval_model.load_state_dict(state)
         eval_model = eval_model.to(DEVICE)

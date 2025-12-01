@@ -14,7 +14,6 @@ from tqdm import tqdm
 from displayUtils import DisplayUtils
 from hands_dataset import get_dataset_root, load_combined_metadata, set_dataset_root
 from metrics import LossWeights, weighted_regression_loss
-from models import EFFICIENTNET_IMG_SIZES, EfficientNetAgeRegressor
 from train_age import (
     AgeDataset,
     build_transforms,
@@ -23,6 +22,7 @@ from train_age import (
     CHALLENGE_PROB_TAU,
     CHALLENGE_BINS,
     filter_metadata,
+    resolve_model_builder,
     stratified_user_split,
     set_random_seed,
 )
@@ -71,8 +71,10 @@ def parse_args() -> argparse.Namespace:
         "--model",
         type=str,
         default=DEFAULT_MODEL_VARIANT,
-        choices=sorted(EFFICIENTNET_IMG_SIZES.keys()),
-        help="EfficientNet variant to use (default: b7).",
+        help=(
+            "Backbone to use. EfficientNet: b0-b7. ConvNeXt: convnext_{tiny,small,base,large,xlarge} "
+            "or aliases cnt,cns,cnb,cnl,cnx."
+        ),
     )
     parser.add_argument(
         "--img-size",
@@ -177,12 +179,12 @@ def init_distributed(args: argparse.Namespace) -> tuple[int, int, int, torch.dev
     return rank, world_size, local_rank, device
 
 
-def build_datasets(args: argparse.Namespace, seed: int):
+def build_datasets(args: argparse.Namespace, seed: int, img_size: int):
     if args.data_root:
         set_dataset_root(args.data_root)
     active_root = get_dataset_root()
 
-    train_transform, test_transform = build_transforms(EFFICIENTNET_IMG_SIZES[args.model])
+    train_transform, test_transform = build_transforms(img_size)
 
     metadata = filter_metadata(load_combined_metadata(root=active_root))
     stratification_mode = "no" if args.no_stratified_user_split else args.stratification
@@ -279,17 +281,16 @@ def main() -> None:
     is_main = rank == 0
     stratification_mode = "no" if args.no_stratified_user_split else args.stratification
 
-    model_variant = args.model.lower()
-    default_size = EFFICIENTNET_IMG_SIZES[model_variant]
+    model_builder, default_size, model_desc, model_key = resolve_model_builder(args.model)
     if args.img_size is not None and args.img_size != default_size and is_main:
         print(
             f"[train] Ignoring requested --img-size {args.img_size}; "
-            f"EfficientNet-{model_variant.upper()} uses {default_size}."
+            f"{model_desc} uses {default_size}."
         )
 
     set_random_seed(args.seed + rank)
 
-    train_dataset, val_dataset, active_root, train_len, val_len = build_datasets(args, args.seed)
+    train_dataset, val_dataset, active_root, train_len, val_len = build_datasets(args, args.seed, default_size)
     train_loader, val_loader, train_sampler = build_dataloaders(
         train_dataset,
         val_dataset,
@@ -308,7 +309,7 @@ def main() -> None:
             f"Saving artifacts to: {output_dir}\n"
             f"Train images: {train_len}\n"
             f"Val images:   {val_len}\n"
-            f"Model: EfficientNet-{model_variant.upper()} | Image size: {default_size} | "
+            f"Model: {model_desc} | Image size: {default_size} | "
             f"Per-rank batch size: {args.batch_size}\n"
             f"Epochs: {args.epochs} | Learning rate: {args.lr:.2e} | Seed: {args.seed} | World size: {world_size}"
         )
@@ -323,7 +324,7 @@ def main() -> None:
         }.get(stratification_mode, f"Split mode: {stratification_mode}")
         print(f"Split mode: {split_desc}")
 
-    model = EfficientNetAgeRegressor(model_variant).to(device)
+    model = model_builder().to(device)
     ddp_model = DistributedDataParallel(
         model,
         device_ids=[local_rank] if device.type == "cuda" else None,
@@ -333,7 +334,7 @@ def main() -> None:
     optimizer = torch.optim.AdamW(ddp_model.parameters(), lr=args.lr)
 
     best_val_loss = float("inf")
-    best_model_path = output_dir / f"efficientnet_{model_variant}_age_regressor_ddp.pth"
+    best_model_path = output_dir / f"{model_key}_age_regressor_ddp.pth"
     history_log_path = output_dir / "history_distributed.log"
     min_delta = DEFAULT_MIN_DELTA
     patience = max(1, int(args.patience))
@@ -594,7 +595,7 @@ def main() -> None:
         # Final challenge-threshold table using best checkpoint on rank 0
         if best_model_path.exists():
             print("[Rank 0] Computing challenge-threshold FPR table on val set using best model...")
-            eval_model = EfficientNetAgeRegressor(model_variant)
+            eval_model = model_builder()
             state = torch.load(best_model_path, map_location=device)
             eval_model.load_state_dict(state)
             eval_model = eval_model.to(device)

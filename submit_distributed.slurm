@@ -40,7 +40,7 @@ LOSS_WEIGHT_NLL="${LOSS_WEIGHT_NLL:-0.5}"
 LOSS_WEIGHT_MSE="${LOSS_WEIGHT_MSE:-0.25}"
 LOSS_WEIGHT_MAE="${LOSS_WEIGHT_MAE:-0.25}"
 PATIENCE="${PATIENCE:-60}"
-MODELS="${MODELS:-${MODEL:-b3}}" # choices: b0, b1, b2, b3, b4, b5, b6
+MODELS="${MODELS:-${MODEL:-b3}}" # choices: b0-b7, convnext_{tiny,small,base,large,xlarge}, or aliases cnt,cns,cnb,cnl,cnx
 STRATIFICATION="${STRATIFICATION:-no}"  # choices: no, minorAdults, bins
 
 for MODEL_NAME in ${MODELS}; do

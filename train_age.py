@@ -582,6 +582,7 @@ def main() -> None:
     patience = max(1, int(args.patience))
     epochs_without_improvement = 0
     history_entries: list[dict] = []
+    best_scatter: Optional[dict] = None
 
     for epoch in range(1, args.epochs + 1):
         model.train()
@@ -666,17 +667,12 @@ def main() -> None:
             model_to_save = model.module if isinstance(model, nn.DataParallel) else model
             torch.save(model_to_save.state_dict(), best_model_path)
 
-            plot_path = output_dir / f"age_val_scatter_epoch{epoch}.png"
-            if DisplayUtils.save_regression_scatter(
-                val_targets,
-                val_predictions,
-                save_path=plot_path,
-                title=f"Epoch {epoch} Age Predictions (best so far)",
-                axis_limits=(0.0, 70.0),
-                point_size=20,
-                alpha=0.6,
-            ):
-                print(f"Saved best model to {best_model_path} (val_loss={val_loss:.4f}) and plot to {plot_path}")
+            best_scatter = {
+                "targets": list(val_targets),
+                "predictions": list(val_predictions),
+                "epoch": epoch,
+            }
+            print(f"Saved best model to {best_model_path} (val_loss={val_loss:.4f})")
 
             val_targets_arr = np.asarray(val_targets, dtype=float)
             val_means_arr = np.asarray(val_predictions, dtype=float)
@@ -781,6 +777,20 @@ def main() -> None:
     )
     if saved_hist:
         print(f"Saved per-user age histograms to {saved_hist}")
+
+    # Save a single scatter plot for the best epoch (based on validation loss)
+    if best_scatter is not None:
+        scatter_path = output_dir / "age_val_scatter_best.png"
+        if DisplayUtils.save_regression_scatter(
+            best_scatter["targets"],
+            best_scatter["predictions"],
+            save_path=scatter_path,
+            title=f"Best Validation Age Predictions (epoch {best_scatter['epoch']})",
+            axis_limits=(0.0, 70.0),
+            point_size=20,
+            alpha=0.6,
+        ):
+            print(f"Saved best validation scatter plot to {scatter_path}")
 
     # Final challenge-threshold table (single evaluation pass using best model)
     if best_model_path.exists():

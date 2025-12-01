@@ -19,7 +19,6 @@ from train_age import (
     build_transforms,
     compute_age_gate_curves,
     compute_challenge_fpr_table,
-    compute_challenge_fpr_table_weighted,
     CHALLENGE_PROB_TAU,
     CHALLENGE_BINS,
     filter_metadata,
@@ -622,25 +621,6 @@ def main() -> None:
                     ]
                     fp.write(",".join(values) + "\n")
             print(f"[Rank 0] Saved challenge FPR table to {challenge_csv}")
-
-            fpr_rows_weighted = compute_challenge_fpr_table_weighted(
-                all_targets,
-                all_means,
-                all_log_vars,
-                thresholds=challenge_thresholds,
-                prob_threshold=CHALLENGE_PROB_TAU,
-                bins=CHALLENGE_BINS,
-            )
-            challenge_csv_weighted = output_dir / "challenge_fpr_bins_weighted_ddp.csv"
-            with challenge_csv_weighted.open("w", encoding="utf-8") as fp:
-                header = ["threshold"] + [label for label, _, _ in CHALLENGE_BINS] + ["total"]
-                fp.write(",".join(header) + "\n")
-                for row in fpr_rows_weighted:
-                    values = [f"{row['threshold']:.1f}"] + [
-                        f"{row[label]:.6f}" for label, _, _ in CHALLENGE_BINS
-                    ] + [f"{row['total']:.6f}"]
-                    fp.write(",".join(values) + "\n")
-            print(f"[Rank 0] Saved weighted challenge FPR table to {challenge_csv_weighted}")
         else:
             print("[Rank 0] Best checkpoint not found; skipped challenge-threshold table.")
         print("Distributed training complete. Best model saved based on validation improvement.")

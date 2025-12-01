@@ -326,7 +326,7 @@ def compute_challenge_fpr_table(
     Compute FPR per bin for minors using adult probabilities versus an age challenge threshold.
 
     Returns one row per threshold with keys: threshold, <bin labels...>, total.
-    Total is the unweighted mean of per-bin FPRs (bins without samples contribute 0).
+    Total is the simple sum of per-bin FPRs (bins without samples contribute 0).
     """
     targets_arr = np.asarray(targets, dtype=float)
     preds_arr = np.asarray(pred_means, dtype=float)
@@ -346,45 +346,7 @@ def compute_challenge_fpr_table(
             row[label] = fpr
             bin_fprs.append(fpr)
 
-        row["total"] = float(np.mean(bin_fprs)) if bin_fprs else 0.0
-        rows.append(row)
-    return rows
-
-
-def compute_challenge_fpr_table_weighted(
-    targets,
-    pred_means,
-    pred_log_vars,
-    *,
-    thresholds: Iterable[float],
-    prob_threshold: float = CHALLENGE_PROB_TAU,
-    bins: Iterable[tuple[str, float, float]] = CHALLENGE_BINS,
-) -> list[dict]:
-    """
-    Compute FPR per bin and overall (count-weighted) FPR across all bins.
-    total_weighted = sum(fp_bin) / sum(count_bin).
-    """
-    targets_arr = np.asarray(targets, dtype=float)
-    preds_arr = np.asarray(pred_means, dtype=float)
-    log_vars_arr = np.asarray(pred_log_vars, dtype=float)
-    rows: list[dict] = []
-    for thr in thresholds:
-        adult_prob = compute_adult_probabilities(preds_arr, log_vars_arr, age_threshold=thr)
-        allow_mask = adult_prob >= prob_threshold
-
-        row: dict[str, float] = {"threshold": float(thr)}
-        total_fp = 0
-        total_count = 0
-        for label, lower, upper in bins:
-            bin_mask = (targets_arr >= lower) & (targets_arr <= upper)
-            bin_total = int(bin_mask.sum())
-            fp = int(np.logical_and(allow_mask, bin_mask).sum())
-            fpr = _safe_rate(fp, bin_total)
-            row[label] = fpr
-            total_fp += fp
-            total_count += bin_total
-
-        row["total"] = _safe_rate(total_fp, total_count)
+        row["total"] = float(np.sum(bin_fprs)) if bin_fprs else 0.0
         rows.append(row)
     return rows
 
@@ -860,26 +822,6 @@ def main() -> None:
                 ]
                 fp.write(",".join(values) + "\n")
         print(f"Saved challenge FPR table to {challenge_csv}")
-
-        # Weighted (actual) FPR across all bins
-        fpr_rows_weighted = compute_challenge_fpr_table_weighted(
-            all_targets,
-            all_means,
-            all_log_vars,
-            thresholds=challenge_thresholds,
-            prob_threshold=CHALLENGE_PROB_TAU,
-            bins=CHALLENGE_BINS,
-        )
-        challenge_csv_weighted = output_dir / "challenge_fpr_bins_weighted.csv"
-        with challenge_csv_weighted.open("w", encoding="utf-8") as fp:
-            header = ["threshold"] + [label for label, _, _ in CHALLENGE_BINS] + ["total"]
-            fp.write(",".join(header) + "\n")
-            for row in fpr_rows_weighted:
-                values = [f"{row['threshold']:.1f}"] + [
-                    f"{row[label]:.6f}" for label, _, _ in CHALLENGE_BINS
-                ] + [f"{row['total']:.6f}"]
-                fp.write(",".join(values) + "\n")
-        print(f"Saved weighted challenge FPR table to {challenge_csv_weighted}")
     else:
         print("Best model checkpoint not found; skipped challenge-threshold table.")
 

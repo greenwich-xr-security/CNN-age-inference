@@ -12,12 +12,19 @@ EFFICIENTNET_IMG_SIZES = {
     "b5": 456,
     "b6": 528,
     "b7": 600,
+    "v2_s": 384,
+    "v2_m": 480,
+    "v2_l": 480,
 }
 
 
 def get_default_efficientnet_weights(variant: str):
     """Resolve the torchvision weights enum for the requested EfficientNet variant."""
-    weights_enum_name = f"EfficientNet_{variant.upper()}_Weights"
+    # EfficientNet V1 variants are b0..b7, V2 variants are v2_s/m/l
+    if variant.startswith("v2_"):
+        weights_enum_name = f"EfficientNet_V2_{variant.split('_')[1].upper()}_Weights"
+    else:
+        weights_enum_name = f"EfficientNet_{variant.upper()}_Weights"
     weights_enum = getattr(models, weights_enum_name, None)
     if weights_enum is None:
         return None
@@ -39,7 +46,10 @@ class EfficientNetAgeRegressor(nn.Module):
         if variant not in EFFICIENTNET_IMG_SIZES:
             raise ValueError(f"Unsupported EfficientNet variant '{variant}'.")
 
-        model_name = f"efficientnet_{variant}"
+        if variant.startswith("v2_"):
+            model_name = f"efficientnet_{variant}"
+        else:
+            model_name = f"efficientnet_{variant}"
         if not hasattr(models, model_name):
             raise ValueError(f"torchvision.models does not provide '{model_name}'.")
 

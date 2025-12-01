@@ -12,7 +12,7 @@ set -euo pipefail
 module load www-proxy    # Load www-proxy for internet access (seemed required)
 module load CUDA         # Load CUDA module
 
-MODELS="${MODELS:-${MODEL:-b0 b1 b2 b3 b4 b5 b6}}" # choices: b0-b7, convnext_{tiny,small,base,large,xlarge}, or aliases cnt,cns,cnb,cnl,cnx
+MODELS="${MODELS:-${MODEL:-b0 b1 b2 b3 b4 b5 b6}}" # choices: b0-b7, v2_{s,m,l}, convnext_{tiny,small,base,large,xlarge}, aliases: cnt,cns,cnb,cnl,cnx
 BATCH_SIZE="${BATCH_SIZE:-32}"
 SEED="${SEED:-42}"
 LOSS_WEIGHT_NLL="${LOSS_WEIGHT_NLL:-0.9}"

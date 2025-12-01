@@ -28,6 +28,19 @@ DEFAULT_MODEL_VARIANT = "b7"
 DEFAULT_SEED = 42
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 DEFAULT_PATIENCE = 20
+AGE_BINS = [
+    ("10-12", 10, 12),
+    ("13-15", 13, 15),
+    ("15-17", 15, 17),
+    ("18-20", 18, 20),
+    ("21-23", 21, 23),
+    ("24-26", 24, 26),
+    ("27-29", 27, 29),
+    ("30-39", 30, 39),
+    ("40-49", 40, 49),
+    ("50-59", 50, 59),
+    ("60+", 60, None),
+]
 
 def set_random_seed(seed: int) -> None:
     random.seed(seed)
@@ -45,14 +58,33 @@ def filter_metadata(df: pd.DataFrame) -> pd.DataFrame:
     return df.reset_index(drop=True)
 
 
+def _map_age_to_bin(age: float) -> str:
+    """Map an age to one of the predefined bin labels, preferring the first matching bin."""
+    for label, lower, upper in AGE_BINS:
+        if upper is None:
+            if age >= lower:
+                return label
+        elif lower <= age <= upper:
+            return label
+    # Fallback to youngest bin if age is below the first lower bound
+    return AGE_BINS[0][0]
+
+
 def stratified_user_split(
     metadata: pd.DataFrame,
     *,
     test_size: float,
     random_state: int,
+    stratification: str = "minorAdults",
     adult_threshold: float = 18.0,
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Split unique users while preserving the adult/minor ratio when possible."""
+    """
+    Split unique users while preserving the requested stratification when possible.
+
+    stratification:
+        - "minorAdults": binary adult/minor split using adult_threshold.
+        - "bins": multi-class split using AGE_BINS.
+    """
     if "user_id" not in metadata.columns or "age" not in metadata.columns:
         raise ValueError("metadata must include 'user_id' and 'age' columns for stratification.")
 
@@ -65,7 +97,12 @@ def stratified_user_split(
     if per_user.empty:
         raise ValueError("No user records available after filtering; cannot split dataset.")
 
-    labels = (per_user["mean_age"].to_numpy() >= adult_threshold).astype(int)
+    if stratification == "minorAdults":
+        labels = (per_user["mean_age"].to_numpy() >= adult_threshold).astype(int)
+    elif stratification == "bins":
+        labels = per_user["mean_age"].apply(_map_age_to_bin).to_numpy()
+    else:
+        raise ValueError(f"Unsupported stratification mode: {stratification}")
     user_ids = per_user["user_id"].to_numpy()
 
     stratify = None
@@ -326,6 +363,18 @@ def main() -> None:
         help="Learning rate for AdamW optimizer (default: 3e-4).",
     )
     parser.add_argument(
+        "--stratification",
+        type=str,
+        default="minorAdults",
+        choices=["no", "minorAdults", "bins"],
+        help=(
+            "Dataset split mode: "
+            "no=unstratified per-user random split; "
+            "minorAdults=preserve adult/minor ratio (default); "
+            "bins=preserve multi-bin age ratios."
+        ),
+    )
+    parser.add_argument(
         "--no-stratified-user-split",
         action="store_true",
         help="Disable per-user stratification when splitting the dataset.",
@@ -383,7 +432,8 @@ def main() -> None:
     train_transform, test_transform = build_transforms(img_size)
 
     metadata = filter_metadata(load_combined_metadata(root=active_root))
-    if args.no_stratified_user_split:
+    stratification_mode = "no" if args.no_stratified_user_split else args.stratification
+    if stratification_mode == "no":
         user_ids = metadata["user_id"].unique()
         train_ids, test_ids = train_test_split(user_ids, test_size=0.2, random_state=args.seed)
     else:
@@ -391,6 +441,7 @@ def main() -> None:
             metadata,
             test_size=0.2,
             random_state=args.seed,
+            stratification=stratification_mode,
         )
     train_meta = metadata[metadata["user_id"].isin(train_ids)]
     test_meta = metadata[metadata["user_id"].isin(test_ids)]
@@ -407,11 +458,11 @@ def main() -> None:
         f"Loss weights -> NLL: {loss_weights.nll:.3f}, "
         f"MSE: {loss_weights.mse:.3f}, MAE: {loss_weights.mae:.3f}"
     )
-    split_desc = (
-        "Unstratified per-user split (random)."
-        if args.no_stratified_user_split
-        else "Stratified per-user split (adult/minor aware)."
-    )
+    split_desc = {
+        "no": "Unstratified per-user split (random).",
+        "minorAdults": "Stratified per-user split (adult/minor aware).",
+        "bins": "Stratified per-user split (multi-bin age labels).",
+    }.get(stratification_mode, f"Split mode: {stratification_mode}")
     print(f"Split mode: {split_desc}")
 
     train_ds = AgeDataset(train_meta, transform=train_transform)

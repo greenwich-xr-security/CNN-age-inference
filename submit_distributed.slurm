@@ -41,9 +41,10 @@ LOSS_WEIGHT_MSE="${LOSS_WEIGHT_MSE:-0.25}"
 LOSS_WEIGHT_MAE="${LOSS_WEIGHT_MAE:-0.25}"
 PATIENCE="${PATIENCE:-20}"
 MODELS="${MODELS:-${MODEL:-b0 b1 b2 b3 b4 b5 b6}}"
+STRATIFICATION="${STRATIFICATION:-minorAdults}"  # choices: no, minorAdults, bins
 
 for MODEL_NAME in ${MODELS}; do
-  FOLDER_NAME="${MODEL_NAME}_bs${BATCH_SIZE}_seed${SEED}_nll${LOSS_WEIGHT_NLL}_mse${LOSS_WEIGHT_MSE}_mae${LOSS_WEIGHT_MAE}"
+  FOLDER_NAME="${MODEL_NAME}_bs${BATCH_SIZE}_seed${SEED}_nll${LOSS_WEIGHT_NLL}_mse${LOSS_WEIGHT_MSE}_mae${LOSS_WEIGHT_MAE}_strat${STRATIFICATION}"
   RUN_OUT="${OUTPUT_ROOT}/${FOLDER_NAME}"
 
   echo ">>> Starting distributed age inference training for ${MODEL_NAME} (output: ${RUN_OUT})"
@@ -62,7 +63,7 @@ for MODEL_NAME in ${MODELS}; do
     --num-workers 8 \
     --seed "${SEED}" \
     --patience "${PATIENCE}" \
-    --no-stratified-user-split \
+    --stratification "${STRATIFICATION}" \
     --loss-weight-nll "${LOSS_WEIGHT_NLL}" \
     --loss-weight-mse "${LOSS_WEIGHT_MSE}" \
     --loss-weight-mae "${LOSS_WEIGHT_MAE}" \

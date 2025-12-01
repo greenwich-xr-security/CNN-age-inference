@@ -47,6 +47,18 @@ def parse_args() -> argparse.Namespace:
         help="Disable per-user stratification when splitting the dataset.",
     )
     parser.add_argument(
+        "--stratification",
+        type=str,
+        default="minorAdults",
+        choices=["no", "minorAdults", "bins"],
+        help=(
+            "Dataset split mode: "
+            "no=unstratified per-user random split; "
+            "minorAdults=preserve adult/minor ratio (default); "
+            "bins=preserve multi-bin age ratios."
+        ),
+    )
+    parser.add_argument(
         "--output-dir",
         type=str,
         default=".",
@@ -170,7 +182,8 @@ def build_datasets(args: argparse.Namespace, seed: int):
     train_transform, test_transform = build_transforms(EFFICIENTNET_IMG_SIZES[args.model])
 
     metadata = filter_metadata(load_combined_metadata(root=active_root))
-    if args.no_stratified_user_split:
+    stratification_mode = "no" if args.no_stratified_user_split else args.stratification
+    if stratification_mode == "no":
         user_ids = metadata["user_id"].unique()
         train_ids, val_ids = train_test_split(user_ids, test_size=0.2, random_state=seed)
     else:
@@ -178,6 +191,7 @@ def build_datasets(args: argparse.Namespace, seed: int):
             metadata,
             test_size=0.2,
             random_state=seed,
+            stratification=stratification_mode,
         )
     train_meta = metadata[metadata["user_id"].isin(train_ids)]
     val_meta = metadata[metadata["user_id"].isin(val_ids)]

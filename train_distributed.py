@@ -21,6 +21,7 @@ from train_age import (
     compute_age_gate_curves,
     compute_challenge_fpr_table,
     CHALLENGE_PROB_TAU,
+    CHALLENGE_BINS,
     filter_metadata,
     stratified_user_split,
     set_random_seed,
@@ -617,6 +618,55 @@ def main() -> None:
         )
         if saved_hist:
             print(f"[Rank 0] Saved per-user age histograms to {saved_hist}")
+
+        # Final challenge-threshold table using best checkpoint on rank 0
+        if best_model_path.exists():
+            print("[Rank 0] Computing challenge-threshold FPR table on val set using best model...")
+            eval_model = EfficientNetAgeRegressor(model_variant)
+            state = torch.load(best_model_path, map_location=device)
+            eval_model.load_state_dict(state)
+            eval_model = eval_model.to(device)
+            eval_model.eval()
+
+            eval_loader = DataLoader(
+                val_dataset,
+                batch_size=args.batch_size,
+                shuffle=False,
+                num_workers=0,
+            )
+            all_targets: list[float] = []
+            all_means: list[float] = []
+            all_log_vars: list[float] = []
+            with torch.no_grad():
+                for images, ages in eval_loader:
+                    images = images.to(device)
+                    ages = ages.to(device)
+                    mean, log_var = eval_model(images)
+                    all_targets.extend(ages.cpu().tolist())
+                    all_means.extend(mean.cpu().tolist())
+                    all_log_vars.extend(log_var.cpu().tolist())
+
+            challenge_thresholds = np.arange(20, 30, 1, dtype=float)  # 10 rows: 20..29
+            fpr_rows = compute_challenge_fpr_table(
+                all_targets,
+                all_means,
+                all_log_vars,
+                thresholds=challenge_thresholds,
+                prob_threshold=CHALLENGE_PROB_TAU,
+                bins=CHALLENGE_BINS,
+            )
+            challenge_csv = output_dir / "challenge_fpr_bins_ddp.csv"
+            with challenge_csv.open("w", encoding="utf-8") as fp:
+                header = ["threshold"] + [label for label, _, _ in CHALLENGE_BINS] + ["total"]
+                fp.write(",".join(header) + "\n")
+                for row in fpr_rows:
+                    values = [f"{row['threshold']:.1f}"] + [f"{row[label]:.6f}" for label, _, _ in CHALLENGE_BINS] + [
+                        f"{row['total']:.6f}"
+                    ]
+                    fp.write(",".join(values) + "\n")
+            print(f"[Rank 0] Saved challenge FPR table to {challenge_csv}")
+        else:
+            print("[Rank 0] Best checkpoint not found; skipped challenge-threshold table.")
         print("Distributed training complete. Best model saved based on validation improvement.")
     dist.destroy_process_group()
 

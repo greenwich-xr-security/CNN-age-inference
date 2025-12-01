@@ -30,6 +30,12 @@ DEFAULT_SEED = 42
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 DEFAULT_PATIENCE = 20
 CHALLENGE_PROB_TAU = 0.5  # Probability threshold to auto-allow without document
+CHALLENGE_BINS = [
+    ("10-12", 10.0, 12.0),
+    ("13-15", 13.0, 15.0),
+    ("16-17", 16.0, 17.0),
+]
+CHALLENGE_PROB_TAU = 0.5  # Probability threshold to auto-allow without document
 AGE_BINS = [
     ("10-12", 10, 12),
     ("13-15", 13, 15),
@@ -302,34 +308,35 @@ def compute_challenge_fpr_table(
     *,
     thresholds: Iterable[float],
     prob_threshold: float = CHALLENGE_PROB_TAU,
-    minor_min: float = 14.0,
-    minor_max: float = 17.0,
-) -> tuple[list[dict], int]:
+    bins: Iterable[tuple[str, float, float]] = CHALLENGE_BINS,
+) -> list[dict]:
     """
-    Compute FPR for minors (14-17) passing as adults when adult probability
-    exceeds prob_threshold at each age challenge threshold.
+    Compute FPR per bin for minors using adult probabilities versus an age challenge threshold.
+
+    Returns one row per threshold with keys: threshold, <bin labels...>, total.
+    Total is the unweighted mean of per-bin FPRs (bins without samples contribute 0).
     """
     targets_arr = np.asarray(targets, dtype=float)
     preds_arr = np.asarray(pred_means, dtype=float)
     log_vars_arr = np.asarray(pred_log_vars, dtype=float)
-    minor_mask = (targets_arr >= minor_min) & (targets_arr <= minor_max)
-    minor_total = int(minor_mask.sum())
     rows: list[dict] = []
     for thr in thresholds:
         adult_prob = compute_adult_probabilities(preds_arr, log_vars_arr, age_threshold=thr)
         allow_mask = adult_prob >= prob_threshold
-        fp = int(np.logical_and(allow_mask, minor_mask).sum())
-        fpr = _safe_rate(fp, minor_total)
-        rows.append(
-            {
-                "threshold": float(thr),
-                "prob_threshold": float(prob_threshold),
-                "false_positive_rate": fpr,
-                "false_positives": fp,
-                "minor_total": minor_total,
-            }
-        )
-    return rows, minor_total
+
+        row: dict[str, float] = {"threshold": float(thr)}
+        bin_fprs = []
+        for label, lower, upper in bins:
+            bin_mask = (targets_arr >= lower) & (targets_arr <= upper)
+            bin_total = int(bin_mask.sum())
+            fp = int(np.logical_and(allow_mask, bin_mask).sum())
+            fpr = _safe_rate(fp, bin_total)
+            row[label] = fpr
+            bin_fprs.append(fpr)
+
+        row["total"] = float(np.mean(bin_fprs)) if bin_fprs else 0.0
+        rows.append(row)
+    return rows
 
 
 def build_transforms(img_size: int):
@@ -705,34 +712,6 @@ def main() -> None:
             if mae_plot:
                 print(f"Saved eval MAE-by-bin plot to {mae_plot.name}")
 
-            # Case 1 table: challenge thresholds to reduce FP on 14-17-year-olds
-            challenge_thresholds = np.arange(20, 31, 1, dtype=float)
-            fpr_rows, minor_total = compute_challenge_fpr_table(
-                val_targets,
-                val_predictions,
-                val_log_vars,
-                thresholds=challenge_thresholds,
-                prob_threshold=CHALLENGE_PROB_TAU,
-            )
-            challenge_csv = output_dir / f"challenge_fpr_14_17_epoch{epoch}.csv"
-            with challenge_csv.open("w", encoding="utf-8") as fp:
-                fp.write("threshold,prob_threshold,false_positive_rate,false_positives,minor_total\n")
-                for row in fpr_rows:
-                    fp.write(
-                        f"{row['threshold']:.1f},{row['prob_threshold']:.3f},{row['false_positive_rate']:.6f},{row['false_positives']},{row['minor_total']}\n"
-                    )
-            if minor_total > 0:
-                sample_line = ", ".join(
-                    f"{row['threshold']:.0f}->{row['false_positive_rate']:.3f}"
-                    for row in fpr_rows[:3]
-                )
-                print(
-                    f"Saved 14-17 FP table to {challenge_csv.name} (minors={minor_total}, tau={CHALLENGE_PROB_TAU:.2f}). "
-                    f"Sample FPRs: {sample_line}"
-                )
-            else:
-                print(f"No 14-17-year-olds in eval set; wrote empty FPR table to {challenge_csv.name}.")
-
             if improvement == float("inf") or improvement >= min_delta:
                 epochs_without_improvement = 0
             else:
@@ -771,6 +750,49 @@ def main() -> None:
     )
     if saved_hist:
         print(f"Saved per-user age histograms to {saved_hist}")
+
+    # Final challenge-threshold table (single evaluation pass using best model)
+    if best_model_path.exists():
+        print("Computing challenge-threshold FPR table on test set using best model...")
+        eval_model = EfficientNetAgeRegressor(model_variant)
+        state = torch.load(best_model_path, map_location=DEVICE)
+        eval_model.load_state_dict(state)
+        eval_model = eval_model.to(DEVICE)
+        eval_model.eval()
+
+        all_targets: list[float] = []
+        all_means: list[float] = []
+        all_log_vars: list[float] = []
+        with torch.no_grad():
+            for images, ages in test_loader:
+                images = images.to(DEVICE)
+                ages = ages.to(DEVICE)
+                mean, log_var = eval_model(images)
+                all_targets.extend(ages.cpu().tolist())
+                all_means.extend(mean.cpu().tolist())
+                all_log_vars.extend(log_var.cpu().tolist())
+
+        challenge_thresholds = np.arange(20, 30, 1, dtype=float)  # 10 rows: 20..29
+        fpr_rows = compute_challenge_fpr_table(
+            all_targets,
+            all_means,
+            all_log_vars,
+            thresholds=challenge_thresholds,
+            prob_threshold=CHALLENGE_PROB_TAU,
+            bins=CHALLENGE_BINS,
+        )
+        challenge_csv = output_dir / "challenge_fpr_bins.csv"
+        with challenge_csv.open("w", encoding="utf-8") as fp:
+            header = ["threshold"] + [label for label, _, _ in CHALLENGE_BINS] + ["total"]
+            fp.write(",".join(header) + "\n")
+            for row in fpr_rows:
+                values = [f"{row['threshold']:.1f}"] + [f"{row[label]:.6f}" for label, _, _ in CHALLENGE_BINS] + [
+                    f"{row['total']:.6f}"
+                ]
+                fp.write(",".join(values) + "\n")
+        print(f"Saved challenge FPR table to {challenge_csv}")
+    else:
+        print("Best model checkpoint not found; skipped challenge-threshold table.")
 
     print("Training complete. Best model saved on validation improvement.")
 

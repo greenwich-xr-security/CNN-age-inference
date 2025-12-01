@@ -541,7 +541,7 @@ def main() -> None:
     train_meta = metadata[metadata["user_id"].isin(train_ids)]
     test_meta = metadata[metadata["user_id"].isin(test_ids)]
 
-        print(
+    print(
             f"Using dataset root: {active_root}\n"
             f"Saving artifacts to: {output_dir}\n"
             f"Train users: {train_meta['user_id'].nunique()} | Train images: {len(train_meta)}\n"

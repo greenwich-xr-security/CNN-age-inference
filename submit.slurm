@@ -15,11 +15,11 @@ module load CUDA         # Load CUDA module
 MODELS="${MODELS:-${MODEL:-b0 b1 b2 b3 b4 b5 b6}}" # choices: b0-b7, convnext_{tiny,small,base,large,xlarge}, or aliases cnt,cns,cnb,cnl,cnx
 BATCH_SIZE="${BATCH_SIZE:-32}"
 SEED="${SEED:-42}"
-LOSS_WEIGHT_NLL="${LOSS_WEIGHT_NLL:-0.5}"
-LOSS_WEIGHT_MSE="${LOSS_WEIGHT_MSE:-0.25}"
-LOSS_WEIGHT_MAE="${LOSS_WEIGHT_MAE:-0.25}"
-PATIENCE="${PATIENCE:-20}"
-STRATIFICATION="${STRATIFICATION:-minorAdults}"  # choices: no, minorAdults, bins
+LOSS_WEIGHT_NLL="${LOSS_WEIGHT_NLL:-0.9}"
+LOSS_WEIGHT_MSE="${LOSS_WEIGHT_MSE:-0.05}"
+LOSS_WEIGHT_MAE="${LOSS_WEIGHT_MAE:-0.05}"
+PATIENCE="${PATIENCE:-60}"
+STRATIFICATION="${STRATIFICATION:-no}"  # choices: no, minorAdults, bins
 
 for MODEL_NAME in ${MODELS}; do
     FOLDER_NAME="${MODEL_NAME}_bs${BATCH_SIZE}_seed${SEED}_nll${LOSS_WEIGHT_NLL}_mse${LOSS_WEIGHT_MSE}_mae${LOSS_WEIGHT_MAE}_strat${STRATIFICATION}"

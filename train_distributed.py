@@ -545,23 +545,6 @@ def main() -> None:
                 f"metrics CSV ({metrics_csv_path.name}), and predictions dump ({preds_dump_path.name})."
             )
 
-            mae_bins = [
-                ("10-12", 10, 12),
-                ("13-15", 13, 15),
-                ("16-17", 16, 17),
-            ]
-            mae_bin_path = output_dir / f"mae_eval_bins_epoch{epoch}_ddp.png"
-            mae_plot = DisplayUtils.plot_mae_per_bin(
-                targets_all,
-                preds_all,
-                bins=mae_bins,
-                save_path=mae_bin_path,
-                show=False,
-                title="Eval MAE by age bin (DDP)",
-            )
-            if mae_plot:
-                print(f"[Rank 0] Saved eval MAE-by-bin plot to {mae_plot.name}")
-
         if epochs_without_improvement >= patience:
             if is_main:
                 print(

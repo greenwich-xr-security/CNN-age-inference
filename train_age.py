@@ -743,23 +743,6 @@ def main() -> None:
                 f"metrics CSV ({metrics_csv_path.name}), and saved predictions to {preds_dump_path.name}."
             )
 
-            mae_bins = [
-                ("10-12", 10, 12),
-                ("13-15", 13, 15),
-                ("16-17", 16, 17),
-            ]
-            mae_bin_path = output_dir / f"mae_eval_bins_epoch{epoch}.png"
-            mae_plot = DisplayUtils.plot_mae_per_bin(
-                val_targets,
-                val_predictions,
-                bins=mae_bins,
-                save_path=mae_bin_path,
-                show=False,
-                title="Eval MAE by age bin",
-            )
-            if mae_plot:
-                print(f"Saved eval MAE-by-bin plot to {mae_plot.name}")
-
             if improvement == float("inf") or improvement >= min_delta:
                 epochs_without_improvement = 0
             else:

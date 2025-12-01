@@ -36,11 +36,11 @@ export MASTER_ADDR MASTER_PORT
 
 BATCH_SIZE="${BATCH_SIZE:-32}"
 SEED="${SEED:-42}"
-LOSS_WEIGHT_NLL="${LOSS_WEIGHT_NLL:-0.9}"
-LOSS_WEIGHT_MSE="${LOSS_WEIGHT_MSE:-0.05}"
-LOSS_WEIGHT_MAE="${LOSS_WEIGHT_MAE:-0.05}"
-PATIENCE="${PATIENCE:-60}"
-MODELS="${MODELS:-${MODEL:-v2_s}}" # choices: b0-b7, v2_{s,m,l}, convnext_{tiny,small,base,large,xlarge}, aliases: cnt,cns,cnb,cnl,cnx
+LOSS_WEIGHT_NLL="${LOSS_WEIGHT_NLL:-0.5}"
+LOSS_WEIGHT_MSE="${LOSS_WEIGHT_MSE:-0.25}"
+LOSS_WEIGHT_MAE="${LOSS_WEIGHT_MAE:-0.25}"
+PATIENCE="${PATIENCE:-40}"
+MODELS="${MODELS:-${MODEL:-cns v2_s b3}}" # choices: b0-b7, v2_{s,m,l}, convnext_{tiny,small,base,large,xlarge}, aliases: cnt,cns,cnb,cnl,cnx
 STRATIFICATION="${STRATIFICATION:-no}"  # choices: no, minorAdults, bins
 
 for MODEL_NAME in ${MODELS}; do

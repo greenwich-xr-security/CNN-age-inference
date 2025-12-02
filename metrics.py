@@ -16,6 +16,8 @@ CHALLENGE_BINS: Tuple[Tuple[str, float, float], ...] = (
     ("13-15", 13.0, 15.0),
     ("16-17", 16.0, 17.0),
 )
+# Aggregation behaviour: if True, discard per-user remainders smaller than group_size.
+AGGREGATION_DISCARD_REMAINDER = True
 
 
 @dataclass(frozen=True)
@@ -88,7 +90,7 @@ def aggregate_predictions_by_user(
     Aggregate per-sample predictions into random per-user groups of size *group_size*.
 
     - Samples are grouped per user_id, shuffled, then chunked into groups of size *group_size*.
-    - Any remainder per user forms one final (smaller) group so no samples are dropped.
+    - Remainders smaller than group_size are dropped when AGGREGATION_DISCARD_REMAINDER is True.
     - Means and targets are averaged; variances are averaged then converted back to log-variance.
     """
     if group_size <= 0:
@@ -130,7 +132,7 @@ def aggregate_predictions_by_user(
             chunk = samples[cursor : cursor + group_size]
             cursor += group_size
             _append_group(chunk)
-        if remainder:
+        if remainder and not AGGREGATION_DISCARD_REMAINDER:
             chunk = samples[cursor:]
             _append_group(chunk)
 
@@ -270,12 +272,13 @@ def compute_challenge_fpr_table(
     """
     Compute FPR per bin for minors using adult probabilities versus an age challenge threshold.
 
+    FPR per bin = (# of bin samples allowed) / (total samples overall).
     Returns one row per threshold with keys: threshold, <bin labels...>, total.
-    Total is the simple sum of per-bin FPRs (bins without samples contribute 0).
     """
     targets_arr = np.asarray(targets, dtype=float)
     preds_arr = np.asarray(pred_means, dtype=float)
     log_vars_arr = np.asarray(pred_log_vars, dtype=float)
+    overall_total = int(targets_arr.size)
     rows: list[dict] = []
     for thr in thresholds:
         adult_prob = compute_adult_probabilities(preds_arr, log_vars_arr, age_threshold=thr)
@@ -283,14 +286,15 @@ def compute_challenge_fpr_table(
 
         row: dict[str, float] = {"threshold": float(thr)}
         bin_fprs = []
+        total_fp = 0
         for label, lower, upper in bins:
             bin_mask = (targets_arr >= lower) & (targets_arr <= upper)
-            bin_total = int(bin_mask.sum())
             fp = int(np.logical_and(allow_mask, bin_mask).sum())
-            fpr = _safe_rate(fp, bin_total)
+            fpr = _safe_rate(fp, overall_total)
             row[label] = fpr
             bin_fprs.append(fpr)
+            total_fp += fp
 
-        row["total"] = float(np.sum(bin_fprs)) if bin_fprs else 0.0
+        row["total"] = _safe_rate(total_fp, overall_total) if bin_fprs else 0.0
         rows.append(row)
     return rows

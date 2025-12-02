@@ -32,7 +32,7 @@ from train_age import set_random_seed
 DEFAULT_BATCH_SIZE = 32
 DEFAULT_EPOCHS = 40
 DEFAULT_LR = 3e-4
-DEFAULT_MODEL_VARIANT = "b7"
+DEFAULT_MODEL_VARIANT = "b0"
 DEFAULT_SEED = 42
 DEFAULT_MIN_DELTA = 0.001
 DEFAULT_PATIENCE = 20
@@ -368,7 +368,6 @@ def main() -> None:
     patience = max(1, int(args.patience))
     epochs_without_improvement = 0
     history_entries = [] if is_main else None
-    best_scatter = None
 
     for epoch in range(1, args.epochs + 1):
         train_sampler.set_epoch(epoch)
@@ -488,27 +487,12 @@ def main() -> None:
         else:
             epochs_without_improvement += 1
 
-        if save_best:
-            targets_all = gather_all_lists(val_targets, world_size)
-            preds_all = gather_all_lists(val_predictions, world_size)
-            log_vars_all = gather_all_lists(val_log_vars, world_size)
-            user_ids_all = gather_all_lists(val_user_ids, world_size)
-        else:
-            targets_all = preds_all = log_vars_all = user_ids_all = None
+        targets_all = gather_all_lists(val_targets, world_size)
+        preds_all = gather_all_lists(val_predictions, world_size)
+        log_vars_all = gather_all_lists(val_log_vars, world_size)
+        user_ids_all = gather_all_lists(val_user_ids, world_size)
 
-        if save_best and is_main:
-            model_to_save = ddp_model.module
-            torch.save(model_to_save.state_dict(), best_model_path)
-
-            best_scatter = {
-                "targets": list(targets_all),
-                "predictions": list(preds_all),
-                "log_vars": list(log_vars_all),
-                "user_ids": list(user_ids_all),
-                "epoch": epoch,
-            }
-            print(f"[Rank 0] Saved best model to {best_model_path} (val_loss={val_loss:.4f})")
-
+        if is_main:
             targets_arr = np.asarray(targets_all, dtype=float)
             preds_arr = np.asarray(preds_all, dtype=float)
             log_vars_arr = np.asarray(log_vars_all, dtype=float)
@@ -534,7 +518,7 @@ def main() -> None:
                     num_thresholds=201,
                 )
 
-                preds_dump_path = output_dir / f"best_val_predictions_{suffix}.npz"
+                preds_dump_path = output_dir / f"val_predictions_{suffix}.npz"
                 np.savez(
                     preds_dump_path,
                     targets=aggregated["targets"],
@@ -545,8 +529,27 @@ def main() -> None:
                     group_size=group_size,
                 )
 
-                roc_case1_path = output_dir / f"roc_case1_adult_gate_epoch{epoch}_{suffix}.png"
-                roc_case2_path = output_dir / f"roc_case2_child_gate_epoch{epoch}_{suffix}.png"
+                challenge_thresholds = np.arange(20, 30, 1, dtype=float)  # 10 rows: 20..29
+                fpr_rows = compute_challenge_fpr_table(
+                    aggregated["targets"],
+                    aggregated["pred_mean"],
+                    aggregated["pred_log_var"],
+                    thresholds=challenge_thresholds,
+                    prob_threshold=CHALLENGE_PROB_TAU,
+                    bins=CHALLENGE_BINS,
+                )
+                challenge_csv = output_dir / f"challenge_fpr_bins_{suffix}.csv"
+                with challenge_csv.open("w", encoding="utf-8") as fp:
+                    header = ["threshold"] + [label for label, _, _ in CHALLENGE_BINS] + ["total"]
+                    fp.write(",".join(header) + "\n")
+                    for row in fpr_rows:
+                        values = [f"{row['threshold']:.1f}"] + [
+                            f"{row[label]:.6f}" for label, _, _ in CHALLENGE_BINS
+                        ] + [f"{row['total']:.6f}"]
+                        fp.write(",".join(values) + "\n")
+
+                roc_case1_path = output_dir / f"roc_case1_adult_gate_{suffix}.png"
+                roc_case2_path = output_dir / f"roc_case2_child_gate_{suffix}.png"
                 DisplayUtils.plot_roc_curve(
                     gate_results["case1"]["fpr"],
                     gate_results["case1"]["tpr"],
@@ -583,11 +586,31 @@ def main() -> None:
                             metrics_fp.write(
                                 f"{case_name},{tau:.4f},{fpr:.6f},{fnr:.6f},{tpr_val:.6f},{tnr:.6f}\n"
                             )
-                saved_artifacts.append(
-                    f"n={group_size} -> {roc_case1_path.name}, {roc_case2_path.name}, {metrics_csv_path.name}, {preds_dump_path.name}"
-                )
 
-            print("[Rank 0] Updated ROC/metrics artifacts for: " + "; ".join(saved_artifacts))
+                scatter_path = output_dir / f"age_val_scatter_{suffix}.png"
+                if DisplayUtils.save_regression_scatter(
+                    aggregated["targets"],
+                    aggregated["pred_mean"],
+                    save_path=scatter_path,
+                    title=f"Validation Age Predictions (epoch {epoch}, n={group_size}, DDP)",
+                    axis_limits=(0.0, 70.0),
+                    point_size=20,
+                    alpha=0.6,
+                ):
+                    saved_artifacts.append(
+                        f"n={group_size} -> {roc_case1_path.name}, {roc_case2_path.name}, {metrics_csv_path.name}, {preds_dump_path.name}, {challenge_csv.name}, {scatter_path.name}"
+                    )
+                else:
+                    saved_artifacts.append(
+                        f"n={group_size} -> {roc_case1_path.name}, {roc_case2_path.name}, {metrics_csv_path.name}, {preds_dump_path.name}, {challenge_csv.name}"
+                    )
+
+            print("[Rank 0] Saved/updated eval artifacts for: " + "; ".join(saved_artifacts))
+
+        if save_best and is_main:
+            model_to_save = ddp_model.module
+            torch.save(model_to_save.state_dict(), best_model_path)
+            print(f"[Rank 0] Saved best model to {best_model_path} (val_loss={val_loss:.4f})")
 
         if epochs_without_improvement >= patience:
             if is_main:
@@ -606,31 +629,6 @@ def main() -> None:
             break
 
     if is_main:
-        if best_scatter is not None:
-            for group_size in eval_group_sizes:
-                agg_rng = random.Random(eval_agg_seed + group_size)
-                aggregated = aggregate_predictions_by_user(
-                    best_scatter["user_ids"],
-                    best_scatter["targets"],
-                    best_scatter["predictions"],
-                    best_scatter["log_vars"],
-                    group_size=group_size,
-                    rng=agg_rng,
-                )
-                scatter_path = output_dir / f"age_val_scatter_best_ddp_n{group_size}.png"
-                if DisplayUtils.save_regression_scatter(
-                    aggregated["targets"],
-                    aggregated["pred_mean"],
-                    save_path=scatter_path,
-                    title=(
-                        f"Best Validation Age Predictions (epoch {best_scatter['epoch']}, n={group_size}, DDP)"
-                    ),
-                    axis_limits=(0.0, 70.0),
-                    point_size=20,
-                    alpha=0.6,
-                ):
-                    print(f"[Rank 0] Saved best validation scatter plot to {scatter_path}")
-
         train_user_ages = train_dataset.records.groupby("user_id")["age"].mean().to_numpy()
         val_user_ages = val_dataset.records.groupby("user_id")["age"].mean().to_numpy()
         hist_path = output_dir / "age_distribution_users_ddp.png"

@@ -11,21 +11,21 @@ from torch.utils.data import DataLoader, DistributedSampler
 from sklearn.model_selection import train_test_split
 from tqdm import tqdm
 
+from dataset.age import AgeDataset
+from dataset.hand_metadata import get_dataset_root, load_combined_metadata, set_dataset_root
+from dataset.transforms import build_transforms
+from dataset.utils import filter_metadata, stratified_user_split
 from displayUtils import DisplayUtils
-from hands_dataset import get_dataset_root, load_combined_metadata, set_dataset_root
-from metrics import LossWeights, weighted_regression_loss
-from train_age import (
-    AgeDataset,
-    build_transforms,
+from metrics import (
+    CHALLENGE_BINS,
+    CHALLENGE_PROB_TAU,
+    LossWeights,
     compute_age_gate_curves,
     compute_challenge_fpr_table,
-    CHALLENGE_PROB_TAU,
-    CHALLENGE_BINS,
-    filter_metadata,
-    resolve_model_builder,
-    stratified_user_split,
-    set_random_seed,
+    weighted_regression_loss,
 )
+from models import resolve_model_builder
+from train_age import set_random_seed
 
 DEFAULT_BATCH_SIZE = 32
 DEFAULT_EPOCHS = 40

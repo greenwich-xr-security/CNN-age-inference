@@ -1,31 +1,34 @@
 import argparse
-import math
 import random
 from pathlib import Path
-from typing import Callable, Iterable, Tuple
-
+from typing import Callable, Iterable, Optional
 import numpy as np
 import pandas as pd
 import torch
 import torch.nn as nn
-from PIL import Image, ImageOps
 from sklearn.model_selection import train_test_split
-from torch.utils.data import Dataset, DataLoader
-from torchvision import transforms
+from torch.utils.data import DataLoader
 from tqdm import tqdm
-
-from hands_dataset import get_dataset_root, load_combined_metadata, set_dataset_root
-from displayUtils import DisplayUtils
-from metrics import LossWeights, weighted_regression_loss
-from models import (
-    EFFICIENTNET_IMG_SIZES,
-    EfficientNetAgeRegressor,
-    CONVNEXT_IMG_SIZES,
-    ConvNeXtAgeRegressor,
+from dataset.age import AgeDataset
+from dataset.hand_metadata import (
+    get_dataset_root,
+    load_combined_metadata,
+    set_dataset_root,
 )
+from dataset.transforms import build_transforms
+from dataset.utils import filter_metadata, stratified_user_split
+from displayUtils import DisplayUtils
+from metrics import (
+    CHALLENGE_BINS,
+    CHALLENGE_PROB_TAU,
+    LossWeights,
+    compute_age_gate_curves,
+    compute_challenge_fpr_table,
+    weighted_regression_loss,
+)
+from models import resolve_model_builder
 
 # Example (Windows): python train_age.py --data-root "C:\Users\Staff\OneDrive - University of Greenwich\HandsDatasets" --output-dir runs\b4_efficientnet --model b4 --img-size 380 --batch-size 32 --epochs 40 --seed 42 --lr 0.0003
-
 # --- Config -----------------------------------------------------------------
 DEFAULT_BATCH_SIZE = 32
 DEFAULT_EPOCHS = 40
@@ -34,33 +37,6 @@ DEFAULT_MODEL_VARIANT = "b7"
 DEFAULT_SEED = 42
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 DEFAULT_PATIENCE = 20
-CHALLENGE_PROB_TAU = 0.5  # Probability threshold to auto-allow without document
-CHALLENGE_BINS = [
-    ("10-12", 10.0, 12.0),
-    ("13-15", 13.0, 15.0),
-    ("16-17", 16.0, 17.0),
-]
-MODEL_ALIASES = {
-    "cnt": "convnext_tiny",
-    "cns": "convnext_small",
-    "cnb": "convnext_base",
-    "cnl": "convnext_large",
-    "cnx": "convnext_xlarge",
-}
-CHALLENGE_PROB_TAU = 0.5  # Probability threshold to auto-allow without document
-AGE_BINS = [
-    ("10-12", 10, 12),
-    ("13-15", 13, 15),
-    ("15-17", 15, 17),
-    ("18-20", 18, 20),
-    ("21-23", 21, 23),
-    ("24-26", 24, 26),
-    ("27-29", 27, 29),
-    ("30-39", 30, 39),
-    ("40-49", 40, 49),
-    ("50-59", 50, 59),
-    ("60+", 60, None),
-]
 
 
 def set_random_seed(seed: int) -> None:
@@ -71,342 +47,10 @@ def set_random_seed(seed: int) -> None:
         torch.cuda.manual_seed_all(seed)
 
 
-def filter_metadata(df: pd.DataFrame) -> pd.DataFrame:
-    df = df[df["aspect"].str.contains("dorsal", case=False, na=False)]
-    df = df[df["age"].notna()]
-    df = df.copy()
-    df["age"] = df["age"].astype(float)
-    return df.reset_index(drop=True)
-
-
-def _map_age_to_bin(age: float) -> str:
-    """Map an age to one of the predefined bin labels, preferring the first matching bin."""
-    for label, lower, upper in AGE_BINS:
-        if upper is None:
-            if age >= lower:
-                return label
-        elif lower <= age <= upper:
-            return label
-    # Fallback to youngest bin if age is below the first lower bound
-    return AGE_BINS[0][0]
-
-
-def stratified_user_split(
-    metadata: pd.DataFrame,
-    *,
-    test_size: float,
-    random_state: int,
-    stratification: str = "minorAdults",
-    adult_threshold: float = 18.0,
-) -> tuple[np.ndarray, np.ndarray]:
-    """
-    Split unique users while preserving the requested stratification when possible.
-
-    stratification:
-        - "minorAdults": binary adult/minor split using adult_threshold.
-        - "bins": multi-class split using AGE_BINS.
-    """
-    if "user_id" not in metadata.columns or "age" not in metadata.columns:
-        raise ValueError("metadata must include 'user_id' and 'age' columns for stratification.")
-
-    per_user = (
-        metadata.groupby("user_id")["age"]
-        .mean()
-        .rename("mean_age")
-        .reset_index()
-    )
-    if per_user.empty:
-        raise ValueError("No user records available after filtering; cannot split dataset.")
-
-    if stratification == "minorAdults":
-        labels = (per_user["mean_age"].to_numpy() >= adult_threshold).astype(int)
-    elif stratification == "bins":
-        labels = per_user["mean_age"].apply(_map_age_to_bin).to_numpy()
-    else:
-        raise ValueError(f"Unsupported stratification mode: {stratification}")
-    user_ids = per_user["user_id"].to_numpy()
-
-    stratify = None
-    unique_labels, label_counts = np.unique(labels, return_counts=True)
-    if unique_labels.size > 1:
-        n_test = np.ceil(label_counts * test_size).astype(int)
-        n_train = label_counts - n_test
-        if np.all(n_test >= 1) and np.all(n_train >= 1):
-            stratify = labels
-
-    train_ids, test_ids = train_test_split(
-        user_ids,
-        test_size=test_size,
-        random_state=random_state,
-        stratify=stratify,
-    )
-    return train_ids, test_ids
-
-
-class AgeDataset(Dataset):
-    def __init__(self, records: pd.DataFrame, transform=None):
-        self.records = records.reset_index(drop=True)
-        self.transform = transform
-
-    def __len__(self):
-        return len(self.records)
-
-    def __getitem__(self, idx):
-        row = self.records.iloc[idx]
-        image_path: Path = row["image_path"]
-        age = float(row["age"])
-        image = Image.open(image_path).convert("RGB")
-
-        # Optional: crop to square bbox with padding if available
-        bbox = row.get("bbox")
-        if isinstance(bbox, (list, tuple)) and len(bbox) == 4:
-            try:
-                xmin, ymin, xmax, ymax = [int(v) for v in bbox]
-                if xmax > xmin and ymax > ymin:
-                    w, h = image.size
-                    sq_xmin, sq_ymin, sq_xmax, sq_ymax = DisplayUtils.make_square_bbox(
-                        (xmin, ymin, xmax, ymax)
-                    )
-
-                    # compute required padding to keep crop inside image bounds
-                    pad_left = max(0, -sq_xmin)
-                    pad_top = max(0, -sq_ymin)
-                    pad_right = max(0, sq_xmax - w)
-                    pad_bottom = max(0, sq_ymax - h)
-
-                    if pad_left or pad_top or pad_right or pad_bottom:
-                        image = ImageOps.expand(
-                            image,
-                            border=(pad_left, pad_top, pad_right, pad_bottom),
-                            fill=(0, 0, 0),
-                        )
-                        # shift square bbox into padded image coords
-                        sq_xmin += pad_left
-                        sq_xmax += pad_left
-                        sq_ymin += pad_top
-                        sq_ymax += pad_top
-
-                    # final safety clamp then crop
-                    sq_xmin = max(0, sq_xmin)
-                    sq_ymin = max(0, sq_ymin)
-                    sq_xmax = max(sq_xmin + 1, min(image.size[0], sq_xmax))
-                    sq_ymax = max(sq_ymin + 1, min(image.size[1], sq_ymax))
-                    image = image.crop((sq_xmin, sq_ymin, sq_xmax, sq_ymax))
-            except Exception:
-                # If anything goes wrong with bbox handling, fall back to full image
-                pass
-        if self.transform:
-            image = self.transform(image)
-        return image, torch.tensor(age, dtype=torch.float32)
-
-
-def compute_adult_probabilities(
-    pred_means,
-    pred_log_vars,
-    *,
-    age_threshold: float = 18.0,
-) -> np.ndarray:
-    """Return P(age >= threshold) from predicted Gaussian parameters."""
-    means = torch.as_tensor(pred_means, dtype=torch.float32, device="cpu")
-    log_vars = torch.as_tensor(pred_log_vars, dtype=torch.float32, device="cpu")
-    log_vars = torch.clamp(log_vars, min=-10.0, max=10.0)
-    std = torch.exp(0.5 * log_vars)
-    std = torch.clamp(std, min=1e-3)
-    z = (age_threshold - means) / std
-    cdf = 0.5 * (1.0 + torch.erf(z / math.sqrt(2.0)))
-    adult_prob = torch.clamp(1.0 - cdf, min=0.0, max=1.0)
-    return adult_prob.numpy()
-
-
-def _safe_rate(numerator: float, denominator: float) -> float:
-    if denominator <= 0:
-        return 0.0
-    return float(numerator) / float(denominator)
-
-
-def compute_age_gate_curves(
-    targets,
-    pred_means,
-    pred_log_vars,
-    *,
-    age_threshold: float = 18.0,
-    num_thresholds: int = 101,
-) -> dict:
-    """Compute ROC-style metrics for both policy cases using adult probabilities."""
-    targets_arr = np.asarray(targets, dtype=float)
-    adult_prob = compute_adult_probabilities(pred_means, pred_log_vars, age_threshold=age_threshold)
-    tau_values = np.linspace(0.0, 1.0, num=num_thresholds)
-
-    is_adult = targets_arr >= age_threshold
-    is_minor = ~is_adult
-    adult_total = int(is_adult.sum())
-    minor_total = int(is_minor.sum())
-
-    def build_case(admit_mask, positive_mask, negative_mask):
-        tp = np.logical_and(admit_mask, positive_mask).sum()
-        fp = np.logical_and(admit_mask, negative_mask).sum()
-        fn = np.logical_and(~admit_mask, positive_mask).sum()
-        tn = np.logical_and(~admit_mask, negative_mask).sum()
-        pos_total = positive_mask.sum()
-        neg_total = negative_mask.sum()
-        tpr = _safe_rate(tp, pos_total)
-        fpr = _safe_rate(fp, neg_total)
-        fnr = _safe_rate(fn, pos_total)
-        tnr = _safe_rate(tn, neg_total)
-        return fpr, tpr, fnr, tnr
-
-    case1_fprs = []
-    case1_tprs = []
-    case1_fnrs = []
-    case1_tnrs = []
-    case2_fprs = []
-    case2_tprs = []
-    case2_fnrs = []
-    case2_tnrs = []
-
-    for tau in tau_values:
-        admit_adult = adult_prob >= tau  # Case 1
-        fpr1, tpr1, fnr1, tnr1 = build_case(admit_adult, is_adult, is_minor)
-        case1_fprs.append(fpr1)
-        case1_tprs.append(tpr1)
-        case1_fnrs.append(fnr1)
-        case1_tnrs.append(tnr1)
-
-        admit_minor = adult_prob < tau  # Case 2
-        fpr2, tpr2, fnr2, tnr2 = build_case(admit_minor, is_minor, is_adult)
-        case2_fprs.append(fpr2)
-        case2_tprs.append(tpr2)
-        case2_fnrs.append(fnr2)
-        case2_tnrs.append(tnr2)
-
-    def compute_auc(fprs, tprs):
-        fprs_arr = np.asarray(fprs, dtype=float)
-        tprs_arr = np.asarray(tprs, dtype=float)
-        order = np.argsort(fprs_arr)
-        if fprs_arr.size == 0:
-            return 0.0
-        return float(np.trapz(tprs_arr[order], fprs_arr[order]))
-
-    results = {
-        "adult_prob": adult_prob,
-        "case1": {
-            "fpr": np.asarray(case1_fprs, dtype=float),
-            "tpr": np.asarray(case1_tprs, dtype=float),
-            "fnr": np.asarray(case1_fnrs, dtype=float),
-            "tnr": np.asarray(case1_tnrs, dtype=float),
-            "thresholds": tau_values,
-            "auc": compute_auc(case1_fprs, case1_tprs),
-            "adult_total": adult_total,
-            "minor_total": minor_total,
-        },
-        "case2": {
-            "fpr": np.asarray(case2_fprs, dtype=float),
-            "tpr": np.asarray(case2_tprs, dtype=float),
-            "fnr": np.asarray(case2_fnrs, dtype=float),
-            "tnr": np.asarray(case2_tnrs, dtype=float),
-            "thresholds": tau_values,
-            "auc": compute_auc(case2_fprs, case2_tprs),
-            "adult_total": adult_total,
-            "minor_total": minor_total,
-        },
-    }
-    return results
-
-
-def compute_challenge_fpr_table(
-    targets,
-    pred_means,
-    pred_log_vars,
-    *,
-    thresholds: Iterable[float],
-    prob_threshold: float = CHALLENGE_PROB_TAU,
-    bins: Iterable[tuple[str, float, float]] = CHALLENGE_BINS,
-) -> list[dict]:
-    """
-    Compute FPR per bin for minors using adult probabilities versus an age challenge threshold.
-
-    Returns one row per threshold with keys: threshold, <bin labels...>, total.
-    Total is the simple sum of per-bin FPRs (bins without samples contribute 0).
-    """
-    targets_arr = np.asarray(targets, dtype=float)
-    preds_arr = np.asarray(pred_means, dtype=float)
-    log_vars_arr = np.asarray(pred_log_vars, dtype=float)
-    rows: list[dict] = []
-    for thr in thresholds:
-        adult_prob = compute_adult_probabilities(preds_arr, log_vars_arr, age_threshold=thr)
-        allow_mask = adult_prob >= prob_threshold
-
-        row: dict[str, float] = {"threshold": float(thr)}
-        bin_fprs = []
-        for label, lower, upper in bins:
-            bin_mask = (targets_arr >= lower) & (targets_arr <= upper)
-            bin_total = int(bin_mask.sum())
-            fp = int(np.logical_and(allow_mask, bin_mask).sum())
-            fpr = _safe_rate(fp, bin_total)
-            row[label] = fpr
-            bin_fprs.append(fpr)
-
-        row["total"] = float(np.sum(bin_fprs)) if bin_fprs else 0.0
-        rows.append(row)
-    return rows
-
-
-def resolve_model_builder(model_name: str) -> tuple[Callable[[], nn.Module], int, str, str]:
-    """
-    Resolve a model name (including aliases) to a builder, default image size, display label, and normalized key.
-    """
-    name = model_name.lower()
-    name = MODEL_ALIASES.get(name, name)
-
-    if name in EFFICIENTNET_IMG_SIZES:
-        size = EFFICIENTNET_IMG_SIZES[name]
-        return (
-            lambda: EfficientNetAgeRegressor(name),
-            size,
-            f"EfficientNet-{name.upper()}",
-            name,
-        )
-
-    if name.startswith("convnext_"):
-        variant = name.split("_", 1)[1]
-        if variant not in CONVNEXT_IMG_SIZES:
-            raise ValueError(f"Unsupported ConvNeXt variant '{variant}'.")
-        size = CONVNEXT_IMG_SIZES[variant]
-        return (
-            lambda: ConvNeXtAgeRegressor(variant),
-            size,
-            f"ConvNeXt-{variant}",
-            name,
-        )
-
-    raise ValueError(
-        f"Unsupported model '{model_name}'. "
-        f"Expected one of {sorted(EFFICIENTNET_IMG_SIZES)} or convnext_{{tiny,small,base,large,xlarge}} "
-        f"or aliases {sorted(MODEL_ALIASES)}."
-    )
-
-
-def build_transforms(img_size: int):
-    train_transform = transforms.Compose([
-        transforms.RandomResizedCrop(img_size, scale=(0.7, 1.0)),
-        transforms.RandomRotation(degrees=(-180, 180)),
-        transforms.RandomHorizontalFlip(),
-        transforms.ColorJitter(brightness=0.2, contrast=0.2),
-        transforms.ToTensor(),
-        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-    ])
-
-    test_transform = transforms.Compose([
-        transforms.Resize((img_size, img_size)),
-        transforms.ToTensor(),
-        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-    ])
-
-    return train_transform, test_transform
-
-
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Train EfficientNet hand age regressor.")
+    parser = argparse.ArgumentParser(
+        description="Train EfficientNet hand age regressor."
+    )
     parser.add_argument(
         "--data-root",
         type=str,
@@ -500,37 +144,35 @@ def main() -> None:
         help=f"Early stopping patience in epochs (default: {DEFAULT_PATIENCE}).",
     )
     args = parser.parse_args()
-
     loss_weights = LossWeights(
         nll=args.loss_weight_nll,
         mse=args.loss_weight_mse,
         mae=args.loss_weight_mae,
     )
     loss_weights.validate()
-
     set_random_seed(args.seed)
-    model_builder, default_size, model_desc, model_key = resolve_model_builder(args.model)
+    model_builder, default_size, model_desc, model_key = resolve_model_builder(
+        args.model
+    )
     if args.img_size is not None and args.img_size != default_size:
         print(
             f"[train] Ignoring requested --img-size {args.img_size}; "
             f"{model_desc} uses {default_size}."
         )
     img_size = default_size
-
     if args.data_root:
         set_dataset_root(args.data_root)
     active_root = get_dataset_root()
-
     output_dir = Path(args.output_dir).expanduser()
     output_dir.mkdir(parents=True, exist_ok=True)
-
     train_transform, test_transform = build_transforms(img_size)
-
     metadata = filter_metadata(load_combined_metadata(root=active_root))
     stratification_mode = "no" if args.no_stratified_user_split else args.stratification
     if stratification_mode == "no":
         user_ids = metadata["user_id"].unique()
-        train_ids, test_ids = train_test_split(user_ids, test_size=0.2, random_state=args.seed)
+        train_ids, test_ids = train_test_split(
+            user_ids, test_size=0.2, random_state=args.seed
+        )
     else:
         train_ids, test_ids = stratified_user_split(
             metadata,
@@ -540,15 +182,14 @@ def main() -> None:
         )
     train_meta = metadata[metadata["user_id"].isin(train_ids)]
     test_meta = metadata[metadata["user_id"].isin(test_ids)]
-
     print(
-            f"Using dataset root: {active_root}\n"
-            f"Saving artifacts to: {output_dir}\n"
-            f"Train users: {train_meta['user_id'].nunique()} | Train images: {len(train_meta)}\n"
-            f"Test users:  {test_meta['user_id'].nunique()} | Test images:  {len(test_meta)}\n"
-            f"Model: {model_desc} | Image size: {img_size} | Batch size: {args.batch_size}\n"
-            f"Epochs: {args.epochs} | Learning rate: {args.lr:.2e} | Seed: {args.seed}"
-        )
+        f"Using dataset root: {active_root}\n"
+        f"Saving artifacts to: {output_dir}\n"
+        f"Train users: {train_meta['user_id'].nunique()} | Train images: {len(train_meta)}\n"
+        f"Test users:  {test_meta['user_id'].nunique()} | Test images:  {len(test_meta)}\n"
+        f"Model: {model_desc} | Image size: {img_size} | Batch size: {args.batch_size}\n"
+        f"Epochs: {args.epochs} | Learning rate: {args.lr:.2e} | Seed: {args.seed}"
+    )
     print(
         f"Loss weights -> NLL: {loss_weights.nll:.3f}, "
         f"MSE: {loss_weights.mse:.3f}, MAE: {loss_weights.mae:.3f}"
@@ -559,13 +200,14 @@ def main() -> None:
         "bins": "Stratified per-user split (multi-bin age labels).",
     }.get(stratification_mode, f"Split mode: {stratification_mode}")
     print(f"Split mode: {split_desc}")
-
     train_ds = AgeDataset(train_meta, transform=train_transform)
     test_ds = AgeDataset(test_meta, transform=test_transform)
-
-    train_loader = DataLoader(train_ds, batch_size=args.batch_size, shuffle=True, num_workers=0)
-    test_loader = DataLoader(test_ds, batch_size=args.batch_size, shuffle=False, num_workers=0)
-
+    train_loader = DataLoader(
+        train_ds, batch_size=args.batch_size, shuffle=True, num_workers=0
+    )
+    test_loader = DataLoader(
+        test_ds, batch_size=args.batch_size, shuffle=False, num_workers=0
+    )
     model = model_builder()
     if DEVICE.type == "cuda":
         gpu_count = torch.cuda.device_count()
@@ -574,7 +216,6 @@ def main() -> None:
             model = nn.DataParallel(model)
     model = model.to(DEVICE)
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr)
-
     best_val_loss = float("inf")
     best_model_path = output_dir / f"{model_key}_age_regressor.pth"
     history_log_path = output_dir / "history.log"
@@ -583,7 +224,6 @@ def main() -> None:
     epochs_without_improvement = 0
     history_entries: list[dict] = []
     best_scatter: Optional[dict] = None
-
     for epoch in range(1, args.epochs + 1):
         model.train()
         running_loss = 0.0
@@ -600,17 +240,17 @@ def main() -> None:
             running_loss += loss.item()
             mae = torch.mean(torch.abs(pred_mean - ages)).item()
             mse = torch.mean((pred_mean - ages) ** 2).item()
-            avg_std = torch.mean(torch.exp(0.5 * torch.clamp(pred_log_var.detach(), min=-10.0, max=10.0))).item()
+            avg_std = torch.mean(
+                torch.exp(0.5 * torch.clamp(pred_log_var.detach(), min=-10.0, max=10.0))
+            ).item()
             running_mae += mae
             running_mse += mse
             running_std += avg_std
-
         denom = max(1, len(train_loader))
         train_loss = running_loss / denom
         train_mae = running_mae / denom
         train_mse = running_mse / denom
         train_std = running_std / denom
-
         model.eval()
         val_loss = 0.0
         val_mae = 0.0
@@ -623,21 +263,25 @@ def main() -> None:
             for images, ages in test_loader:
                 images, ages = images.to(DEVICE), ages.to(DEVICE)
                 pred_mean, pred_log_var = model(images)
-                batch_loss = weighted_regression_loss(pred_mean, pred_log_var, ages, loss_weights).item()
+                batch_loss = weighted_regression_loss(
+                    pred_mean, pred_log_var, ages, loss_weights
+                ).item()
                 val_loss += batch_loss
                 val_mae += torch.mean(torch.abs(pred_mean - ages)).item()
                 val_mse += torch.mean((pred_mean - ages) ** 2).item()
-                val_std += torch.mean(torch.exp(0.5 * torch.clamp(pred_log_var.detach(), min=-10.0, max=10.0))).item()
+                val_std += torch.mean(
+                    torch.exp(
+                        0.5 * torch.clamp(pred_log_var.detach(), min=-10.0, max=10.0)
+                    )
+                ).item()
                 val_targets.extend(ages.detach().cpu().tolist())
                 val_predictions.extend(pred_mean.detach().cpu().tolist())
                 val_log_vars.extend(pred_log_var.detach().cpu().tolist())
-
         denom = max(1, len(test_loader))
         val_loss /= denom
         val_mae /= denom
         val_mse /= denom
         val_std /= denom
-
         print(
             f"Epoch {epoch}: "
             f"train_loss={train_loss:.4f}, train_mae={train_mae:.4f}, train_mse={train_mse:.4f}, train_std={train_std:.4f} | "
@@ -657,23 +301,24 @@ def main() -> None:
                 "val_rmse": float(np.sqrt(val_mse)),
             }
         )
-
         # Save the model and evaluation artifacts only if validation loss improves
         if val_loss < best_val_loss:
             improvement = (
-                float("inf") if best_val_loss == float("inf") else best_val_loss - val_loss
+                float("inf")
+                if best_val_loss == float("inf")
+                else best_val_loss - val_loss
             )
             best_val_loss = val_loss
-            model_to_save = model.module if isinstance(model, nn.DataParallel) else model
+            model_to_save = (
+                model.module if isinstance(model, nn.DataParallel) else model
+            )
             torch.save(model_to_save.state_dict(), best_model_path)
-
             best_scatter = {
                 "targets": list(val_targets),
                 "predictions": list(val_predictions),
                 "epoch": epoch,
             }
             print(f"Saved best model to {best_model_path} (val_loss={val_loss:.4f})")
-
             val_targets_arr = np.asarray(val_targets, dtype=float)
             val_means_arr = np.asarray(val_predictions, dtype=float)
             val_log_vars_arr = np.asarray(val_log_vars, dtype=float)
@@ -684,7 +329,6 @@ def main() -> None:
                 age_threshold=18.0,
                 num_thresholds=201,
             )
-
             preds_dump_path = output_dir / "best_val_predictions.npz"
             np.savez(
                 preds_dump_path,
@@ -694,7 +338,6 @@ def main() -> None:
                 adult_prob=gate_results["adult_prob"],
                 epoch=epoch,
             )
-
             roc_case1_path = output_dir / f"roc_case1_adult_gate_epoch{epoch}.png"
             roc_case2_path = output_dir / f"roc_case2_child_gate_epoch{epoch}.png"
             DisplayUtils.plot_roc_curve(
@@ -715,7 +358,6 @@ def main() -> None:
                 auc_value=gate_results["case2"]["auc"],
                 show=False,
             )
-
             metrics_csv_path = output_dir / "age_gate_metrics.csv"
             with metrics_csv_path.open("w", encoding="utf-8") as metrics_fp:
                 metrics_fp.write("case,tau,fpr,fnr,tpr,tnr\n")
@@ -733,19 +375,16 @@ def main() -> None:
                         metrics_fp.write(
                             f"{case_name},{tau:.4f},{fpr:.6f},{fnr:.6f},{tpr_val:.6f},{tnr:.6f}\n"
                         )
-
             print(
                 f"Updated ROC plots ({roc_case1_path.name}, {roc_case2_path.name}), "
                 f"metrics CSV ({metrics_csv_path.name}), and saved predictions to {preds_dump_path.name}."
             )
-
             if improvement == float("inf") or improvement >= min_delta:
                 epochs_without_improvement = 0
             else:
                 epochs_without_improvement += 1
         else:
             epochs_without_improvement += 1
-
         if epochs_without_improvement >= patience:
             early_msg = (
                 f"Early stopping at epoch {epoch}: validation loss did not improve by at least "
@@ -763,7 +402,6 @@ def main() -> None:
             )
             print(f"Saved training history plot to {history_plot_path}")
             break
-
     # Save per-user age distribution histograms for train/test splits
     train_user_ages = train_meta.groupby("user_id")["age"].mean().to_numpy()
     test_user_ages = test_meta.groupby("user_id")["age"].mean().to_numpy()
@@ -777,7 +415,6 @@ def main() -> None:
     )
     if saved_hist:
         print(f"Saved per-user age histograms to {saved_hist}")
-
     # Save a single scatter plot for the best epoch (based on validation loss)
     if best_scatter is not None:
         scatter_path = output_dir / "age_val_scatter_best.png"
@@ -791,7 +428,6 @@ def main() -> None:
             alpha=0.6,
         ):
             print(f"Saved best validation scatter plot to {scatter_path}")
-
     # Final challenge-threshold table (single evaluation pass using best model)
     if best_model_path.exists():
         print("Computing challenge-threshold FPR table on test set using best model...")
@@ -800,7 +436,6 @@ def main() -> None:
         eval_model.load_state_dict(state)
         eval_model = eval_model.to(DEVICE)
         eval_model.eval()
-
         all_targets: list[float] = []
         all_means: list[float] = []
         all_log_vars: list[float] = []
@@ -812,7 +447,6 @@ def main() -> None:
                 all_targets.extend(ages.cpu().tolist())
                 all_means.extend(mean.cpu().tolist())
                 all_log_vars.extend(log_var.cpu().tolist())
-
         challenge_thresholds = np.arange(20, 30, 1, dtype=float)  # 10 rows: 20..29
         fpr_rows = compute_challenge_fpr_table(
             all_targets,
@@ -824,17 +458,20 @@ def main() -> None:
         )
         challenge_csv = output_dir / "challenge_fpr_bins.csv"
         with challenge_csv.open("w", encoding="utf-8") as fp:
-            header = ["threshold"] + [label for label, _, _ in CHALLENGE_BINS] + ["total"]
+            header = (
+                ["threshold"] + [label for label, _, _ in CHALLENGE_BINS] + ["total"]
+            )
             fp.write(",".join(header) + "\n")
             for row in fpr_rows:
-                values = [f"{row['threshold']:.1f}"] + [f"{row[label]:.6f}" for label, _, _ in CHALLENGE_BINS] + [
-                    f"{row['total']:.6f}"
-                ]
+                values = (
+                    [f"{row['threshold']:.1f}"]
+                    + [f"{row[label]:.6f}" for label, _, _ in CHALLENGE_BINS]
+                    + [f"{row['total']:.6f}"]
+                )
                 fp.write(",".join(values) + "\n")
         print(f"Saved challenge FPR table to {challenge_csv}")
     else:
         print("Best model checkpoint not found; skipped challenge-threshold table.")
-
     print("Training complete. Best model saved on validation improvement.")
 
 

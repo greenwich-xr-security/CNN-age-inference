@@ -1,11 +1,20 @@
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
+from typing import Iterable, Tuple
 
+import numpy as np
 import torch
 
 LOG_VAR_MIN = -10.0
 LOG_VAR_MAX = 10.0
+CHALLENGE_PROB_TAU = 0.5  # Probability threshold to auto-allow without document
+CHALLENGE_BINS: Tuple[Tuple[str, float, float], ...] = (
+    ("10-12", 10.0, 12.0),
+    ("13-15", 13.0, 15.0),
+    ("16-17", 16.0, 17.0),
+)
 
 
 @dataclass(frozen=True)
@@ -63,3 +72,158 @@ def weighted_regression_loss(
     if total_loss is None:
         raise ValueError("weighted_regression_loss requires at least one positive weight.")
     return total_loss
+
+
+# ---------------------------------------------------------------------------
+# Evaluation helpers
+
+
+def _safe_rate(numerator: float, denominator: float) -> float:
+    if denominator <= 0:
+        return 0.0
+    return float(numerator) / float(denominator)
+
+
+def compute_adult_probabilities(
+    pred_means,
+    pred_log_vars,
+    *,
+    age_threshold: float = 18.0,
+) -> np.ndarray:
+    """Return P(age >= threshold) from predicted Gaussian parameters."""
+    means = torch.as_tensor(pred_means, dtype=torch.float32, device="cpu")
+    log_vars = torch.as_tensor(pred_log_vars, dtype=torch.float32, device="cpu")
+    log_vars = torch.clamp(log_vars, min=LOG_VAR_MIN, max=LOG_VAR_MAX)
+    std = torch.exp(0.5 * log_vars)
+    std = torch.clamp(std, min=1e-3)
+    z = (age_threshold - means) / std
+    cdf = 0.5 * (1.0 + torch.erf(z / math.sqrt(2.0)))
+    adult_prob = torch.clamp(1.0 - cdf, min=0.0, max=1.0)
+    return adult_prob.numpy()
+
+
+def compute_age_gate_curves(
+    targets,
+    pred_means,
+    pred_log_vars,
+    *,
+    age_threshold: float = 18.0,
+    num_thresholds: int = 101,
+) -> dict:
+    """Compute ROC-style metrics for both policy cases using adult probabilities."""
+    targets_arr = np.asarray(targets, dtype=float)
+    adult_prob = compute_adult_probabilities(pred_means, pred_log_vars, age_threshold=age_threshold)
+    tau_values = np.linspace(0.0, 1.0, num=num_thresholds)
+
+    is_adult = targets_arr >= age_threshold
+    is_minor = ~is_adult
+    adult_total = int(is_adult.sum())
+    minor_total = int(is_minor.sum())
+
+    def build_case(admit_mask, positive_mask, negative_mask):
+        tp = np.logical_and(admit_mask, positive_mask).sum()
+        fp = np.logical_and(admit_mask, negative_mask).sum()
+        fn = np.logical_and(~admit_mask, positive_mask).sum()
+        tn = np.logical_and(~admit_mask, negative_mask).sum()
+        pos_total = positive_mask.sum()
+        neg_total = negative_mask.sum()
+        tpr = _safe_rate(tp, pos_total)
+        fpr = _safe_rate(fp, neg_total)
+        fnr = _safe_rate(fn, pos_total)
+        tnr = _safe_rate(tn, neg_total)
+        return fpr, tpr, fnr, tnr
+
+    case1_fprs = []
+    case1_tprs = []
+    case1_fnrs = []
+    case1_tnrs = []
+    case2_fprs = []
+    case2_tprs = []
+    case2_fnrs = []
+    case2_tnrs = []
+
+    for tau in tau_values:
+        admit_adult = adult_prob >= tau  # Case 1
+        fpr1, tpr1, fnr1, tnr1 = build_case(admit_adult, is_adult, is_minor)
+        case1_fprs.append(fpr1)
+        case1_tprs.append(tpr1)
+        case1_fnrs.append(fnr1)
+        case1_tnrs.append(tnr1)
+
+        admit_minor = adult_prob < tau  # Case 2
+        fpr2, tpr2, fnr2, tnr2 = build_case(admit_minor, is_minor, is_adult)
+        case2_fprs.append(fpr2)
+        case2_tprs.append(tpr2)
+        case2_fnrs.append(fnr2)
+        case2_tnrs.append(tnr2)
+
+    def compute_auc(fprs, tprs):
+        fprs_arr = np.asarray(fprs, dtype=float)
+        tprs_arr = np.asarray(tprs, dtype=float)
+        order = np.argsort(fprs_arr)
+        if fprs_arr.size == 0:
+            return 0.0
+        return float(np.trapz(tprs_arr[order], fprs_arr[order]))
+
+    results = {
+        "adult_prob": adult_prob,
+        "case1": {
+            "fpr": np.asarray(case1_fprs, dtype=float),
+            "tpr": np.asarray(case1_tprs, dtype=float),
+            "fnr": np.asarray(case1_fnrs, dtype=float),
+            "tnr": np.asarray(case1_tnrs, dtype=float),
+            "thresholds": tau_values,
+            "auc": compute_auc(case1_fprs, case1_tprs),
+            "adult_total": adult_total,
+            "minor_total": minor_total,
+        },
+        "case2": {
+            "fpr": np.asarray(case2_fprs, dtype=float),
+            "tpr": np.asarray(case2_tprs, dtype=float),
+            "fnr": np.asarray(case2_fnrs, dtype=float),
+            "tnr": np.asarray(case2_tnrs, dtype=float),
+            "thresholds": tau_values,
+            "auc": compute_auc(case2_fprs, case2_tprs),
+            "adult_total": adult_total,
+            "minor_total": minor_total,
+        },
+    }
+    return results
+
+
+def compute_challenge_fpr_table(
+    targets,
+    pred_means,
+    pred_log_vars,
+    *,
+    thresholds: Iterable[float],
+    prob_threshold: float = CHALLENGE_PROB_TAU,
+    bins: Iterable[tuple[str, float, float]] = CHALLENGE_BINS,
+) -> list[dict]:
+    """
+    Compute FPR per bin for minors using adult probabilities versus an age challenge threshold.
+
+    Returns one row per threshold with keys: threshold, <bin labels...>, total.
+    Total is the simple sum of per-bin FPRs (bins without samples contribute 0).
+    """
+    targets_arr = np.asarray(targets, dtype=float)
+    preds_arr = np.asarray(pred_means, dtype=float)
+    log_vars_arr = np.asarray(pred_log_vars, dtype=float)
+    rows: list[dict] = []
+    for thr in thresholds:
+        adult_prob = compute_adult_probabilities(preds_arr, log_vars_arr, age_threshold=thr)
+        allow_mask = adult_prob >= prob_threshold
+
+        row: dict[str, float] = {"threshold": float(thr)}
+        bin_fprs = []
+        for label, lower, upper in bins:
+            bin_mask = (targets_arr >= lower) & (targets_arr <= upper)
+            bin_total = int(bin_mask.sum())
+            fp = int(np.logical_and(allow_mask, bin_mask).sum())
+            fpr = _safe_rate(fp, bin_total)
+            row[label] = fpr
+            bin_fprs.append(fpr)
+
+        row["total"] = float(np.sum(bin_fprs)) if bin_fprs else 0.0
+        rows.append(row)
+    return rows

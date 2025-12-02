@@ -365,6 +365,23 @@ def main() -> None:
                     age_threshold=18.0,
                     num_thresholds=201,
                 )
+                # Select tau closest to top-left (0,1) for each case
+                def _select_best_tau(fprs_arr, tprs_arr, thresholds_arr):
+                    fprs_np = np.asarray(fprs_arr, dtype=float)
+                    tprs_np = np.asarray(tprs_arr, dtype=float)
+                    thr_np = np.asarray(thresholds_arr, dtype=float)
+                    if fprs_np.size == 0:
+                        return None
+                    idx = int(np.argmin((fprs_np ** 2) + ((1.0 - tprs_np) ** 2)))
+                    return float(thr_np[idx])
+
+                best_tau_case1 = _select_best_tau(
+                    gate_results["case1"]["fpr"], gate_results["case1"]["tpr"], gate_results["case1"]["thresholds"]
+                )
+                best_tau_case2 = _select_best_tau(
+                    gate_results["case2"]["fpr"], gate_results["case2"]["tpr"], gate_results["case2"]["thresholds"]
+                )
+                selected_tau_case1 = best_tau_case1 if best_tau_case1 is not None else CHALLENGE_PROB_TAU
                 suffix = f"n{group_size}"
                 preds_dump_path = output_dir / f"val_predictions_{suffix}.npz"
                 np.savez(
@@ -382,7 +399,7 @@ def main() -> None:
                     aggregated["pred_mean"],
                     aggregated["pred_log_var"],
                     thresholds=challenge_thresholds,
-                    prob_threshold=CHALLENGE_PROB_TAU,
+                    prob_threshold=selected_tau_case1,
                     bins=CHALLENGE_BINS,
                 )
                 challenge_csv = output_dir / f"challenge_fpr_bins_{suffix}.csv"
@@ -399,7 +416,7 @@ def main() -> None:
                     aggregated["pred_mean"],
                     aggregated["pred_log_var"],
                     thresholds=challenge_thresholds,
-                    prob_threshold=CHALLENGE_PROB_TAU,
+                    prob_threshold=selected_tau_case1,
                 )
                 fnr_csv = output_dir / f"challenge_fnr_bins_case1_{suffix}.csv"
                 with fnr_csv.open("w", encoding="utf-8") as fp:
@@ -419,6 +436,7 @@ def main() -> None:
                     save_path=roc_case1_path,
                     title=f"ROC - Adult Content Gate (admit adults, n={group_size})",
                     auc_value=gate_results["case1"]["auc"],
+                    highlight_tau=best_tau_case1,
                     show=False,
                 )
                 DisplayUtils.plot_roc_curve(
@@ -428,6 +446,7 @@ def main() -> None:
                     save_path=roc_case2_path,
                     title=f"ROC - Child Platform Gate (admit minors, n={group_size})",
                     auc_value=gate_results["case2"]["auc"],
+                    highlight_tau=best_tau_case2,
                     show=False,
                 )
                 metrics_csv_path = output_dir / f"age_gate_metrics_{suffix}.csv"
@@ -541,12 +560,33 @@ def main() -> None:
                 group_size=group_size,
                 rng=agg_rng,
             )
+            # Select tau closest to top-left (0,1) on test ROC
+            gate_results = compute_age_gate_curves(
+                aggregated["targets"],
+                aggregated["pred_mean"],
+                aggregated["pred_log_var"],
+                age_threshold=18.0,
+                num_thresholds=201,
+            )
+            def _select_best_tau(fprs_arr, tprs_arr, thresholds_arr):
+                fprs_np = np.asarray(fprs_arr, dtype=float)
+                tprs_np = np.asarray(tprs_arr, dtype=float)
+                thr_np = np.asarray(thresholds_arr, dtype=float)
+                if fprs_np.size == 0:
+                    return None
+                idx = int(np.argmin((fprs_np ** 2) + ((1.0 - tprs_np) ** 2)))
+                return float(thr_np[idx])
+
+            best_tau_case1 = _select_best_tau(
+                gate_results["case1"]["fpr"], gate_results["case1"]["tpr"], gate_results["case1"]["thresholds"]
+            )
+            selected_tau_case1 = best_tau_case1 if best_tau_case1 is not None else CHALLENGE_PROB_TAU
             fpr_rows = compute_challenge_fpr_table(
                 aggregated["targets"],
                 aggregated["pred_mean"],
                 aggregated["pred_log_var"],
                 thresholds=challenge_thresholds,
-                prob_threshold=CHALLENGE_PROB_TAU,
+                prob_threshold=selected_tau_case1,
                 bins=CHALLENGE_BINS,
             )
             challenge_csv = output_dir / f"challenge_fpr_bins_n{group_size}.csv"

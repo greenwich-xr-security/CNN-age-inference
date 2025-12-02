@@ -22,6 +22,7 @@ from metrics import (
     CHALLENGE_BINS,
     CHALLENGE_PROB_TAU,
     LossWeights,
+    aggregate_predictions_by_user,
     compute_age_gate_curves,
     compute_challenge_fpr_table,
     weighted_regression_loss,
@@ -97,6 +98,22 @@ def main() -> None:
         help="Seed for RNGs, ensuring reproducibility (default: 42).",
     )
     parser.add_argument(
+        "--eval-aggregation-sizes",
+        type=int,
+        nargs="+",
+        default=[1],
+        help=(
+            "Group sizes (n) for per-user random aggregation during evaluation outputs. "
+            "Provide one or more values; default is 1 (no aggregation)."
+        ),
+    )
+    parser.add_argument(
+        "--eval-aggregation-seed",
+        type=int,
+        default=None,
+        help="Seed used for random per-user aggregation; defaults to --seed when omitted.",
+    )
+    parser.add_argument(
         "--lr",
         type=float,
         default=DEFAULT_LR,
@@ -150,6 +167,12 @@ def main() -> None:
         mae=args.loss_weight_mae,
     )
     loss_weights.validate()
+    eval_group_sizes = sorted({int(n) for n in args.eval_aggregation_sizes if int(n) > 0})
+    if not eval_group_sizes:
+        raise ValueError("At least one positive --eval-aggregation-sizes value is required.")
+    eval_agg_seed = (
+        args.eval_aggregation_seed if args.eval_aggregation_seed is not None else args.seed
+    )
     set_random_seed(args.seed)
     model_builder, default_size, model_desc, model_key = resolve_model_builder(
         args.model
@@ -194,6 +217,10 @@ def main() -> None:
         f"Loss weights -> NLL: {loss_weights.nll:.3f}, "
         f"MSE: {loss_weights.mse:.3f}, MAE: {loss_weights.mae:.3f}"
     )
+    print(
+        f"Eval aggregation group sizes: {eval_group_sizes} | "
+        f"aggregation seed: {eval_agg_seed}"
+    )
     split_desc = {
         "no": "Unstratified per-user split (random).",
         "minorAdults": "Stratified per-user split (adult/minor aware).",
@@ -230,7 +257,9 @@ def main() -> None:
         running_mae = 0.0
         running_mse = 0.0
         running_std = 0.0
-        for images, ages in tqdm(train_loader, desc=f"Epoch {epoch}/{args.epochs}"):
+        for images, ages, _user_ids in tqdm(
+            train_loader, desc=f"Epoch {epoch}/{args.epochs}"
+        ):
             images, ages = images.to(DEVICE), ages.to(DEVICE)
             optimizer.zero_grad()
             pred_mean, pred_log_var = model(images)
@@ -259,8 +288,9 @@ def main() -> None:
         val_targets = []
         val_predictions = []
         val_log_vars = []
+        val_user_ids = []
         with torch.no_grad():
-            for images, ages in test_loader:
+            for images, ages, batch_user_ids in test_loader:
                 images, ages = images.to(DEVICE), ages.to(DEVICE)
                 pred_mean, pred_log_var = model(images)
                 batch_loss = weighted_regression_loss(
@@ -277,6 +307,7 @@ def main() -> None:
                 val_targets.extend(ages.detach().cpu().tolist())
                 val_predictions.extend(pred_mean.detach().cpu().tolist())
                 val_log_vars.extend(pred_log_var.detach().cpu().tolist())
+                val_user_ids.extend(list(batch_user_ids))
         denom = max(1, len(test_loader))
         val_loss /= denom
         val_mae /= denom
@@ -316,69 +347,85 @@ def main() -> None:
             best_scatter = {
                 "targets": list(val_targets),
                 "predictions": list(val_predictions),
+                "log_vars": list(val_log_vars),
+                "user_ids": list(val_user_ids),
                 "epoch": epoch,
             }
             print(f"Saved best model to {best_model_path} (val_loss={val_loss:.4f})")
             val_targets_arr = np.asarray(val_targets, dtype=float)
             val_means_arr = np.asarray(val_predictions, dtype=float)
             val_log_vars_arr = np.asarray(val_log_vars, dtype=float)
-            gate_results = compute_age_gate_curves(
-                val_targets_arr,
-                val_means_arr,
-                val_log_vars_arr,
-                age_threshold=18.0,
-                num_thresholds=201,
-            )
-            preds_dump_path = output_dir / "best_val_predictions.npz"
-            np.savez(
-                preds_dump_path,
-                targets=val_targets_arr,
-                pred_mean=val_means_arr,
-                pred_log_var=val_log_vars_arr,
-                adult_prob=gate_results["adult_prob"],
-                epoch=epoch,
-            )
-            roc_case1_path = output_dir / f"roc_case1_adult_gate_epoch{epoch}.png"
-            roc_case2_path = output_dir / f"roc_case2_child_gate_epoch{epoch}.png"
-            DisplayUtils.plot_roc_curve(
-                gate_results["case1"]["fpr"],
-                gate_results["case1"]["tpr"],
-                thresholds=gate_results["case1"]["thresholds"],
-                save_path=roc_case1_path,
-                title="ROC - Adult Content Gate (admit adults)",
-                auc_value=gate_results["case1"]["auc"],
-                show=False,
-            )
-            DisplayUtils.plot_roc_curve(
-                gate_results["case2"]["fpr"],
-                gate_results["case2"]["tpr"],
-                thresholds=gate_results["case2"]["thresholds"],
-                save_path=roc_case2_path,
-                title="ROC - Child Platform Gate (admit minors)",
-                auc_value=gate_results["case2"]["auc"],
-                show=False,
-            )
-            metrics_csv_path = output_dir / "age_gate_metrics.csv"
-            with metrics_csv_path.open("w", encoding="utf-8") as metrics_fp:
-                metrics_fp.write("case,tau,fpr,fnr,tpr,tnr\n")
-                for case_name, case_data in (
-                    ("adult_content_gate", gate_results["case1"]),
-                    ("child_platform_gate", gate_results["case2"]),
-                ):
-                    for tau, fpr, fnr, tpr_val, tnr in zip(
-                        case_data["thresholds"],
-                        case_data["fpr"],
-                        case_data["fnr"],
-                        case_data["tpr"],
-                        case_data["tnr"],
+            val_user_ids_list = list(val_user_ids)
+            saved_artifacts = []
+            for group_size in eval_group_sizes:
+                agg_rng = random.Random(eval_agg_seed + group_size)
+                aggregated = aggregate_predictions_by_user(
+                    val_user_ids_list,
+                    val_targets_arr,
+                    val_means_arr,
+                    val_log_vars_arr,
+                    group_size=group_size,
+                    rng=agg_rng,
+                )
+                suffix = f"n{group_size}"
+                gate_results = compute_age_gate_curves(
+                    aggregated["targets"],
+                    aggregated["pred_mean"],
+                    aggregated["pred_log_var"],
+                    age_threshold=18.0,
+                    num_thresholds=201,
+                )
+                preds_dump_path = output_dir / f"best_val_predictions_{suffix}.npz"
+                np.savez(
+                    preds_dump_path,
+                    targets=aggregated["targets"],
+                    pred_mean=aggregated["pred_mean"],
+                    pred_log_var=aggregated["pred_log_var"],
+                    adult_prob=gate_results["adult_prob"],
+                    epoch=epoch,
+                    group_size=group_size,
+                )
+                roc_case1_path = output_dir / f"roc_case1_adult_gate_epoch{epoch}_{suffix}.png"
+                roc_case2_path = output_dir / f"roc_case2_child_gate_epoch{epoch}_{suffix}.png"
+                DisplayUtils.plot_roc_curve(
+                    gate_results["case1"]["fpr"],
+                    gate_results["case1"]["tpr"],
+                    thresholds=gate_results["case1"]["thresholds"],
+                    save_path=roc_case1_path,
+                    title=f"ROC - Adult Content Gate (admit adults, n={group_size})",
+                    auc_value=gate_results["case1"]["auc"],
+                    show=False,
+                )
+                DisplayUtils.plot_roc_curve(
+                    gate_results["case2"]["fpr"],
+                    gate_results["case2"]["tpr"],
+                    thresholds=gate_results["case2"]["thresholds"],
+                    save_path=roc_case2_path,
+                    title=f"ROC - Child Platform Gate (admit minors, n={group_size})",
+                    auc_value=gate_results["case2"]["auc"],
+                    show=False,
+                )
+                metrics_csv_path = output_dir / f"age_gate_metrics_{suffix}.csv"
+                with metrics_csv_path.open("w", encoding="utf-8") as metrics_fp:
+                    metrics_fp.write("case,tau,fpr,fnr,tpr,tnr\n")
+                    for case_name, case_data in (
+                        ("adult_content_gate", gate_results["case1"]),
+                        ("child_platform_gate", gate_results["case2"]),
                     ):
-                        metrics_fp.write(
-                            f"{case_name},{tau:.4f},{fpr:.6f},{fnr:.6f},{tpr_val:.6f},{tnr:.6f}\n"
-                        )
-            print(
-                f"Updated ROC plots ({roc_case1_path.name}, {roc_case2_path.name}), "
-                f"metrics CSV ({metrics_csv_path.name}), and saved predictions to {preds_dump_path.name}."
-            )
+                        for tau, fpr, fnr, tpr_val, tnr in zip(
+                            case_data["thresholds"],
+                            case_data["fpr"],
+                            case_data["fnr"],
+                            case_data["tpr"],
+                            case_data["tnr"],
+                        ):
+                            metrics_fp.write(
+                                f"{case_name},{tau:.4f},{fpr:.6f},{fnr:.6f},{tpr_val:.6f},{tnr:.6f}\n"
+                            )
+                saved_artifacts.append(
+                    f"n={group_size} -> {roc_case1_path.name}, {roc_case2_path.name}, {metrics_csv_path.name}, {preds_dump_path.name}"
+                )
+            print("Updated ROC/metrics artifacts for: " + "; ".join(saved_artifacts))
             if improvement == float("inf") or improvement >= min_delta:
                 epochs_without_improvement = 0
             else:
@@ -415,19 +462,31 @@ def main() -> None:
     )
     if saved_hist:
         print(f"Saved per-user age histograms to {saved_hist}")
-    # Save a single scatter plot for the best epoch (based on validation loss)
+    # Save scatter plots for the best epoch (based on validation loss), per aggregation size
     if best_scatter is not None:
-        scatter_path = output_dir / "age_val_scatter_best.png"
-        if DisplayUtils.save_regression_scatter(
-            best_scatter["targets"],
-            best_scatter["predictions"],
-            save_path=scatter_path,
-            title=f"Best Validation Age Predictions (epoch {best_scatter['epoch']})",
-            axis_limits=(0.0, 70.0),
-            point_size=20,
-            alpha=0.6,
-        ):
-            print(f"Saved best validation scatter plot to {scatter_path}")
+        for group_size in eval_group_sizes:
+            agg_rng = random.Random(eval_agg_seed + group_size)
+            aggregated = aggregate_predictions_by_user(
+                best_scatter["user_ids"],
+                best_scatter["targets"],
+                best_scatter["predictions"],
+                best_scatter["log_vars"],
+                group_size=group_size,
+                rng=agg_rng,
+            )
+            scatter_path = output_dir / f"age_val_scatter_best_n{group_size}.png"
+            if DisplayUtils.save_regression_scatter(
+                aggregated["targets"],
+                aggregated["pred_mean"],
+                save_path=scatter_path,
+                title=(
+                    f"Best Validation Age Predictions (epoch {best_scatter['epoch']}, n={group_size})"
+                ),
+                axis_limits=(0.0, 70.0),
+                point_size=20,
+                alpha=0.6,
+            ):
+                print(f"Saved best validation scatter plot to {scatter_path}")
     # Final challenge-threshold table (single evaluation pass using best model)
     if best_model_path.exists():
         print("Computing challenge-threshold FPR table on test set using best model...")
@@ -439,37 +498,49 @@ def main() -> None:
         all_targets: list[float] = []
         all_means: list[float] = []
         all_log_vars: list[float] = []
+        all_user_ids: list = []
         with torch.no_grad():
-            for images, ages in test_loader:
+            for images, ages, batch_user_ids in test_loader:
                 images = images.to(DEVICE)
                 ages = ages.to(DEVICE)
                 mean, log_var = eval_model(images)
                 all_targets.extend(ages.cpu().tolist())
                 all_means.extend(mean.cpu().tolist())
                 all_log_vars.extend(log_var.cpu().tolist())
+                all_user_ids.extend(list(batch_user_ids))
         challenge_thresholds = np.arange(20, 30, 1, dtype=float)  # 10 rows: 20..29
-        fpr_rows = compute_challenge_fpr_table(
-            all_targets,
-            all_means,
-            all_log_vars,
-            thresholds=challenge_thresholds,
-            prob_threshold=CHALLENGE_PROB_TAU,
-            bins=CHALLENGE_BINS,
-        )
-        challenge_csv = output_dir / "challenge_fpr_bins.csv"
-        with challenge_csv.open("w", encoding="utf-8") as fp:
-            header = (
-                ["threshold"] + [label for label, _, _ in CHALLENGE_BINS] + ["total"]
+        for group_size in eval_group_sizes:
+            agg_rng = random.Random(eval_agg_seed + group_size)
+            aggregated = aggregate_predictions_by_user(
+                all_user_ids,
+                all_targets,
+                all_means,
+                all_log_vars,
+                group_size=group_size,
+                rng=agg_rng,
             )
-            fp.write(",".join(header) + "\n")
-            for row in fpr_rows:
-                values = (
-                    [f"{row['threshold']:.1f}"]
-                    + [f"{row[label]:.6f}" for label, _, _ in CHALLENGE_BINS]
-                    + [f"{row['total']:.6f}"]
+            fpr_rows = compute_challenge_fpr_table(
+                aggregated["targets"],
+                aggregated["pred_mean"],
+                aggregated["pred_log_var"],
+                thresholds=challenge_thresholds,
+                prob_threshold=CHALLENGE_PROB_TAU,
+                bins=CHALLENGE_BINS,
+            )
+            challenge_csv = output_dir / f"challenge_fpr_bins_n{group_size}.csv"
+            with challenge_csv.open("w", encoding="utf-8") as fp:
+                header = (
+                    ["threshold"] + [label for label, _, _ in CHALLENGE_BINS] + ["total"]
                 )
-                fp.write(",".join(values) + "\n")
-        print(f"Saved challenge FPR table to {challenge_csv}")
+                fp.write(",".join(header) + "\n")
+                for row in fpr_rows:
+                    values = (
+                        [f"{row['threshold']:.1f}"]
+                        + [f"{row[label]:.6f}" for label, _, _ in CHALLENGE_BINS]
+                        + [f"{row['total']:.6f}"]
+                    )
+                    fp.write(",".join(values) + "\n")
+            print(f"Saved challenge FPR table to {challenge_csv}")
     else:
         print("Best model checkpoint not found; skipped challenge-threshold table.")
     print("Training complete. Best model saved on validation improvement.")

@@ -68,4 +68,4 @@ class AgeDataset(Dataset):
                 pass
         if self.transform:
             image = self.transform(image)
-        return image, torch.tensor(age, dtype=torch.float32)
+        return image, torch.tensor(age, dtype=torch.float32), row["user_id"]

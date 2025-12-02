@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import math
+import random
 from dataclasses import dataclass
-from typing import Iterable, Tuple
+from typing import Iterable, Sequence, Tuple
 
 import numpy as np
 import torch
@@ -72,6 +73,72 @@ def weighted_regression_loss(
     if total_loss is None:
         raise ValueError("weighted_regression_loss requires at least one positive weight.")
     return total_loss
+
+
+def aggregate_predictions_by_user(
+    user_ids: Sequence[object],
+    targets: Sequence[float],
+    pred_means: Sequence[float],
+    pred_log_vars: Sequence[float],
+    *,
+    group_size: int,
+    rng: random.Random | None = None,
+) -> dict:
+    """
+    Aggregate per-sample predictions into random per-user groups of size *group_size*.
+
+    - Samples are grouped per user_id, shuffled, then chunked into groups of size *group_size*.
+    - Any remainder per user forms one final (smaller) group so no samples are dropped.
+    - Means and targets are averaged; variances are averaged then converted back to log-variance.
+    """
+    if group_size <= 0:
+        raise ValueError(f"group_size must be positive (got {group_size}).")
+    if rng is None:
+        rng = random.Random()
+
+    user_buckets: dict[str, list[tuple[float, float, float]]] = {}
+    for uid, tgt, mean, log_var in zip(user_ids, targets, pred_means, pred_log_vars):
+        key = str(uid)
+        user_buckets.setdefault(key, []).append((float(tgt), float(mean), float(log_var)))
+
+    agg_targets: list[float] = []
+    agg_means: list[float] = []
+    agg_log_vars: list[float] = []
+
+    for samples in user_buckets.values():
+        if group_size == 1:
+            for tgt, mean, log_var in samples:
+                clamped_lv = float(np.clip(log_var, LOG_VAR_MIN, LOG_VAR_MAX))
+                agg_targets.append(tgt)
+                agg_means.append(mean)
+                agg_log_vars.append(clamped_lv)
+            continue
+
+        rng.shuffle(samples)
+        full_groups, remainder = divmod(len(samples), group_size)
+        cursor = 0
+
+        def _append_group(chunk: Sequence[tuple[float, float, float]]):
+            tgt_vals, mean_vals, lv_vals = zip(*chunk)
+            var_vals = [float(np.exp(np.clip(lv, LOG_VAR_MIN, LOG_VAR_MAX))) for lv in lv_vals]
+            mean_var = float(np.mean(var_vals))
+            agg_targets.append(float(np.mean(tgt_vals)))
+            agg_means.append(float(np.mean(mean_vals)))
+            agg_log_vars.append(float(np.log(max(mean_var, 1e-12))))
+
+        for _ in range(full_groups):
+            chunk = samples[cursor : cursor + group_size]
+            cursor += group_size
+            _append_group(chunk)
+        if remainder:
+            chunk = samples[cursor:]
+            _append_group(chunk)
+
+    return {
+        "targets": np.asarray(agg_targets, dtype=float),
+        "pred_mean": np.asarray(agg_means, dtype=float),
+        "pred_log_var": np.asarray(agg_log_vars, dtype=float),
+    }
 
 
 # ---------------------------------------------------------------------------

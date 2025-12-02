@@ -42,9 +42,12 @@ LOSS_WEIGHT_MAE="${LOSS_WEIGHT_MAE:-0.25}"
 PATIENCE="${PATIENCE:-40}"
 MODELS="${MODELS:-${MODEL:-b3}}" # choices: b0-b7, v2_{s,m,l}, convnext_{tiny,small,base,large,xlarge}, aliases: cnt,cns,cnb,cnl,cnx
 STRATIFICATION="${STRATIFICATION:-no}"  # choices: no, minorAdults, bins
+AGG_SIZES="${AGG_SIZES:-${EVAL_AGG_SIZES:-1}}"   # space-separated list, e.g., "1 2 3"
+AGG_SEED="${AGG_SEED:-${EVAL_AGG_SEED:-${SEED}}}"
+AGG_LABEL=${AGG_SIZES// /-}
 
 for MODEL_NAME in ${MODELS}; do
-  FOLDER_NAME="${MODEL_NAME}_bs${BATCH_SIZE}_seed${SEED}_nll${LOSS_WEIGHT_NLL}_mse${LOSS_WEIGHT_MSE}_mae${LOSS_WEIGHT_MAE}_strat${STRATIFICATION}"
+  FOLDER_NAME="${MODEL_NAME}_bs${BATCH_SIZE}_seed${SEED}_agg${AGG_LABEL}_nll${LOSS_WEIGHT_NLL}_mse${LOSS_WEIGHT_MSE}_mae${LOSS_WEIGHT_MAE}_strat${STRATIFICATION}"
   RUN_OUT="${OUTPUT_ROOT}/${FOLDER_NAME}"
 
   echo ">>> Starting distributed age inference training for ${MODEL_NAME} (output: ${RUN_OUT})"
@@ -67,6 +70,8 @@ for MODEL_NAME in ${MODELS}; do
     --loss-weight-nll "${LOSS_WEIGHT_NLL}" \
     --loss-weight-mse "${LOSS_WEIGHT_MSE}" \
     --loss-weight-mae "${LOSS_WEIGHT_MAE}" \
+    --eval-aggregation-sizes ${AGG_SIZES} \
+    --eval-aggregation-seed "${AGG_SEED}" \
     --dist-backend nccl
   echo ">>> Training for ${MODEL_NAME} complete. Artifacts in ${RUN_OUT}"
 done

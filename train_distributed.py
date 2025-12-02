@@ -489,15 +489,17 @@ def main() -> None:
         else:
             epochs_without_improvement += 1
 
-        if save_best and is_main:
-            model_to_save = ddp_model.module
-            torch.save(model_to_save.state_dict(), best_model_path)
-            print(f"[Rank 0] Saved best model to {best_model_path} (val_loss={val_loss:.4f})")
-
+        if save_best:
+            # All ranks must participate in the gather to avoid collective mismatch.
             targets_all = gather_all_lists(val_targets, world_size)
             preds_all = gather_all_lists(val_predictions, world_size)
             log_vars_all = gather_all_lists(val_log_vars, world_size)
             user_ids_all = gather_all_lists(val_user_ids, world_size)
+
+        if save_best and is_main:
+            model_to_save = ddp_model.module
+            torch.save(model_to_save.state_dict(), best_model_path)
+            print(f"[Rank 0] Saved best model to {best_model_path} (val_loss={val_loss:.4f})")
 
             targets_arr = np.asarray(targets_all, dtype=float)
             preds_arr = np.asarray(preds_all, dtype=float)

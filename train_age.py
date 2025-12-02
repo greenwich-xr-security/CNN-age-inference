@@ -376,7 +376,7 @@ def main() -> None:
                     epoch=epoch,
                     group_size=group_size,
                 )
-                challenge_thresholds = np.arange(20, 30, 1, dtype=float)  # 10 rows: 20..29
+                challenge_thresholds = np.arange(18, 31, 1, dtype=float)  # 18..30
                 fpr_rows = compute_challenge_fpr_table(
                     aggregated["targets"],
                     aggregated["pred_mean"],
@@ -530,7 +530,7 @@ def main() -> None:
                 all_means.extend(mean.cpu().tolist())
                 all_log_vars.extend(log_var.cpu().tolist())
                 all_user_ids.extend(list(batch_user_ids))
-        challenge_thresholds = np.arange(20, 30, 1, dtype=float)  # 10 rows: 20..29
+        challenge_thresholds = np.arange(18, 31, 1, dtype=float)  # 18..30
         for group_size in eval_group_sizes:
             agg_rng = random.Random(eval_agg_seed + group_size)
             aggregated = aggregate_predictions_by_user(

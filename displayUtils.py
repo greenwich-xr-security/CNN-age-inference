@@ -498,6 +498,7 @@ class DisplayUtils:
         save_path,
         title: Optional[str] = None,
         auc_value: Optional[float] = None,
+        highlight_tau: Optional[float] = 0.5,
         show: bool = False,
     ) -> Optional[Path]:
         """Plot an ROC-style curve with thresholds encoded by colour."""
@@ -528,6 +529,24 @@ class DisplayUtils:
         )
         cbar = fig.colorbar(scatter, ax=ax)
         cbar.set_label("Threshold tau", rotation=270, labelpad=15)
+
+        if highlight_tau is not None and thresholds_arr.size > 0:
+            idx = int(np.argmin(np.abs(thresholds_arr - float(highlight_tau))))
+            tau_fpr = fprs_arr[idx]
+            tau_tpr = tprs_arr[idx]
+            ax.axvline(tau_fpr, color="black", linestyle=":", linewidth=1)
+            ax.axhline(tau_tpr, color="black", linestyle=":", linewidth=1)
+            ax.scatter(
+                [tau_fpr],
+                [tau_tpr],
+                color="red",
+                s=45,
+                edgecolors="white",
+                linewidths=0.8,
+                zorder=5,
+                label=f"tau={thresholds_arr[idx]:.3f}",
+            )
+
         ax.set_xlabel("FPR (undesired risk)")
         ax.set_ylabel("TPR (desired usability)")
         if title:

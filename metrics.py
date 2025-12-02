@@ -280,30 +280,34 @@ def compute_challenge_fpr_table(
     """
     Compute FPR per bin for minors using adult probabilities versus an age challenge threshold.
 
-    FPR per bin = (# of bin samples allowed) / (total samples overall).
-    Returns one row per threshold with keys: threshold, <bin labels...>, total.
+    For each threshold:
+    - minors = targets < threshold
+    - FPR per bin = (# of bin minors allowed) / (total minors)
+    - total = (# of all minors allowed) / (total minors)
+    If bins cover all minors, total matches the global FPR for that threshold.
     """
     targets_arr = np.asarray(targets, dtype=float)
     preds_arr = np.asarray(pred_means, dtype=float)
     log_vars_arr = np.asarray(pred_log_vars, dtype=float)
-    overall_total = int(targets_arr.size)
     rows: list[dict] = []
     for thr in thresholds:
         adult_prob = compute_adult_probabilities(preds_arr, log_vars_arr, age_threshold=thr)
         allow_mask = adult_prob >= prob_threshold
+        minors_mask_global = targets_arr < thr
+        minors_total = int(minors_mask_global.sum())
 
         row: dict[str, float] = {"threshold": float(thr)}
         bin_fprs = []
         total_fp = 0
         for label, lower, upper in bins:
-            bin_mask = (targets_arr >= lower) & (targets_arr <= upper)
+            bin_mask = (targets_arr >= lower) & (targets_arr <= upper) & minors_mask_global
             fp = int(np.logical_and(allow_mask, bin_mask).sum())
-            fpr = _safe_rate(fp, overall_total)
+            fpr = _safe_rate(fp, minors_total)
             row[label] = fpr
             bin_fprs.append(fpr)
             total_fp += fp
 
-        row["total"] = _safe_rate(total_fp, overall_total) if bin_fprs else 0.0
+        row["total"] = _safe_rate(total_fp, minors_total) if bin_fprs else 0.0
         rows.append(row)
     return rows
 

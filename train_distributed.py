@@ -489,12 +489,16 @@ def main() -> None:
         else:
             epochs_without_improvement += 1
 
-        targets_all = gather_all_lists(val_targets, world_size)
-        preds_all = gather_all_lists(val_predictions, world_size)
-        log_vars_all = gather_all_lists(val_log_vars, world_size)
-        user_ids_all = gather_all_lists(val_user_ids, world_size)
+        if save_best and is_main:
+            model_to_save = ddp_model.module
+            torch.save(model_to_save.state_dict(), best_model_path)
+            print(f"[Rank 0] Saved best model to {best_model_path} (val_loss={val_loss:.4f})")
 
-        if is_main:
+            targets_all = gather_all_lists(val_targets, world_size)
+            preds_all = gather_all_lists(val_predictions, world_size)
+            log_vars_all = gather_all_lists(val_log_vars, world_size)
+            user_ids_all = gather_all_lists(val_user_ids, world_size)
+
             targets_arr = np.asarray(targets_all, dtype=float)
             preds_arr = np.asarray(preds_all, dtype=float)
             log_vars_arr = np.asarray(log_vars_all, dtype=float)
@@ -633,11 +637,6 @@ def main() -> None:
                     saved_artifacts.append(f"n={group_size} -> {error_plot_path.name}")
 
             print("[Rank 0] Saved/updated eval artifacts for: " + "; ".join(saved_artifacts))
-
-        if save_best and is_main:
-            model_to_save = ddp_model.module
-            torch.save(model_to_save.state_dict(), best_model_path)
-            print(f"[Rank 0] Saved best model to {best_model_path} (val_loss={val_loss:.4f})")
 
         if epochs_without_improvement >= patience:
             if is_main:

@@ -26,6 +26,7 @@ from metrics import (
     compute_age_gate_curves,
     compute_challenge_fnr_table_case1,
     compute_challenge_fpr_table,
+    compute_challenge_fpr_table_weighted,
     weighted_regression_loss,
 )
 from models import resolve_model_builder
@@ -629,6 +630,27 @@ def main() -> None:
                             metrics_fp.write(
                                 f"{case_name},{tau:.4f},{fpr:.6f},{fnr:.6f},{tpr_val:.6f},{tnr:.6f}\n"
                             )
+
+                challenge_thresholds = np.arange(18, 31, 1, dtype=float)
+                fpr_rows_weighted_best = compute_challenge_fpr_table_weighted(
+                    aggregated["targets"],
+                    aggregated["pred_mean"],
+                    aggregated["pred_log_var"],
+                    thresholds=challenge_thresholds,
+                    prob_threshold=selected_tau_case1,
+                    bins=CHALLENGE_BINS,
+                )
+                # First threshold with total <= 0.001 (ascending order); fallback to min-total threshold
+                challenge_line = None
+                for row in sorted(fpr_rows_weighted_best, key=lambda r: float(r.get("threshold", 1e9))):
+                    if float(row.get("total", 1.0)) <= 0.001:
+                        challenge_line = float(row["threshold"])
+                        break
+                if challenge_line is None and fpr_rows_weighted_best:
+                    best = min(fpr_rows_weighted_best, key=lambda r: float(r.get("total", 1.0)))
+                    challenge_line = float(best["threshold"])
+                if is_main:
+                    print(f"[debug] challenge_line (weighted total<=0.001) for n={group_size}: {challenge_line}")
 
                 scatter_path = output_dir / f"age_val_scatter_{suffix}.png"
                 if DisplayUtils.save_regression_scatter(

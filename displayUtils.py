@@ -357,10 +357,9 @@ class DisplayUtils:
         fig, ax = plt.subplots(figsize=(6, 6))
         ax.scatter(targets_arr, preds_arr, s=point_size, alpha=alpha, edgecolors="none")
         ax.plot([axis_min, axis_max], [axis_min, axis_max], "r--", linewidth=1)
-        for thr in (18.0,):
-            ax.axvline(thr, color="black", linestyle=":", linewidth=1)
-        for thr in (20.0, 25.0, 30.0):
-            ax.axhline(thr, color="black", linestyle=":", linewidth=1)
+        # Minor/adult divide at 18
+        ax.axvline(18.0, color="black", linestyle="--", linewidth=1)
+        ax.axhline(18.0, color="black", linestyle="--", linewidth=1)
         ax.set_xlabel("True Age")
         ax.set_ylabel("Predicted Age")
         if title:

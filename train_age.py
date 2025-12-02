@@ -27,6 +27,7 @@ from metrics import (
     compute_age_gate_curves,
     compute_challenge_fnr_table_case1,
     compute_challenge_fpr_table,
+    compute_challenge_fpr_table_weighted,
     weighted_regression_loss,
 )
 from models import resolve_model_builder
@@ -40,6 +41,19 @@ DEFAULT_MODEL_VARIANT = "b0"
 DEFAULT_SEED = 42
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 DEFAULT_PATIENCE = 20
+
+
+def _select_challenge_threshold(fpr_rows: list[dict], target_total: float = 0.001) -> float | None:
+    """Return the first threshold whose total <= target_total, else the min-total threshold."""
+    # Ensure ascending threshold order
+    for row in sorted(fpr_rows, key=lambda r: float(r.get("threshold", 1e9))):
+        total = float(row.get("total", 1.0))
+        if total <= target_total:
+            return float(row["threshold"])
+    if fpr_rows:
+        best = min(fpr_rows, key=lambda r: float(r.get("total", 1.0)))
+        return float(best["threshold"])
+    return None
 
 
 def set_random_seed(seed: int) -> None:
@@ -466,6 +480,18 @@ def main() -> None:
                             metrics_fp.write(
                                 f"{case_name},{tau:.4f},{fpr:.6f},{fnr:.6f},{tpr_val:.6f},{tnr:.6f}\n"
                             )
+                challenge_thresholds = np.arange(18, 31, 1, dtype=float)
+                fpr_rows_weighted_best = compute_challenge_fpr_table_weighted(
+                    aggregated["targets"],
+                    aggregated["pred_mean"],
+                    aggregated["pred_log_var"],
+                    thresholds=challenge_thresholds,
+                    prob_threshold=selected_tau_case1,
+                    bins=CHALLENGE_BINS,
+                )
+                challenge_line = _select_challenge_threshold(fpr_rows_weighted_best, target_total=0.001)
+                print(f"[debug] challenge_line (weighted total<=0.001) for n={group_size}: {challenge_line}")
+
                 scatter_path = output_dir / f"age_val_scatter_{suffix}.png"
                 if DisplayUtils.save_regression_scatter(
                     aggregated["targets"],

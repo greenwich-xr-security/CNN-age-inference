@@ -312,6 +312,46 @@ def compute_challenge_fpr_table(
     return rows
 
 
+def compute_challenge_fpr_table_weighted(
+    targets,
+    pred_means,
+    pred_log_vars,
+    *,
+    thresholds: Iterable[float],
+    prob_threshold: float = CHALLENGE_PROB_TAU,
+    bins: Iterable[tuple[str, float, float]] = CHALLENGE_BINS,
+) -> list[dict]:
+    """
+    Compute FPR per bin (relative to each bin's count) and an overall count-weighted FPR.
+
+    total = sum(fp_bin) / sum(count_bin), where bin counts are restricted to minors (< threshold).
+    """
+    targets_arr = np.asarray(targets, dtype=float)
+    preds_arr = np.asarray(pred_means, dtype=float)
+    log_vars_arr = np.asarray(pred_log_vars, dtype=float)
+    rows: list[dict] = []
+    for thr in thresholds:
+        adult_prob = compute_adult_probabilities(preds_arr, log_vars_arr, age_threshold=thr)
+        allow_mask = adult_prob >= prob_threshold
+        minors_mask_global = targets_arr < thr
+
+        row: dict[str, float] = {"threshold": float(thr)}
+        total_fp = 0
+        total_count = 0
+        for label, lower, upper in bins:
+            bin_mask = (targets_arr >= lower) & (targets_arr <= upper) & minors_mask_global
+            bin_total = int(bin_mask.sum())
+            fp = int(np.logical_and(allow_mask, bin_mask).sum())
+            fpr = _safe_rate(fp, bin_total)
+            row[label] = fpr
+            total_fp += fp
+            total_count += bin_total
+
+        row["total"] = _safe_rate(total_fp, total_count)
+        rows.append(row)
+    return rows
+
+
 def compute_challenge_fnr_table_case1(
     targets,
     pred_means,

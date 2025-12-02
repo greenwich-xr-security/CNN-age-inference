@@ -16,6 +16,14 @@ CHALLENGE_BINS: Tuple[Tuple[str, float, float], ...] = (
     ("13-15", 13.0, 15.0),
     ("16-17", 16.0, 17.0),
 )
+CHALLENGE_FNR_BINS: Tuple[Tuple[str, float, float | None], ...] = (
+    ("18-19", 18.0, 19.0),
+    ("20-24", 20.0, 24.0),
+    ("25-29", 25.0, 29.0),
+    ("30-39", 30.0, 39.0),
+    ("40-49", 40.0, 49.0),
+    ("50+", 50.0, None),
+)
 # Aggregation behaviour: if True, discard per-user remainders smaller than group_size.
 AGGREGATION_DISCARD_REMAINDER = True
 
@@ -296,5 +304,46 @@ def compute_challenge_fpr_table(
             total_fp += fp
 
         row["total"] = _safe_rate(total_fp, overall_total) if bin_fprs else 0.0
+        rows.append(row)
+    return rows
+
+
+def compute_challenge_fnr_table_case1(
+    targets,
+    pred_means,
+    pred_log_vars,
+    *,
+    thresholds: Iterable[float],
+    prob_threshold: float = CHALLENGE_PROB_TAU,
+    bins: Iterable[tuple[str, float, float | None]] = CHALLENGE_FNR_BINS,
+) -> list[dict]:
+    """
+    Compute FNR per adult bin for challenge Case 1 (admit adults).
+
+    FNR per bin = (# of adult samples in bin that were blocked) / (total samples overall).
+    Returns one row per threshold with keys: threshold, <bin labels...>, total.
+    """
+    targets_arr = np.asarray(targets, dtype=float)
+    preds_arr = np.asarray(pred_means, dtype=float)
+    log_vars_arr = np.asarray(pred_log_vars, dtype=float)
+    overall_total = int(targets_arr.size)
+    rows: list[dict] = []
+    for thr in thresholds:
+        adult_prob = compute_adult_probabilities(preds_arr, log_vars_arr, age_threshold=thr)
+        allow_mask = adult_prob >= prob_threshold
+        fn_mask = ~allow_mask  # blocked
+
+        row: dict[str, float] = {"threshold": float(thr)}
+        total_fn = 0
+        for label, lower, upper in bins:
+            lower_val = lower
+            upper_val = float("inf") if upper is None else upper
+            bin_mask = (targets_arr >= lower_val) & (targets_arr <= upper_val)
+            fn = int(np.logical_and(fn_mask, bin_mask).sum())
+            fnr = _safe_rate(fn, overall_total)
+            row[label] = fnr
+            total_fn += fn
+
+        row["total"] = _safe_rate(total_fn, overall_total) if overall_total > 0 else 0.0
         rows.append(row)
     return rows

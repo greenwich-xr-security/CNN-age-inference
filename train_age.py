@@ -20,10 +20,12 @@ from dataset.utils import filter_metadata, stratified_user_split
 from displayUtils import DisplayUtils
 from metrics import (
     CHALLENGE_BINS,
+    CHALLENGE_FNR_BINS,
     CHALLENGE_PROB_TAU,
     LossWeights,
     aggregate_predictions_by_user,
     compute_age_gate_curves,
+    compute_challenge_fnr_table_case1,
     compute_challenge_fpr_table,
     weighted_regression_loss,
 )
@@ -380,6 +382,22 @@ def main() -> None:
                         f"{row[label]:.6f}" for label, _, _ in CHALLENGE_BINS
                     ] + [f"{row['total']:.6f}"]
                     fp.write(",".join(values) + "\n")
+            fnr_rows = compute_challenge_fnr_table_case1(
+                aggregated["targets"],
+                aggregated["pred_mean"],
+                aggregated["pred_log_var"],
+                thresholds=challenge_thresholds,
+                prob_threshold=CHALLENGE_PROB_TAU,
+            )
+            fnr_csv = output_dir / f"challenge_fnr_bins_case1_{suffix}.csv"
+            with fnr_csv.open("w", encoding="utf-8") as fp:
+                header = ["threshold"] + [label for label, _, _ in CHALLENGE_FNR_BINS] + ["total"]
+                fp.write(",".join(header) + "\n")
+                for row in fnr_rows:
+                    values = [f"{row['threshold']:.1f}"] + [
+                        f"{row[label]:.6f}" for label, _, _ in CHALLENGE_FNR_BINS
+                    ] + [f"{row['total']:.6f}"]
+                    fp.write(",".join(values) + "\n")
             roc_case1_path = output_dir / f"roc_case1_adult_gate_{suffix}.png"
             roc_case2_path = output_dir / f"roc_case2_child_gate_{suffix}.png"
             DisplayUtils.plot_roc_curve(
@@ -428,11 +446,11 @@ def main() -> None:
                 alpha=0.6,
             ):
                 saved_artifacts.append(
-                    f"n={group_size} -> {roc_case1_path.name}, {roc_case2_path.name}, {metrics_csv_path.name}, {preds_dump_path.name}, {challenge_csv.name}, {scatter_path.name}"
+                    f"n={group_size} -> {roc_case1_path.name}, {roc_case2_path.name}, {metrics_csv_path.name}, {preds_dump_path.name}, {challenge_csv.name}, {fnr_csv.name}, {scatter_path.name}"
                 )
             else:
                 saved_artifacts.append(
-                    f"n={group_size} -> {roc_case1_path.name}, {roc_case2_path.name}, {metrics_csv_path.name}, {preds_dump_path.name}, {challenge_csv.name}"
+                    f"n={group_size} -> {roc_case1_path.name}, {roc_case2_path.name}, {metrics_csv_path.name}, {preds_dump_path.name}, {challenge_csv.name}, {fnr_csv.name}"
                 )
         print("Saved/updated eval artifacts for: " + "; ".join(saved_artifacts))
 

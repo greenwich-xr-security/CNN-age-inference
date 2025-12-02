@@ -452,6 +452,14 @@ def main() -> None:
                 saved_artifacts.append(
                     f"n={group_size} -> {roc_case1_path.name}, {roc_case2_path.name}, {metrics_csv_path.name}, {preds_dump_path.name}, {challenge_csv.name}, {fnr_csv.name}"
                 )
+            error_plot_path = output_dir / f"age_error_by_target_{suffix}.png"
+            if DisplayUtils.save_error_by_age(
+                aggregated["targets"],
+                aggregated["pred_mean"],
+                save_path=error_plot_path,
+                title=f"Error vs Target Age (epoch {epoch}, n={group_size})",
+            ):
+                saved_artifacts.append(f"n={group_size} -> {error_plot_path.name}")
         print("Saved/updated eval artifacts for: " + "; ".join(saved_artifacts))
 
         # Save the model and evaluation artifacts only if validation loss improves

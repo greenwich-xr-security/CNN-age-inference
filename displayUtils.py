@@ -377,6 +377,60 @@ class DisplayUtils:
 
     # ------------------------------------------------------------------ #
     @staticmethod
+    def save_error_by_age(
+        targets: Iterable[float],
+        predictions: Iterable[float],
+        *,
+        save_path,
+        title: Optional[str] = None,
+    ) -> bool:
+        """Save MAE and RMSE as a function of integer target age."""
+        targets_arr = np.asarray(list(targets), dtype=float)
+        preds_arr = np.asarray(list(predictions), dtype=float)
+        if targets_arr.size == 0:
+            print("save_error_by_age: no data to plot.")
+            return False
+
+        ages_int = targets_arr.astype(int)
+        abs_err = np.abs(preds_arr - targets_arr)
+        sq_err = (preds_arr - targets_arr) ** 2
+
+        unique_ages = np.unique(ages_int)
+        unique_ages.sort()
+        mae_vals = []
+        rmse_vals = []
+        x_vals = []
+        for age in unique_ages:
+            mask = ages_int == age
+            if not np.any(mask):
+                continue
+            x_vals.append(age)
+            mae_vals.append(float(abs_err[mask].mean()))
+            rmse_vals.append(float(np.sqrt(sq_err[mask].mean())))
+
+        if not x_vals:
+            print("save_error_by_age: no valid age buckets to plot.")
+            return False
+
+        fig, ax = plt.subplots(figsize=(7, 4))
+        ax.plot(x_vals, mae_vals, label="MAE", marker="o", linewidth=1.5)
+        ax.plot(x_vals, rmse_vals, label="RMSE", marker="s", linewidth=1.5)
+        ax.set_xlabel("Target Age")
+        ax.set_ylabel("Error")
+        if title:
+            ax.set_title(title)
+        ax.grid(True, linestyle="--", linewidth=0.5, alpha=0.3)
+        ax.legend()
+        fig.tight_layout()
+
+        save_path = Path(save_path)
+        save_path.parent.mkdir(parents=True, exist_ok=True)
+        fig.savefig(save_path)
+        plt.close(fig)
+        return True
+
+    # ------------------------------------------------------------------ #
+    @staticmethod
     def plot_loss_history(
         history: Iterable[dict],
         *,

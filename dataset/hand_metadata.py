@@ -241,7 +241,7 @@ def _center_square_bbox(width: int, height: int) -> Tuple[int, int, int, int]:
 
 # Constant bbox for HandRGBD frames (images are always 1280x600).
 _HANDRGBD_IMAGE_SIZE = (1280, 600)
-_HANDRGBD_CENTERED_BBOX = _center_square_bbox(*_HANDRGBD_IMAGE_SIZE)
+_HANDRGBD_CENTERED_BBOX = (160, 0, 1120, 960)
 
 
 def _ensure_bboxes(

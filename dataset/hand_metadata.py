@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+import sys
 from typing import Dict, Optional, Tuple, Union
 
 import cv2
@@ -10,6 +11,13 @@ import numpy as np
 import pandas as pd
 from PIL import Image, UnidentifiedImageError
 from torch.utils.data import Dataset
+
+# Make sure the repository root is on sys.path so the sibling handLandmarks package
+# resolves when this module is executed directly (e.g., `python dataset/hand_metadata.py`).
+_REPO_ROOT = Path(__file__).resolve().parent.parent
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
 from handLandmarks.handLandmarksDetection import (
     MediaPipeTaskHandLandmarkDetector,
     SentisHandLandmarkDetector,

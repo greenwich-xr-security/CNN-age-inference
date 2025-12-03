@@ -13,8 +13,8 @@ import pandas as pd
 import cv2
 
 from displayUtils import DisplayUtils
-from handRatio import HandRatios
-from handLandmarksDetection import SentisHandLandmarkDetector
+from .handRatio import HandRatios
+from .handLandmarksDetection import SentisHandLandmarkDetector
 
 
 class HandDataRecorder:

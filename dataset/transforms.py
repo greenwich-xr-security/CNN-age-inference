@@ -10,7 +10,7 @@ def build_transforms(img_size: int):
         [
             transforms.Resize((img_size, img_size)),
             #transforms.RandomResizedCrop(img_size, scale=(0.7, 1.0)),
-            #transforms.RandomRotation(degrees=(-180, 180)),
+            transforms.RandomRotation(degrees=(-180, 180)),
             transforms.RandomHorizontalFlip(),
             transforms.RandomVerticalFlip(),
             transforms.ColorJitter(brightness=0.2, contrast=0.2),

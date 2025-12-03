@@ -1,7 +1,7 @@
 import cv2
 import numpy as np
 
-from handLandmarksDetection import SentisHandLandmarkDetector
+from .handLandmarksDetection import SentisHandLandmarkDetector
 
 class HandRatios:
     """Pose-invariant hand-metric utilities for 21-point MediaPipe-style landmarks.

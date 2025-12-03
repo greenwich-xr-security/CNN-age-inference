@@ -8,9 +8,11 @@ def build_transforms(img_size: int):
     """Return train/test transforms for a given square image size."""
     train_transform = transforms.Compose(
         [
-            transforms.RandomResizedCrop(img_size, scale=(0.7, 1.0)),
-            transforms.RandomRotation(degrees=(-180, 180)),
+            transforms.Resize((img_size, img_size)),
+            #transforms.RandomResizedCrop(img_size, scale=(0.7, 1.0)),
+            #transforms.RandomRotation(degrees=(-180, 180)),
             transforms.RandomHorizontalFlip(),
+            transforms.RandomVerticalFlip(),
             transforms.ColorJitter(brightness=0.2, contrast=0.2),
             transforms.ToTensor(),
             transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),

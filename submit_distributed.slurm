@@ -34,7 +34,7 @@ GPUS_PER_NODE=${SLURM_GPUS_ON_NODE:-${SLURM_GPUS_PER_NODE:-${GPUS_PER_NODE_OVERR
 
 export MASTER_ADDR MASTER_PORT
 
-SEEDS="${SEEDS:-${SEED:-1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17}}"              # space-separated seeds (or a single seed)
+SEEDS="${SEEDS:-${SEED:-32 33 34 35 52 53 54 55 120 123 124 125 200 203 204 205}}"              # space-separated seeds (or a single seed)
 BATCH_SIZE="${BATCH_SIZE:-32}"
 SEED="${SEED:-42}"
 LOSS_WEIGHT_NLL="${LOSS_WEIGHT_NLL:-0.65}"

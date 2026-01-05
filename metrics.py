@@ -62,6 +62,36 @@ def mae_loss(pred_mean: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
     return torch.mean(torch.abs(pred_mean - target))
 
 
+def intra_user_spread_loss(
+    pred_mean: torch.Tensor,
+    user_ids: Sequence[object],
+) -> torch.Tensor:
+    """Penalize per-user prediction variance within a batch."""
+    if pred_mean.ndim != 1:
+        pred_mean = pred_mean.view(-1)
+    if pred_mean.numel() != len(user_ids):
+        raise ValueError("pred_mean and user_ids must have the same length.")
+
+    groups: dict[str, list[int]] = {}
+    for idx, uid in enumerate(user_ids):
+        key = str(uid)
+        groups.setdefault(key, []).append(idx)
+
+    losses = []
+    device = pred_mean.device
+    for indices in groups.values():
+        if len(indices) < 2:
+            continue
+        idx_tensor = torch.tensor(indices, device=device, dtype=torch.long)
+        vals = pred_mean.index_select(0, idx_tensor)
+        var = torch.var(vals, unbiased=False)
+        losses.append(var)
+
+    if not losses:
+        return pred_mean.new_tensor(0.0)
+    return torch.mean(torch.stack(losses))
+
+
 def weighted_regression_loss(
     pred_mean: torch.Tensor,
     pred_log_var: torch.Tensor,

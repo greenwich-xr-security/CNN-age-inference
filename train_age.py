@@ -15,6 +15,7 @@ from dataset.hand_metadata import (
     load_combined_metadata,
     set_dataset_root,
 )
+from dataset.samplers import GroupedBatchSampler
 from dataset.transforms import build_transforms
 from dataset.utils import filter_metadata, stratified_user_split
 from displayUtils import DisplayUtils
@@ -28,6 +29,7 @@ from metrics import (
     compute_challenge_fnr_table_case1,
     compute_challenge_fpr_table,
     compute_challenge_fpr_table_weighted,
+    intra_user_spread_loss,
     weighted_regression_loss,
 )
 from models import resolve_model_builder
@@ -102,6 +104,12 @@ def main() -> None:
         help="Mini-batch size for training (default: 32).",
     )
     parser.add_argument(
+        "--user-group-size",
+        type=int,
+        default=2,
+        help="Samples per user in each training batch (default: 2).",
+    )
+    parser.add_argument(
         "--epochs",
         type=int,
         default=DEFAULT_EPOCHS,
@@ -171,6 +179,12 @@ def main() -> None:
         help="Weight for the MAE component (default: 0.25).",
     )
     parser.add_argument(
+        "--loss-weight-spread",
+        type=float,
+        default=0.0,
+        help="Weight for intra-user prediction spread penalty (default: 0.0).",
+    )
+    parser.add_argument(
         "--patience",
         type=int,
         default=DEFAULT_PATIENCE,
@@ -183,6 +197,10 @@ def main() -> None:
         mae=args.loss_weight_mae,
     )
     loss_weights.validate()
+    if args.loss_weight_spread < 0:
+        raise ValueError("loss-weight-spread must be non-negative.")
+    if args.user_group_size < 1:
+        raise ValueError("user-group-size must be at least 1.")
     eval_group_sizes = sorted({int(n) for n in args.eval_aggregation_sizes if int(n) > 0})
     if not eval_group_sizes:
         raise ValueError("At least one positive --eval-aggregation-sizes value is required.")
@@ -226,12 +244,14 @@ def main() -> None:
         f"Saving artifacts to: {output_dir}\n"
         f"Train users: {train_meta['user_id'].nunique()} | Train images: {len(train_meta)}\n"
         f"Test users:  {test_meta['user_id'].nunique()} | Test images:  {len(test_meta)}\n"
-        f"Model: {model_desc} | Image size: {img_size} | Batch size: {args.batch_size}\n"
+        f"Model: {model_desc} | Image size: {img_size} | Batch size: {args.batch_size} | "
+        f"User group size: {args.user_group_size}\n"
         f"Epochs: {args.epochs} | Learning rate: {args.lr:.2e} | Seed: {args.seed}"
     )
     print(
         f"Loss weights -> NLL: {loss_weights.nll:.3f}, "
-        f"MSE: {loss_weights.mse:.3f}, MAE: {loss_weights.mae:.3f}"
+        f"MSE: {loss_weights.mse:.3f}, MAE: {loss_weights.mae:.3f}, "
+        f"Spread: {args.loss_weight_spread:.3f}"
     )
     print(
         f"Eval aggregation group sizes: {eval_group_sizes} | "
@@ -245,8 +265,16 @@ def main() -> None:
     print(f"Split mode: {split_desc}")
     train_ds = AgeDataset(train_meta, transform=train_transform)
     test_ds = AgeDataset(test_meta, transform=test_transform)
+    train_sampler = GroupedBatchSampler(
+        train_ds.records["user_id"].tolist(),
+        batch_size=args.batch_size,
+        group_size=args.user_group_size,
+        shuffle=True,
+        seed=args.seed,
+        drop_last=False,
+    )
     train_loader = DataLoader(
-        train_ds, batch_size=args.batch_size, shuffle=True, num_workers=0
+        train_ds, batch_sampler=train_sampler, num_workers=0
     )
     test_loader = DataLoader(
         test_ds, batch_size=args.batch_size, shuffle=False, num_workers=0
@@ -267,18 +295,26 @@ def main() -> None:
     epochs_without_improvement = 0
     history_entries: list[dict] = []
     for epoch in range(1, args.epochs + 1):
+        train_sampler.set_epoch(epoch)
         model.train()
         running_loss = 0.0
         running_mae = 0.0
         running_mse = 0.0
         running_std = 0.0
-        for images, ages, _user_ids in tqdm(
+        running_spread = 0.0
+        for images, ages, batch_user_ids in tqdm(
             train_loader, desc=f"Epoch {epoch}/{args.epochs}"
         ):
             images, ages = images.to(DEVICE), ages.to(DEVICE)
             optimizer.zero_grad()
             pred_mean, pred_log_var = model(images)
-            loss = weighted_regression_loss(pred_mean, pred_log_var, ages, loss_weights)
+            base_loss = weighted_regression_loss(pred_mean, pred_log_var, ages, loss_weights)
+            if args.loss_weight_spread > 0:
+                spread_loss = intra_user_spread_loss(pred_mean, batch_user_ids)
+                loss = base_loss + args.loss_weight_spread * spread_loss
+                running_spread += spread_loss.item()
+            else:
+                loss = base_loss
             loss.backward()
             optimizer.step()
             running_loss += loss.item()
@@ -295,6 +331,7 @@ def main() -> None:
         train_mae = running_mae / denom
         train_mse = running_mse / denom
         train_std = running_std / denom
+        train_spread = running_spread / denom if args.loss_weight_spread > 0 else 0.0
         model.eval()
         val_loss = 0.0
         val_mae = 0.0
@@ -330,13 +367,15 @@ def main() -> None:
         val_std /= denom
         print(
             f"Epoch {epoch}: "
-            f"train_loss={train_loss:.4f}, train_mae={train_mae:.4f}, train_mse={train_mse:.4f}, train_std={train_std:.4f} | "
+            f"train_loss={train_loss:.4f}, train_mae={train_mae:.4f}, "
+            f"train_mse={train_mse:.4f}, train_std={train_std:.4f}, train_spread={train_spread:.4f} | "
             f"val_loss={val_loss:.4f}, val_mae={val_mae:.4f}, val_mse={val_mse:.4f}, val_std={val_std:.4f}"
         )
         with history_log_path.open("a", encoding="utf-8") as log_fp:
             log_fp.write(
                 f"Epoch {epoch},train_loss={train_loss:.6f},train_mae={train_mae:.6f},train_mse={train_mse:.6f},"
-                f"train_std={train_std:.6f},val_loss={val_loss:.6f},val_mae={val_mae:.6f},val_mse={val_mse:.6f},val_std={val_std:.6f}\n"
+                f"train_std={train_std:.6f},train_spread={train_spread:.6f},"
+                f"val_loss={val_loss:.6f},val_mae={val_mae:.6f},val_mse={val_mse:.6f},val_std={val_std:.6f}\n"
             )
         history_entries.append(
             {

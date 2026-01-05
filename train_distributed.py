@@ -14,6 +14,7 @@ from tqdm import tqdm
 
 from dataset.age import AgeDataset
 from dataset.hand_metadata import get_dataset_root, load_combined_metadata, set_dataset_root
+from dataset.samplers import DistributedGroupedBatchSampler
 from dataset.transforms import build_transforms
 from dataset.utils import filter_metadata, stratified_user_split
 from displayUtils import DisplayUtils
@@ -27,6 +28,7 @@ from metrics import (
     compute_challenge_fnr_table_case1,
     compute_challenge_fpr_table,
     compute_challenge_fpr_table_weighted,
+    intra_user_spread_loss,
     weighted_regression_loss,
 )
 from models import resolve_model_builder
@@ -94,6 +96,12 @@ def parse_args() -> argparse.Namespace:
         help="Per-process mini-batch size (default: 32).",
     )
     parser.add_argument(
+        "--user-group-size",
+        type=int,
+        default=2,
+        help="Samples per user in each training batch (default: 2).",
+    )
+    parser.add_argument(
         "--epochs",
         type=int,
         default=DEFAULT_EPOCHS,
@@ -150,6 +158,12 @@ def parse_args() -> argparse.Namespace:
         type=float,
         default=0.25,
         help="Weight for the MAE component (default: 0.25).",
+    )
+    parser.add_argument(
+        "--loss-weight-spread",
+        type=float,
+        default=0.0,
+        help="Weight for intra-user prediction spread penalty (default: 0.0).",
     )
     parser.add_argument(
         "--num-workers",
@@ -232,18 +246,23 @@ def build_dataloaders(
     val_dataset,
     *,
     batch_size: int,
+    group_size: int,
     num_workers: int,
     device: torch.device,
     world_size: int,
     rank: int,
+    seed: int,
 ):
     pin_memory = device.type == "cuda"
-    train_sampler = DistributedSampler(
-        train_dataset,
+    train_sampler = DistributedGroupedBatchSampler(
+        train_dataset.records["user_id"].tolist(),
+        batch_size=batch_size,
+        group_size=group_size,
+        shuffle=True,
+        seed=seed,
+        drop_last=False,
         num_replicas=world_size,
         rank=rank,
-        shuffle=True,
-        drop_last=False,
     )
     val_sampler = DistributedSampler(
         val_dataset,
@@ -255,8 +274,7 @@ def build_dataloaders(
 
     train_loader = DataLoader(
         train_dataset,
-        batch_size=batch_size,
-        sampler=train_sampler,
+        batch_sampler=train_sampler,
         num_workers=num_workers,
         pin_memory=pin_memory,
         drop_last=False,
@@ -298,6 +316,10 @@ def main() -> None:
         mae=args.loss_weight_mae,
     )
     loss_weights.validate()
+    if args.loss_weight_spread < 0:
+        raise ValueError("loss-weight-spread must be non-negative.")
+    if args.user_group_size < 1:
+        raise ValueError("user-group-size must be at least 1.")
     eval_group_sizes = sorted({int(n) for n in args.eval_aggregation_sizes if int(n) > 0})
     if not eval_group_sizes:
         raise ValueError("At least one positive --eval-aggregation-sizes value is required.")
@@ -322,10 +344,12 @@ def main() -> None:
         train_dataset,
         val_dataset,
         batch_size=args.batch_size,
+        group_size=args.user_group_size,
         num_workers=args.num_workers,
         device=device,
         world_size=world_size,
         rank=rank,
+        seed=args.seed,
     )
 
     output_dir = Path(args.output_dir).expanduser()
@@ -337,12 +361,13 @@ def main() -> None:
             f"Train images: {train_len}\n"
             f"Val images:   {val_len}\n"
             f"Model: {model_desc} | Image size: {default_size} | "
-            f"Per-rank batch size: {args.batch_size}\n"
+            f"Per-rank batch size: {args.batch_size} | User group size: {args.user_group_size}\n"
             f"Epochs: {args.epochs} | Learning rate: {args.lr:.2e} | Seed: {args.seed} | World size: {world_size}"
         )
         print(
             f"Loss weights -> NLL: {loss_weights.nll:.3f}, "
-            f"MSE: {loss_weights.mse:.3f}, MAE: {loss_weights.mae:.3f}"
+            f"MSE: {loss_weights.mse:.3f}, MAE: {loss_weights.mae:.3f}, "
+            f"Spread: {args.loss_weight_spread:.3f}"
         )
         print(
             f"Eval aggregation group sizes: {eval_group_sizes} | "
@@ -380,18 +405,25 @@ def main() -> None:
         train_mae_sum = 0.0
         train_mse_sum = 0.0
         train_std_sum = 0.0
+        train_spread_sum = 0.0
 
         progress = tqdm(
             train_loader,
             desc=f"[Rank {rank}] Epoch {epoch}/{args.epochs}",
             disable=not is_main,
         )
-        for images, ages, _user_ids in progress:
+        for images, ages, batch_user_ids in progress:
             images = images.to(device, non_blocking=True)
             ages = ages.to(device, non_blocking=True)
             optimizer.zero_grad()
             pred_mean, pred_log_var = ddp_model(images)
-            loss = weighted_regression_loss(pred_mean, pred_log_var, ages, loss_weights)
+            base_loss = weighted_regression_loss(pred_mean, pred_log_var, ages, loss_weights)
+            if args.loss_weight_spread > 0:
+                spread_loss = intra_user_spread_loss(pred_mean, batch_user_ids)
+                loss = base_loss + args.loss_weight_spread * spread_loss
+            else:
+                spread_loss = None
+                loss = base_loss
             loss.backward()
             optimizer.step()
 
@@ -404,15 +436,25 @@ def main() -> None:
             train_mae_sum += torch.sum(abs_err).item()
             train_mse_sum += torch.sum(sq_err).item()
             train_std_sum += torch.sum(batch_std).item()
+            if spread_loss is not None:
+                train_spread_sum += spread_loss.item() * batch_size
 
         train_totals = all_reduce_metrics(
             device,
-            [train_loss_sum, train_mae_sum, train_mse_sum, train_std_sum, train_sample_count],
+            [
+                train_loss_sum,
+                train_mae_sum,
+                train_mse_sum,
+                train_std_sum,
+                train_spread_sum,
+                train_sample_count,
+            ],
         )
-        train_loss = train_totals[0] / max(1.0, train_totals[4])
-        train_mae = train_totals[1] / max(1.0, train_totals[4])
-        train_rmse = float(np.sqrt(train_totals[2] / max(1.0, train_totals[4])))
-        train_std = train_totals[3] / max(1.0, train_totals[4])
+        train_loss = train_totals[0] / max(1.0, train_totals[5])
+        train_mae = train_totals[1] / max(1.0, train_totals[5])
+        train_rmse = float(np.sqrt(train_totals[2] / max(1.0, train_totals[5])))
+        train_std = train_totals[3] / max(1.0, train_totals[5])
+        train_spread = train_totals[4] / max(1.0, train_totals[5])
 
         ddp_model.eval()
         val_sample_count = 0.0
@@ -458,13 +500,15 @@ def main() -> None:
         if is_main:
             print(
                 f"Epoch {epoch}: "
-                f"train_loss={train_loss:.4f}, train_mae={train_mae:.4f}, train_rmse={train_rmse:.4f}, train_std={train_std:.4f} | "
+                f"train_loss={train_loss:.4f}, train_mae={train_mae:.4f}, "
+                f"train_rmse={train_rmse:.4f}, train_std={train_std:.4f}, train_spread={train_spread:.4f} | "
                 f"val_loss={val_loss:.4f}, val_mae={val_mae:.4f}, val_rmse={val_rmse:.4f}, val_std={val_std:.4f}"
             )
             with history_log_path.open("a", encoding="utf-8") as log_fp:
                 log_fp.write(
                     f"Epoch {epoch},train_loss={train_loss:.6f},train_mae={train_mae:.6f},train_rmse={train_rmse:.6f},"
-                    f"train_std={train_std:.6f},val_loss={val_loss:.6f},val_mae={val_mae:.6f},val_rmse={val_rmse:.6f},val_std={val_std:.6f}\n"
+                    f"train_std={train_std:.6f},train_spread={train_spread:.6f},"
+                    f"val_loss={val_loss:.6f},val_mae={val_mae:.6f},val_rmse={val_rmse:.6f},val_std={val_std:.6f}\n"
                 )
             history_entries.append(
                 {

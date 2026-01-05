@@ -40,6 +40,8 @@ SEED="${SEED:-42}"
 LOSS_WEIGHT_NLL="${LOSS_WEIGHT_NLL:-0.65}"
 LOSS_WEIGHT_MSE="${LOSS_WEIGHT_MSE:-0.2}"
 LOSS_WEIGHT_MAE="${LOSS_WEIGHT_MAE:-0.15}"
+LOSS_WEIGHT_SPREAD="${LOSS_WEIGHT_SPREAD:-0.1}"
+USER_GROUP_SIZE="${USER_GROUP_SIZE:-2}"
 PATIENCE="${PATIENCE:-60}"
 MODELS="${MODELS:-${MODEL:-b2}}" # choices: b0-b7, v2_{s,m,l}, convnext_{tiny,small,base,large,xlarge}, aliases: cnt,cns,cnb,cnl,cnx
 STRATIFICATION="${STRATIFICATION:-no}"  # choices: no, minorAdults, bins
@@ -53,7 +55,7 @@ for MODEL_NAME in ${MODELS}; do
     if [[ -n "${LOSS_WEIGHT_GRID}" ]]; then
       for triple in ${LOSS_WEIGHT_GRID}; do
         IFS=":" read -r nll mse mae <<< "${triple}"
-        FOLDER_NAME="${MODEL_NAME}_bs${BATCH_SIZE}_seed${SEED_VAL}_nll${nll}_mse${mse}_mae${mae}_strat${STRATIFICATION}"
+        FOLDER_NAME="${MODEL_NAME}_bs${BATCH_SIZE}_seed${SEED_VAL}_nll${nll}_mse${mse}_mae${mae}_spread${LOSS_WEIGHT_SPREAD}_ug${USER_GROUP_SIZE}_strat${STRATIFICATION}"
         RUN_OUT="${OUTPUT_ROOT}/${FOLDER_NAME}"
         echo ">>> Starting distributed age inference training for ${MODEL_NAME} seed=${SEED_VAL} (NLL=${nll}, MSE=${mse}, MAE=${mae}) -> ${RUN_OUT}"
         torchrun \
@@ -75,13 +77,15 @@ for MODEL_NAME in ${MODELS}; do
           --loss-weight-nll "${nll}" \
           --loss-weight-mse "${mse}" \
           --loss-weight-mae "${mae}" \
+          --loss-weight-spread "${LOSS_WEIGHT_SPREAD}" \
+          --user-group-size "${USER_GROUP_SIZE}" \
           --eval-aggregation-sizes ${AGG_SIZES} \
           --eval-aggregation-seed "${AGG_SEED_EFF}" \
           --dist-backend nccl
         echo ">>> Training for ${MODEL_NAME} seed=${SEED_VAL} (NLL=${nll}, MSE=${mse}, MAE=${mae}) complete. Artifacts in ${RUN_OUT}"
       done
     else
-      FOLDER_NAME="${MODEL_NAME}_bs${BATCH_SIZE}_seed${SEED_VAL}_nll${LOSS_WEIGHT_NLL}_mse${LOSS_WEIGHT_MSE}_mae${LOSS_WEIGHT_MAE}_strat${STRATIFICATION}"
+      FOLDER_NAME="${MODEL_NAME}_bs${BATCH_SIZE}_seed${SEED_VAL}_nll${LOSS_WEIGHT_NLL}_mse${LOSS_WEIGHT_MSE}_mae${LOSS_WEIGHT_MAE}_spread${LOSS_WEIGHT_SPREAD}_ug${USER_GROUP_SIZE}_strat${STRATIFICATION}"
       RUN_OUT="${OUTPUT_ROOT}/${FOLDER_NAME}"
 
       echo ">>> Starting distributed age inference training for ${MODEL_NAME} seed=${SEED_VAL} (output: ${RUN_OUT})"
@@ -104,6 +108,8 @@ for MODEL_NAME in ${MODELS}; do
         --loss-weight-nll "${LOSS_WEIGHT_NLL}" \
         --loss-weight-mse "${LOSS_WEIGHT_MSE}" \
         --loss-weight-mae "${LOSS_WEIGHT_MAE}" \
+        --loss-weight-spread "${LOSS_WEIGHT_SPREAD}" \
+        --user-group-size "${USER_GROUP_SIZE}" \
         --eval-aggregation-sizes ${AGG_SIZES} \
         --eval-aggregation-seed "${AGG_SEED_EFF}" \
         --dist-backend nccl

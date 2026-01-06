@@ -337,6 +337,7 @@ def main() -> None:
         val_mae = 0.0
         val_mse = 0.0
         val_std = 0.0
+        val_spread = 0.0
         val_targets = []
         val_predictions = []
         val_log_vars = []
@@ -356,6 +357,8 @@ def main() -> None:
                         0.5 * torch.clamp(pred_log_var.detach(), min=-10.0, max=10.0)
                     )
                 ).item()
+                if args.loss_weight_spread > 0:
+                    val_spread += intra_user_spread_loss(pred_mean, batch_user_ids).item()
                 val_targets.extend(ages.detach().cpu().tolist())
                 val_predictions.extend(pred_mean.detach().cpu().tolist())
                 val_log_vars.extend(pred_log_var.detach().cpu().tolist())
@@ -365,17 +368,20 @@ def main() -> None:
         val_mae /= denom
         val_mse /= denom
         val_std /= denom
+        val_spread = val_spread / denom if args.loss_weight_spread > 0 else 0.0
         print(
             f"Epoch {epoch}: "
             f"train_loss={train_loss:.4f}, train_mae={train_mae:.4f}, "
             f"train_mse={train_mse:.4f}, train_std={train_std:.4f}, train_spread={train_spread:.4f} | "
-            f"val_loss={val_loss:.4f}, val_mae={val_mae:.4f}, val_mse={val_mse:.4f}, val_std={val_std:.4f}"
+            f"val_loss={val_loss:.4f}, val_mae={val_mae:.4f}, val_mse={val_mse:.4f}, "
+            f"val_std={val_std:.4f}, val_spread={val_spread:.4f}"
         )
         with history_log_path.open("a", encoding="utf-8") as log_fp:
             log_fp.write(
                 f"Epoch {epoch},train_loss={train_loss:.6f},train_mae={train_mae:.6f},train_mse={train_mse:.6f},"
                 f"train_std={train_std:.6f},train_spread={train_spread:.6f},"
-                f"val_loss={val_loss:.6f},val_mae={val_mae:.6f},val_mse={val_mse:.6f},val_std={val_std:.6f}\n"
+                f"val_loss={val_loss:.6f},val_mae={val_mae:.6f},val_mse={val_mse:.6f},"
+                f"val_std={val_std:.6f},val_spread={val_spread:.6f}\n"
             )
         history_entries.append(
             {

@@ -462,6 +462,7 @@ def main() -> None:
         val_mae_sum = 0.0
         val_mse_sum = 0.0
         val_std_sum = 0.0
+        val_spread_sum = 0.0
         val_targets = []
         val_predictions = []
         val_log_vars = []
@@ -482,6 +483,9 @@ def main() -> None:
                 val_std_sum += torch.sum(
                     torch.exp(0.5 * torch.clamp(pred_log_var.detach(), min=-10.0, max=10.0))
                 ).item()
+                if args.loss_weight_spread > 0:
+                    val_spread_loss = intra_user_spread_loss(pred_mean, batch_user_ids)
+                    val_spread_sum += val_spread_loss.item() * batch_size
 
                 val_targets.extend(ages.detach().cpu().tolist())
                 val_predictions.extend(pred_mean.detach().cpu().tolist())
@@ -490,25 +494,28 @@ def main() -> None:
 
         val_totals = all_reduce_metrics(
             device,
-            [val_loss_sum, val_mae_sum, val_mse_sum, val_std_sum, val_sample_count],
+            [val_loss_sum, val_mae_sum, val_mse_sum, val_std_sum, val_spread_sum, val_sample_count],
         )
-        val_loss = val_totals[0] / max(1.0, val_totals[4])
-        val_mae = val_totals[1] / max(1.0, val_totals[4])
-        val_rmse = float(np.sqrt(val_totals[2] / max(1.0, val_totals[4])))
-        val_std = val_totals[3] / max(1.0, val_totals[4])
+        val_loss = val_totals[0] / max(1.0, val_totals[5])
+        val_mae = val_totals[1] / max(1.0, val_totals[5])
+        val_rmse = float(np.sqrt(val_totals[2] / max(1.0, val_totals[5])))
+        val_std = val_totals[3] / max(1.0, val_totals[5])
+        val_spread = val_totals[4] / max(1.0, val_totals[5])
 
         if is_main:
             print(
                 f"Epoch {epoch}: "
                 f"train_loss={train_loss:.4f}, train_mae={train_mae:.4f}, "
                 f"train_rmse={train_rmse:.4f}, train_std={train_std:.4f}, train_spread={train_spread:.4f} | "
-                f"val_loss={val_loss:.4f}, val_mae={val_mae:.4f}, val_rmse={val_rmse:.4f}, val_std={val_std:.4f}"
+                f"val_loss={val_loss:.4f}, val_mae={val_mae:.4f}, val_rmse={val_rmse:.4f}, "
+                f"val_std={val_std:.4f}, val_spread={val_spread:.4f}"
             )
             with history_log_path.open("a", encoding="utf-8") as log_fp:
                 log_fp.write(
                     f"Epoch {epoch},train_loss={train_loss:.6f},train_mae={train_mae:.6f},train_rmse={train_rmse:.6f},"
                     f"train_std={train_std:.6f},train_spread={train_spread:.6f},"
-                    f"val_loss={val_loss:.6f},val_mae={val_mae:.6f},val_rmse={val_rmse:.6f},val_std={val_std:.6f}\n"
+                    f"val_loss={val_loss:.6f},val_mae={val_mae:.6f},val_rmse={val_rmse:.6f},"
+                    f"val_std={val_std:.6f},val_spread={val_spread:.6f}\n"
                 )
             history_entries.append(
                 {

@@ -7,9 +7,9 @@ import torch
 from models.efficientnet_age import EFFICIENTNET_IMG_SIZES, EfficientNetAgeRegressor
 
 # Example commands:
-#   python export_onnx.py --model b2 --checkpoint runs\b2_efficientnet\b2_age_regressor.pth --output runs\b2_efficientnet\b2_age_regressor.onnx
-#   python export_onnx.py --model b2 --checkpoint runs\b2_efficientnet\b2_age_regressor.pth --output runs\b2_efficientnet\b2_age_regressor_fp16.onnx --precision fp16
-#   python export_onnx.py --model b2 --checkpoint runs\b2_efficientnet\b2_age_regressor.pth --output runs\b2_efficientnet\b2_age_regressor_int8.onnx --precision int8
+#   python export_onnx.py --model b2 --checkpoint runs\b2_bs32_seed204_nll0.5_mse0.25_mae0.25_stratno\b2_age_regressor_ddp.pth --output runs\b2_bs32_seed204_nll0.5_mse0.25_mae0.25_stratno\b2_age_regressor_ddp.onnx
+#   python export_onnx.py --model b2 --checkpoint runs\b2_bs32_seed204_nll0.5_mse0.25_mae0.25_stratno\b2_age_regressor_ddp.pth --output runs\b2_bs32_seed204_nll0.5_mse0.25_mae0.25_stratno\b2_age_regressor_ddp_fp16.onnx --precision fp16
+#   python export_onnx.py --model b2 --checkpoint runs\b2_bs32_seed204_nll0.5_mse0.25_mae0.25_stratno\b2_age_regressor_ddp.pth --output runs\b2_bs32_seed204_nll0.5_mse0.25_mae0.25_stratno\b2_age_regressor_ddp_int8.onnx --precision int8
 
 
 def _parse_args() -> argparse.Namespace:

@@ -35,6 +35,28 @@ The default model is `EfficientNetAgeRegressor` (`models/efficientnet_age.py`), 
 
 ---
 
+### 3.1 SSL pretraining (DINO)
+
+Optional DINO-style SSL pretraining can be used before supervised age regression. The SSL run mixes:
+- Same-image pairing with different rotations (0-360 degrees).
+- Same-user, same-hand-side pairing from different samples (default 50/50).
+
+The multi-crop setup uses 2 global crops (teacher + student) and 2-4 moderate local crops (student only), with rotation and background masking applied consistently within each crop source.
+
+Example:
+
+```bash
+python train_dino.py --data-root "C:\Users\Staff\OneDrive - University of Greenwich\HandsDatasets" --output-dir runs\dino_b4 --model b4 --epochs 100 --batch-size 64
+```
+
+Use the resulting checkpoint to initialize supervised training:
+
+```bash
+python train_age.py --data-root "C:\Users\Staff\OneDrive - University of Greenwich\HandsDatasets" --output-dir runs\b4_ssl --model b4 --ssl-pretrained runs\dino_b4\dino_b4_pretrain.pth
+```
+
+---
+
 ### 4. Binary age-gate evaluation
 
 After training all models, treat the age-inference head as a binary age gate with an application-defined threshold (default 18 years). The network performs probabilistic age regression and outputs the parameters of a Gaussian age posterior (mu, sigma^2); integrate the Gaussian tail above the threshold to obtain the probability of the user being an adult, noted as p_adult( tau ).

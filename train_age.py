@@ -33,6 +33,7 @@ from metrics import (
     weighted_regression_loss,
 )
 from models import resolve_model_builder
+from models.ssl_utils import load_dino_backbone
 
 # Example (Windows): python train_age.py --data-root "C:\Users\Staff\OneDrive - University of Greenwich\HandsDatasets" --output-dir runs\b4_efficientnet --model b4 --img-size 380 --batch-size 32 --epochs 40 --seed 42 --lr 0.0003
 # --- Config -----------------------------------------------------------------
@@ -190,6 +191,17 @@ def main() -> None:
         default=DEFAULT_PATIENCE,
         help=f"Early stopping patience in epochs (default: {DEFAULT_PATIENCE}).",
     )
+    parser.add_argument(
+        "--ssl-pretrained",
+        type=str,
+        default=None,
+        help="Path to a DINO SSL checkpoint to initialize the backbone.",
+    )
+    parser.add_argument(
+        "--ssl-freeze-backbone",
+        action="store_true",
+        help="Freeze the backbone parameters when using SSL weights.",
+    )
     args = parser.parse_args()
     loss_weights = LossWeights(
         nll=args.loss_weight_nll,
@@ -280,13 +292,24 @@ def main() -> None:
         test_ds, batch_size=args.batch_size, shuffle=False, num_workers=0
     )
     model = model_builder()
+    if args.ssl_pretrained:
+        missing, unexpected = load_dino_backbone(model, args.ssl_pretrained)
+        print(
+            f"[ssl] Loaded backbone from {args.ssl_pretrained} "
+            f"(missing={len(missing)}, unexpected={len(unexpected)})"
+        )
+        if args.ssl_freeze_backbone:
+            for param in model.backbone.parameters():
+                param.requires_grad = False
     if DEVICE.type == "cuda":
         gpu_count = torch.cuda.device_count()
         if gpu_count > 1:
             print(f"Using {gpu_count} GPUs via DataParallel.")
             model = nn.DataParallel(model)
     model = model.to(DEVICE)
-    optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr)
+    optimizer = torch.optim.AdamW(
+        [p for p in model.parameters() if p.requires_grad], lr=args.lr
+    )
     best_val_loss = float("inf")
     best_model_path = output_dir / f"{model_key}_age_regressor.pth"
     history_log_path = output_dir / "history.log"

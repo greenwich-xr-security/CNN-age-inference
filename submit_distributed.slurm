@@ -37,6 +37,13 @@ export MASTER_ADDR MASTER_PORT
 SEEDS="${SEEDS:-${SEED:-32}}"              # space-separated seeds (or a single seed) 32 33 34 35 52 53 54 55 120 123 124 125 200 203 204 205
 BATCH_SIZE="${BATCH_SIZE:-32}"
 SEED="${SEED:-42}"
+DINO_EPOCHS="${DINO_EPOCHS:-100}"
+DINO_BATCH_SIZE="${DINO_BATCH_SIZE:-${BATCH_SIZE}}"
+DINO_PAIR_SAME_HAND_PROB="${DINO_PAIR_SAME_HAND_PROB:-0.5}"
+DINO_NUM_LOCAL_CROPS="${DINO_NUM_LOCAL_CROPS:-4}"
+DINO_AUG_RAMP_FRACTION="${DINO_AUG_RAMP_FRACTION:-0.2}"
+DINO_NUM_WORKERS="${DINO_NUM_WORKERS:-8}"
+DINO_OUTPUT_ROOT="${DINO_OUTPUT_ROOT:-${OUTPUT_ROOT}/dino}"
 LOSS_WEIGHT_NLL="${LOSS_WEIGHT_NLL:-0.6}"
 LOSS_WEIGHT_MSE="${LOSS_WEIGHT_MSE:-0.15}"
 LOSS_WEIGHT_MAE="${LOSS_WEIGHT_MAE:-0.15}"
@@ -53,6 +60,33 @@ for USER_GROUP_SIZE in ${USER_GROUP_SIZES}; do
   for MODEL_NAME in ${MODELS}; do
     for SEED_VAL in ${SEEDS}; do
       AGG_SEED_EFF="${AGG_SEED:-${SEED_VAL}}"
+      DINO_OUT="${DINO_OUTPUT_ROOT}/${MODEL_NAME}_seed${SEED_VAL}"
+      DINO_CKPT="${DINO_OUT}/dino_${MODEL_NAME}_pretrain_ddp.pth"
+
+      if [[ ! -f "${DINO_CKPT}" ]]; then
+        echo ">>> Starting distributed DINO pretraining for ${MODEL_NAME} seed=${SEED_VAL} (output: ${DINO_OUT})"
+        torchrun \
+          --nnodes="${NNODES}" \
+          --nproc_per_node="${GPUS_PER_NODE}" \
+          --rdzv_backend=c10d \
+          --rdzv_endpoint="${MASTER_ADDR}:${MASTER_PORT}" \
+          "${PROJECT_ROOT}/train_dino_distributed.py" \
+          --data-root "${DATA_ROOT}" \
+          --output-dir "${DINO_OUT}" \
+          --model "${MODEL_NAME}" \
+          --batch-size "${DINO_BATCH_SIZE}" \
+          --epochs "${DINO_EPOCHS}" \
+          --num-workers "${DINO_NUM_WORKERS}" \
+          --seed "${SEED_VAL}" \
+          --pair-same-hand-prob "${DINO_PAIR_SAME_HAND_PROB}" \
+          --num-local-crops "${DINO_NUM_LOCAL_CROPS}" \
+          --aug-ramp-fraction "${DINO_AUG_RAMP_FRACTION}" \
+          --dist-backend nccl
+        echo ">>> DINO pretraining for ${MODEL_NAME} seed=${SEED_VAL} complete."
+      else
+        echo ">>> Found existing DINO checkpoint for ${MODEL_NAME} seed=${SEED_VAL}: ${DINO_CKPT}"
+      fi
+
       if [[ -n "${LOSS_WEIGHT_GRID}" ]]; then
         for triple in ${LOSS_WEIGHT_GRID}; do
           IFS=":" read -r nll mse mae <<< "${triple}"
@@ -68,6 +102,7 @@ for USER_GROUP_SIZE in ${USER_GROUP_SIZES}; do
             --data-root "${DATA_ROOT}" \
             --output-dir "${RUN_OUT}" \
             --model "${MODEL_NAME}" \
+            --ssl-pretrained "${DINO_CKPT}" \
             --batch-size "${BATCH_SIZE}" \
             --epochs 240 \
             --lr 3e-4 \
@@ -99,6 +134,7 @@ for USER_GROUP_SIZE in ${USER_GROUP_SIZES}; do
           --data-root "${DATA_ROOT}" \
           --output-dir "${RUN_OUT}" \
           --model "${MODEL_NAME}" \
+          --ssl-pretrained "${DINO_CKPT}" \
           --batch-size "${BATCH_SIZE}" \
           --epochs 240 \
           --lr 3e-4 \

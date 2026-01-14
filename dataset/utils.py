@@ -15,6 +15,13 @@ def filter_metadata(df: pd.DataFrame) -> pd.DataFrame:
     return df.reset_index(drop=True)
 
 
+def filter_metadata_ssl(df: pd.DataFrame) -> pd.DataFrame:
+    """Keep dorsal images; SSL does not require age labels."""
+    df = df[df["aspect"].str.contains("dorsal", case=False, na=False)]
+    df = df.copy()
+    return df.reset_index(drop=True)
+
+
 def stratified_user_split(
     df: pd.DataFrame,
     *,

@@ -32,6 +32,7 @@ from metrics import (
     weighted_regression_loss,
 )
 from models import resolve_model_builder
+from models.ssl_utils import load_dino_backbone
 from train_age import set_random_seed
 
 DEFAULT_BATCH_SIZE = 32
@@ -188,6 +189,17 @@ def parse_args() -> argparse.Namespace:
         "--find-unused-params",
         action="store_true",
         help="Enable DistributedDataParallel(find_unused_parameters=True).",
+    )
+    parser.add_argument(
+        "--ssl-pretrained",
+        type=str,
+        default=None,
+        help="Path to a DINO SSL checkpoint to initialize the backbone.",
+    )
+    parser.add_argument(
+        "--ssl-freeze-backbone",
+        action="store_true",
+        help="Freeze the backbone parameters when using SSL weights.",
     )
     return parser.parse_args()
 
@@ -381,13 +393,25 @@ def main() -> None:
         print(f"Split mode: {split_desc}")
 
     model = model_builder().to(device)
+    if args.ssl_pretrained:
+        missing, unexpected = load_dino_backbone(model, args.ssl_pretrained)
+        if is_main:
+            print(
+                f"[ssl] Loaded backbone from {args.ssl_pretrained} "
+                f"(missing={len(missing)}, unexpected={len(unexpected)})"
+            )
+        if args.ssl_freeze_backbone:
+            for param in model.backbone.parameters():
+                param.requires_grad = False
     ddp_model = DistributedDataParallel(
         model,
         device_ids=[local_rank] if device.type == "cuda" else None,
         output_device=local_rank if device.type == "cuda" else None,
         find_unused_parameters=args.find_unused_params,
     )
-    optimizer = torch.optim.AdamW(ddp_model.parameters(), lr=args.lr)
+    optimizer = torch.optim.AdamW(
+        [p for p in ddp_model.parameters() if p.requires_grad], lr=args.lr
+    )
 
     best_val_loss = float("inf")
     best_model_path = output_dir / f"{model_key}_age_regressor_ddp.pth"

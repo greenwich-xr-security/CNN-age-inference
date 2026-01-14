@@ -47,6 +47,20 @@ def cosine_schedule(start: float, end: float, total_steps: int) -> list[float]:
     return values
 
 
+def forward_views(model, views: list[torch.Tensor]) -> list[torch.Tensor]:
+    outputs = [None] * len(views)
+    size_map: dict[tuple[int, int], list[int]] = {}
+    for idx, view in enumerate(views):
+        size_map.setdefault(tuple(view.shape[-2:]), []).append(idx)
+    for indices in size_map.values():
+        batch = torch.cat([views[i] for i in indices], dim=0)
+        batch_out = model(batch)
+        chunks = batch_out.chunk(len(indices))
+        for idx, out in zip(indices, chunks):
+            outputs[idx] = out
+    return outputs
+
+
 class DINOLoss(nn.Module):
     def __init__(
         self,
@@ -455,11 +469,9 @@ def main() -> None:
         progress = tqdm(loader, desc=f"[Rank {rank}] Epoch {epoch}/{args.epochs}", disable=not is_main)
         for batch in progress:
             views = [v.to(device, non_blocking=True) for v in batch]
-            student_concat = torch.cat(views, dim=0)
-            student_outputs = ddp_student(student_concat).chunk(len(views))
+            student_outputs = forward_views(ddp_student, views)
             with torch.no_grad():
-                teacher_concat = torch.cat(views[:2], dim=0)
-                teacher_outputs = teacher(teacher_concat).chunk(2)
+                teacher_outputs = forward_views(teacher, views[:2])
             dino_loss.set_teacher_temp(teacher_temps[global_step])
             loss = dino_loss(student_outputs, teacher_outputs)
 

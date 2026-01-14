@@ -3,6 +3,7 @@ from __future__ import annotations
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.nn.utils.parametrizations import weight_norm
 
 
 class DINOHead(nn.Module):
@@ -29,11 +30,11 @@ class DINOHead(nn.Module):
             layers.append(nn.Linear(hidden_dim, bottleneck_dim))
             self.mlp = nn.Sequential(*layers)
 
-        self.last_layer = nn.utils.weight_norm(
-            nn.Linear(bottleneck_dim, out_dim, bias=False)
-        )
-        self.last_layer.weight_g.data.fill_(1.0)
-        self.last_layer.weight_g.requires_grad = False
+        self.last_layer = nn.Linear(bottleneck_dim, out_dim, bias=False)
+        self.last_layer = weight_norm(self.last_layer, name="weight", dim=0)
+        with torch.no_grad():
+            self.last_layer.parametrizations.weight[0].g.fill_(1.0)
+        self.last_layer.parametrizations.weight[0].g.requires_grad = False
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.mlp(x)

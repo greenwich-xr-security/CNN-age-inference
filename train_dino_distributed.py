@@ -94,33 +94,34 @@ class DINOLoss(nn.Module):
     def set_teacher_temp(self, temp: float) -> None:
         self.teacher_temp = float(temp)
 
-    def forward(self, student_outputs: list[torch.Tensor], teacher_outputs: list[torch.Tensor]) -> torch.Tensor:
-        student_logits = [s / self.student_temp for s in student_outputs]
-        student_log_probs = [F.log_softmax(s, dim=-1) for s in student_logits]
-
-        teacher_logits = [(t - self.center) / self.teacher_temp for t in teacher_outputs]
-        teacher_probs = [F.softmax(t, dim=-1).detach() for t in teacher_logits]
-
+    def compute_loss(
+        self,
+        student_output: torch.Tensor,
+        teacher_outputs: list[torch.Tensor],
+        *,
+        skip_teacher_index: int | None,
+        total_terms: int,
+    ) -> torch.Tensor:
+        student_log_prob = F.log_softmax(student_output / self.student_temp, dim=-1)
         total_loss = None
-        n_terms = 0
-        for t_idx, t_prob in enumerate(teacher_probs):
-            for s_idx, s_log_prob in enumerate(student_log_probs):
-                if s_idx == t_idx:
-                    continue
-                term = torch.sum(-t_prob * s_log_prob, dim=-1).mean()
-                total_loss = term if total_loss is None else total_loss + term
-                n_terms += 1
-        total_loss = total_loss / max(1, n_terms)
+        for t_idx, t_out in enumerate(teacher_outputs):
+            if skip_teacher_index is not None and t_idx == skip_teacher_index:
+                continue
+            t_prob = F.softmax((t_out - self.center) / self.teacher_temp, dim=-1).detach()
+            term = torch.sum(-t_prob * student_log_prob, dim=-1).mean()
+            total_loss = term if total_loss is None else total_loss + term
+        if total_loss is None:
+            return torch.tensor(0.0, device=student_output.device)
+        return total_loss / float(max(1, total_terms))
 
-        with torch.no_grad():
-            teacher_output = torch.cat(teacher_outputs, dim=0)
-            batch_center = torch.mean(teacher_output, dim=0, keepdim=True)
-            if dist.is_available() and dist.is_initialized():
-                dist.all_reduce(batch_center, op=dist.ReduceOp.SUM)
-                batch_center /= dist.get_world_size()
-            self.center = self.center * self.center_momentum + batch_center * (1 - self.center_momentum)
-
-        return total_loss
+    @torch.no_grad()
+    def update_center(self, teacher_outputs: list[torch.Tensor]) -> None:
+        teacher_output = torch.cat(teacher_outputs, dim=0)
+        batch_center = torch.mean(teacher_output, dim=0, keepdim=True)
+        if dist.is_available() and dist.is_initialized():
+            dist.all_reduce(batch_center, op=dist.ReduceOp.SUM)
+            batch_center /= dist.get_world_size()
+        self.center = self.center * self.center_momentum + batch_center * (1 - self.center_momentum)
 
 
 def update_teacher(student: nn.Module, teacher: nn.Module, momentum: float) -> None:
@@ -486,21 +487,30 @@ def main() -> None:
         progress = tqdm(loader, desc=f"[Rank {rank}] Epoch {epoch}/{args.epochs}", disable=not is_main)
         for batch in progress:
             views = [v.to(device, non_blocking=True) for v in batch]
-            student_outputs = forward_views(ddp_student, views)
             with torch.no_grad():
                 teacher_outputs = forward_views(teacher, views[:2])
             dino_loss.set_teacher_temp(teacher_temps[global_step])
-            loss = dino_loss(student_outputs, teacher_outputs)
-
+            total_terms = (len(views) * len(teacher_outputs)) - len(teacher_outputs)
             optimizer.zero_grad()
-            loss.backward()
+            batch_loss = 0.0
+            for idx, view in enumerate(views):
+                student_output = ddp_student(view)
+                skip_idx = idx if idx < len(teacher_outputs) else None
+                loss = dino_loss.compute_loss(
+                    student_output,
+                    teacher_outputs,
+                    skip_teacher_index=skip_idx,
+                    total_terms=total_terms,
+                )
+                loss.backward()
+                batch_loss += loss.item()
             optimizer.step()
 
             momentum = momentum_schedule[global_step]
             update_teacher(ddp_student.module, teacher, momentum)
-
+            dino_loss.update_center(teacher_outputs)
             batch_size = views[0].size(0)
-            running_loss += loss.item() * batch_size
+            running_loss += batch_loss * batch_size
             running_count += batch_size
             global_step += 1
 

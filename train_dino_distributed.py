@@ -66,6 +66,14 @@ def set_bn_eval(module: nn.Module) -> None:
         module.eval()
 
 
+def disable_inplace_ops(module: nn.Module) -> None:
+    if hasattr(module, "inplace"):
+        try:
+            module.inplace = False
+        except Exception:
+            pass
+
+
 class DINOLoss(nn.Module):
     def __init__(
         self,
@@ -419,6 +427,9 @@ def main() -> None:
             bottleneck_dim=args.bottleneck_dim,
         ),
     ).to(device)
+
+    student.apply(disable_inplace_ops)
+    teacher.apply(disable_inplace_ops)
 
     teacher.load_state_dict(student.state_dict(), strict=True)
     for param in teacher.parameters():

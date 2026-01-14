@@ -71,15 +71,16 @@ class DINOLoss(nn.Module):
         teacher_logits = [(t - self.center) / self.teacher_temp for t in teacher_outputs]
         teacher_probs = [F.softmax(t, dim=-1).detach() for t in teacher_logits]
 
-        total_loss = 0.0
+        total_loss = None
         n_terms = 0
         for t_idx, t_prob in enumerate(teacher_probs):
             for s_idx, s_log_prob in enumerate(student_log_probs):
                 if s_idx == t_idx:
                     continue
-                total_loss += torch.sum(-t_prob * s_log_prob, dim=-1).mean()
+                term = torch.sum(-t_prob * s_log_prob, dim=-1).mean()
+                total_loss = term if total_loss is None else total_loss + term
                 n_terms += 1
-        total_loss /= max(1, n_terms)
+        total_loss = total_loss / max(1, n_terms)
 
         with torch.no_grad():
             teacher_output = torch.cat(teacher_outputs, dim=0)
@@ -385,9 +386,11 @@ def main() -> None:
         running_loss = 0.0
         for batch in tqdm(loader, desc=f"Epoch {epoch}/{args.epochs}"):
             views = [v.to(DEVICE, non_blocking=True) for v in batch]
-            student_outputs = [student(view) for view in views]
+            student_concat = torch.cat(views, dim=0)
+            student_outputs = student(student_concat).chunk(len(views))
             with torch.no_grad():
-                teacher_outputs = [teacher(view) for view in views[:2]]
+                teacher_concat = torch.cat(views[:2], dim=0)
+                teacher_outputs = teacher(teacher_concat).chunk(2)
             dino_loss.set_teacher_temp(teacher_temps[global_step])
             loss = dino_loss(student_outputs, teacher_outputs)
 

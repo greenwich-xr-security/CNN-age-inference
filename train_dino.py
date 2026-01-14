@@ -58,6 +58,11 @@ def forward_views(model, views: list[torch.Tensor]) -> list[torch.Tensor]:
     return outputs
 
 
+def set_bn_eval(module: nn.Module) -> None:
+    if isinstance(module, (nn.BatchNorm1d, nn.BatchNorm2d, nn.BatchNorm3d, nn.SyncBatchNorm)):
+        module.eval()
+
+
 class DINOLoss(nn.Module):
     def __init__(
         self,
@@ -395,6 +400,7 @@ def main() -> None:
             strength = min(1.0, epoch / ramp_epochs)
             multi_crop.set_strength(strength)
         student.train()
+        student.apply(set_bn_eval)
         teacher.eval()
 
         running_loss = 0.0

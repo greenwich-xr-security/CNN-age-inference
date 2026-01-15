@@ -14,20 +14,20 @@ from torchvision.transforms import functional as F
 
 @dataclass
 class DinoAugmentationConfig:
-    brightness: float = 0.2
-    contrast: float = 0.2
-    saturation: float = 0.1
-    hue: float = 0.02
-    color_jitter_prob: float = 0.8
+    brightness: float = 0.05
+    contrast: float = 0.05
+    saturation: float = 0.02
+    hue: float = 0.005
+    color_jitter_prob: float = 0.2
     grayscale_prob: float = 0.0
-    blur_prob_global: float = 0.2
-    blur_prob_local: float = 0.1
+    blur_prob_global: float = 0.05
+    blur_prob_local: float = 0.05
     blur_sigma_min: float = 0.1
-    blur_sigma_max: float = 0.6
-    mask_prob: float = 0.5
-    mask_scale_min: float = 0.75
-    mask_scale_max: float = 0.95
-    mask_offset: float = 0.1
+    blur_sigma_max: float = 0.2
+    mask_prob: float = 0.1
+    mask_scale_min: float = 0.9
+    mask_scale_max: float = 0.98
+    mask_offset: float = 0.02
     rotation_degrees: float = 360.0
 
 

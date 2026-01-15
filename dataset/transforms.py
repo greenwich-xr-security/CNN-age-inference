@@ -8,22 +8,25 @@ def build_transforms(img_size: int):
     """Return train/test transforms for a given square image size."""
     train_transform = transforms.Compose(
         [
-            transforms.RandomResizedCrop(img_size, scale=(0.7, 1.0)),
+            transforms.RandomResizedCrop(img_size, scale=(0.95, 1.0)),
             transforms.RandomRotation(degrees=(-180, 180)),
             transforms.RandomHorizontalFlip(),
             transforms.RandomVerticalFlip(),
             
             # Photometric robustness
-            transforms.ColorJitter(brightness=0.35, contrast=0.35, saturation=0.2, hue=0.02),
-            transforms.RandomGrayscale(p=0.15),
+            transforms.ColorJitter(brightness=0.05, contrast=0.05, saturation=0.02, hue=0.005),
+            transforms.RandomGrayscale(p=0.02),
 
             # Camera / focus robustness
-            transforms.GaussianBlur(kernel_size=3, sigma=(0.1, 1.2)),
+            transforms.RandomApply(
+                [transforms.GaussianBlur(kernel_size=3, sigma=(0.1, 0.2))],
+                p=0.05,
+            ),
 
             transforms.ToTensor(),
             
             # Occlusion robustness (forces not relying on tiny regions)
-            transforms.RandomErasing(p=0.25, scale=(0.02, 0.12), ratio=(0.3, 3.3), value='random'),
+            transforms.RandomErasing(p=0.02, scale=(0.02, 0.04), ratio=(0.3, 3.3), value='random'),
 
             transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
         ]

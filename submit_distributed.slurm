@@ -37,7 +37,7 @@ export MASTER_ADDR MASTER_PORT
 SEEDS="${SEEDS:-${SEED:-32 53}}"              # space-separated seeds (or a single seed) 32 33 34 35 52 53 54 55 120 123 124 125 200 203 204 205
 BATCH_SIZE="${BATCH_SIZE:-32}"
 SEED="${SEED:-42}"
-DINO_EPOCHS="${DINO_EPOCHS:-200}"
+DINO_EPOCHS="${DINO_EPOCHS:-120}"
 DINO_BATCH_SIZE="${DINO_BATCH_SIZE:-${BATCH_SIZE}}"
 DINO_PAIR_SAME_HAND_PROB="${DINO_PAIR_SAME_HAND_PROB:-0.5}"
 DINO_NUM_LOCAL_CROPS="${DINO_NUM_LOCAL_CROPS:-4}"
@@ -49,7 +49,7 @@ LOSS_WEIGHT_MSE="${LOSS_WEIGHT_MSE:-0.15}"
 LOSS_WEIGHT_MAE="${LOSS_WEIGHT_MAE:-0.15}"
 LOSS_WEIGHT_SPREAD="${LOSS_WEIGHT_SPREAD:-0.15}"
 USER_GROUP_SIZES="2 4 8"
-PATIENCE="${PATIENCE:-60}"
+PATIENCE="${PATIENCE:-40}"
 MODELS="${MODELS:-${MODEL:-b2}}" # choices: b0-b7, v2_{s,m,l}, convnext_{tiny,small,base,large,xlarge}, aliases: cnt,cns,cnb,cnl,cnx
 STRATIFICATION="${STRATIFICATION:-no}"  # choices: no, minorAdults, bins
 AGG_SIZES="${AGG_SIZES:-${EVAL_AGG_SIZES:- 1 2 3 4}}"   # space-separated list, e.g., "1 2 3"
@@ -88,10 +88,10 @@ for USER_GROUP_SIZE in ${USER_GROUP_SIZES}; do
         --dist-backend nccl
       echo ">>> BASELINE training for ${MODEL_NAME} seed=${SEED_VAL} complete. Artifacts in ${BASELINE_OUT}"
 
-      DINO_OUT="${DINO_OUTPUT_ROOT}/${MODEL_NAME}_seed${SEED_VAL}_ssl60"
+      DINO_OUT="${DINO_OUTPUT_ROOT}/${MODEL_NAME}_seed${SEED_VAL}_ssl${DINO_EPOCHS}"
       DINO_CKPT="${DINO_OUT}/dino_${MODEL_NAME}_pretrain_ddp.pth"
       if [[ ! -f "${DINO_CKPT}" ]]; then
-        echo ">>> Starting distributed DINO pretraining (60 epochs) for ${MODEL_NAME} seed=${SEED_VAL} (output: ${DINO_OUT})"
+        echo ">>> Starting distributed DINO pretraining (${DINO_EPOCHS} epochs) for ${MODEL_NAME} seed=${SEED_VAL} (output: ${DINO_OUT})"
         torchrun \
           --nnodes="${NNODES}" \
           --nproc_per_node="${GPUS_PER_NODE}" \
@@ -102,7 +102,7 @@ for USER_GROUP_SIZE in ${USER_GROUP_SIZES}; do
           --output-dir "${DINO_OUT}" \
           --model "${MODEL_NAME}" \
           --batch-size "${DINO_BATCH_SIZE}" \
-          --epochs 60 \
+          --epochs "${DINO_EPOCHS}" \
           --num-workers "${DINO_NUM_WORKERS}" \
           --seed "${SEED_VAL}" \
           --pair-same-hand-prob "${DINO_PAIR_SAME_HAND_PROB}" \

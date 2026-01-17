@@ -569,6 +569,16 @@ def main() -> None:
             log_vars_arr = np.asarray(log_vars_all, dtype=float)
             user_ids_list = list(user_ids_all)
 
+            raw_preds_path = output_dir / "val_predictions_raw_ddp.npz"
+            np.savez(
+                raw_preds_path,
+                targets=targets_arr,
+                pred_mean=preds_arr,
+                pred_log_var=log_vars_arr,
+                user_ids=np.asarray(user_ids_list, dtype=str),
+                epoch=epoch,
+            )
+
             saved_artifacts = []
             for group_size in eval_group_sizes:
                 agg_rng = random.Random(eval_agg_seed + group_size)

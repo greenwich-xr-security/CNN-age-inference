@@ -84,6 +84,29 @@ def load_predictions(run_dir: Path, group_size: int) -> dict:
     }
 
 
+def load_raw_predictions(run_dir: Path) -> dict | None:
+    path = run_dir / "val_predictions_raw_ddp.npz"
+    if not path.exists():
+        return None
+    data = np.load(path)
+    return {
+        "targets": data["targets"].astype(float),
+        "pred_mean": data["pred_mean"].astype(float),
+        "user_ids": data["user_ids"].astype(str),
+    }
+
+
+def compute_intra_user_variability(user_ids: np.ndarray, preds: np.ndarray) -> tuple[float, float, int]:
+    buckets: dict[str, list[float]] = {}
+    for uid, pred in zip(user_ids, preds):
+        buckets.setdefault(str(uid), []).append(float(pred))
+
+    stds = [float(np.std(vals)) for vals in buckets.values() if len(vals) > 1]
+    if not stds:
+        return float("nan"), float("nan"), 0
+    return float(np.mean(stds)), float(np.median(stds)), len(stds)
+
+
 def compute_age_errors(targets: np.ndarray, preds: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     ages_int = targets.astype(int)
     unique_ages = np.unique(ages_int)
@@ -201,6 +224,41 @@ def main() -> None:
         if args.run_name:
             output_dir = output_dir / args.run_name
 
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    intra_user_stats = []
+    for fold_dir, run_dir in zip(fold_dirs, run_dirs):
+        raw_preds = load_raw_predictions(run_dir)
+        if raw_preds is None:
+            intra_user_stats.append(
+                {
+                    "fold": fold_dir.name,
+                    "mean": float("nan"),
+                    "median": float("nan"),
+                    "count": 0,
+                }
+            )
+            continue
+        mean_std, median_std, count = compute_intra_user_variability(
+            raw_preds["user_ids"], raw_preds["pred_mean"]
+        )
+        intra_user_stats.append(
+            {
+                "fold": fold_dir.name,
+                "mean": mean_std,
+                "median": median_std,
+                "count": count,
+            }
+        )
+
+    intra_path = output_dir / "kfold_intra_user_variability.csv"
+    with intra_path.open("w", encoding="utf-8") as fp:
+        fp.write("fold,users_with_variability,intra_user_std_mean,intra_user_std_median\n")
+        for row in intra_user_stats:
+            fp.write(
+                f"{row['fold']},{row['count']},{row['mean']:.6f},{row['median']:.6f}\n"
+            )
+
     for group_size in group_sizes:
         fold_rows = []
         roc_case1 = []
@@ -243,6 +301,7 @@ def main() -> None:
             ages, mae_vals, rmse_vals = compute_age_errors(targets, pred_mean)
             age_tables.append({"ages": ages, "mae": mae_vals, "rmse": rmse_vals})
 
+            stats = intra_user_stats[len(fold_rows)] if intra_user_stats else None
             fold_rows.append(
                 {
                     "fold": fold_label,
@@ -252,17 +311,24 @@ def main() -> None:
                     "auc_case1": gate["case1"]["auc"],
                     "auc_case2": gate["case2"]["auc"],
                     "samples": int(targets.size),
+                    "intra_user_std_mean": (stats["mean"] if stats else float("nan")),
+                    "intra_user_std_median": (stats["median"] if stats else float("nan")),
+                    "users_with_variability": (stats["count"] if stats else 0),
                 }
             )
 
         fold_rows_path = output_dir / f"kfold_summary_n{group_size}.csv"
-        fold_rows_path.parent.mkdir(parents=True, exist_ok=True)
         with fold_rows_path.open("w", encoding="utf-8") as fp:
-            fp.write("fold,group_size,mae,rmse,auc_case1,auc_case2,samples\n")
+            fp.write(
+                "fold,group_size,mae,rmse,auc_case1,auc_case2,samples,"
+                "intra_user_std_mean,intra_user_std_median,users_with_variability\n"
+            )
             for row in fold_rows:
                 fp.write(
                     f"{row['fold']},{row['group_size']},{row['mae']:.6f},{row['rmse']:.6f},"
-                    f"{row['auc_case1']:.6f},{row['auc_case2']:.6f},{row['samples']}\n"
+                    f"{row['auc_case1']:.6f},{row['auc_case2']:.6f},{row['samples']},"
+                    f"{row['intra_user_std_mean']:.6f},{row['intra_user_std_median']:.6f},"
+                    f"{row['users_with_variability']}\n"
                 )
 
         fpr_grid = np.linspace(0.0, 1.0, 101)

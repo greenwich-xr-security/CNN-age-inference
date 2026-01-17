@@ -41,7 +41,7 @@ LOSS_WEIGHT_NLL="${LOSS_WEIGHT_NLL:-0.5}"
 LOSS_WEIGHT_MSE="${LOSS_WEIGHT_MSE:-0.8}"
 LOSS_WEIGHT_MAE="${LOSS_WEIGHT_MAE:-0.5}"
 LOSS_WEIGHT_SPREAD="${LOSS_WEIGHT_SPREAD:-0.8}"
-USER_GROUP_SIZES="4"
+USER_GROUP_SIZES="2 4"
 PATIENCE="${PATIENCE:-40}"
 MODELS="${MODELS:-${MODEL:-b2}}" # choices: b0-b7, v2_{s,m,l}, convnext_{tiny,small,base,large,xlarge}, aliases: cnt,cns,cnb,cnl,cnx
 AGG_SIZES="${AGG_SIZES:-${EVAL_AGG_SIZES:-1 2 3 4}}"   # space-separated list, e.g., "1 2 3"
@@ -49,31 +49,27 @@ AGG_SEED="${AGG_SEED:-${EVAL_AGG_SEED:-${SEED}}}"
 # K-fold settings (set KFOLDS > 1 to enable).
 KFOLDS="${KFOLDS:-5}"
 FOLD_SEED="${FOLD_SEED:-${SEED}}"
-FOLD_ROOT="${FOLD_ROOT:-${OUTPUT_ROOT}/kfold}"
-FOLD_FILE="${FOLD_FILE:-${FOLD_ROOT}/folds_k${KFOLDS}.json}"
 RUN_KFOLD_AGG="${RUN_KFOLD_AGG:-1}"
 FOLD_OVERWRITE="${FOLD_OVERWRITE:-0}"
-
-if [[ "${KFOLDS}" -gt 1 ]]; then
-  if [[ ! -f "${FOLD_FILE}" || "${FOLD_OVERWRITE}" -gt 0 ]]; then
-    python "${PROJECT_ROOT}/make_kfold_splits.py" \
-      --data-root "${DATA_ROOT}" \
-      --k "${KFOLDS}" \
-      --seed "${FOLD_SEED}" \
-      --out-file "${FOLD_FILE}" \
-      $( [[ "${FOLD_OVERWRITE}" -gt 0 ]] && echo "--overwrite" )
-  fi
-fi
 
 for USER_GROUP_SIZE in ${USER_GROUP_SIZES}; do
   for MODEL_NAME in ${MODELS}; do
     for SEED_VAL in ${SEEDS}; do
       AGG_SEED_EFF="${AGG_SEED:-${SEED_VAL}}"
       FOLDER_NAME="${MODEL_NAME}_bs${BATCH_SIZE}_seed${SEED_VAL}_nll${LOSS_WEIGHT_NLL}_mse${LOSS_WEIGHT_MSE}_mae${LOSS_WEIGHT_MAE}_spread${LOSS_WEIGHT_SPREAD}_ug${USER_GROUP_SIZE}"
+      FOLD_FILE="${OUTPUT_ROOT}/${FOLDER_NAME}/folds_k${KFOLDS}.json"
 
       if [[ "${KFOLDS}" -gt 1 ]]; then
+        if [[ ! -f "${FOLD_FILE}" || "${FOLD_OVERWRITE}" -gt 0 ]]; then
+          python "${PROJECT_ROOT}/make_kfold_splits.py" \
+            --data-root "${DATA_ROOT}" \
+            --k "${KFOLDS}" \
+            --seed "${FOLD_SEED}" \
+            --out-file "${FOLD_FILE}" \
+            $( [[ "${FOLD_OVERWRITE}" -gt 0 ]] && echo "--overwrite" )
+        fi
         for ((FOLD_IDX=0; FOLD_IDX<KFOLDS; FOLD_IDX++)); do
-          RUN_OUT="${FOLD_ROOT}/fold_${FOLD_IDX}/${FOLDER_NAME}"
+          RUN_OUT="${OUTPUT_ROOT}/${FOLDER_NAME}/fold_${FOLD_IDX}"
           echo ">>> Starting distributed age inference training for ${MODEL_NAME} seed=${SEED_VAL} fold=${FOLD_IDX} (output: ${RUN_OUT})"
           torchrun \
             --nnodes="${NNODES}" \
@@ -104,10 +100,9 @@ for USER_GROUP_SIZE in ${USER_GROUP_SIZES}; do
         done
 
         if [[ "${RUN_KFOLD_AGG}" -gt 0 ]]; then
-          AGG_OUT="${FOLD_ROOT}/aggregate/${FOLDER_NAME}"
+          AGG_OUT="${OUTPUT_ROOT}/${FOLDER_NAME}"
           python "${PROJECT_ROOT}/aggregate_kfold.py" \
-            --kfold-root "${FOLD_ROOT}" \
-            --run-name "${FOLDER_NAME}" \
+            --kfold-root "${AGG_OUT}" \
             --output-dir "${AGG_OUT}" \
             --group-sizes ${AGG_SIZES}
         fi

@@ -38,84 +38,49 @@ SEEDS="${SEEDS:-${SEED:-32}}"              # space-separated seeds (or a single 
 BATCH_SIZE="${BATCH_SIZE:-32}"
 SEED="${SEED:-42}"
 LOSS_WEIGHT_NLL="${LOSS_WEIGHT_NLL:-0.6}"
-LOSS_WEIGHT_MSE="${LOSS_WEIGHT_MSE:-0.15}"
-LOSS_WEIGHT_MAE="${LOSS_WEIGHT_MAE:-0.15}"
-LOSS_WEIGHT_SPREAD="${LOSS_WEIGHT_SPREAD:-0.15}"
-USER_GROUP_SIZES="2 4"
-PATIENCE="${PATIENCE:-60}"
-MODELS="${MODELS:-${MODEL:-b2}}" # choices: b0-b7, v2_{s,m,l}, convnext_{tiny,small,base,large,xlarge}, aliases: cnt,cns,cnb,cnl,cnx
+LOSS_WEIGHT_MSE="${LOSS_WEIGHT_MSE:-0.25}"
+LOSS_WEIGHT_MAE="${LOSS_WEIGHT_MAE:-0.25}"
+LOSS_WEIGHT_SPREAD="${LOSS_WEIGHT_SPREAD:-0.6}"
+USER_GROUP_SIZES="4"
+PATIENCE="${PATIENCE:-40}"
+MODELS="${MODELS:-${MODEL:-b2 b3}}" # choices: b0-b7, v2_{s,m,l}, convnext_{tiny,small,base,large,xlarge}, aliases: cnt,cns,cnb,cnl,cnx
 STRATIFICATION="${STRATIFICATION:-no}"  # choices: no, minorAdults, bins
 AGG_SIZES="${AGG_SIZES:-${EVAL_AGG_SIZES:-1 2 3 4}}"   # space-separated list, e.g., "1 2 3"
 AGG_SEED="${AGG_SEED:-${EVAL_AGG_SEED:-${SEED}}}"
-LOSS_WEIGHT_GRID="${LOSS_WEIGHT_GRID:-0.5:0.25:0.25}"  # space-separated triples nll:mse:mae, e.g., "0.65:0.20:0.15 0.7:0.2:0.1"
 
 for USER_GROUP_SIZE in ${USER_GROUP_SIZES}; do
   for MODEL_NAME in ${MODELS}; do
     for SEED_VAL in ${SEEDS}; do
       AGG_SEED_EFF="${AGG_SEED:-${SEED_VAL}}"
-      if [[ -n "${LOSS_WEIGHT_GRID}" ]]; then
-        for triple in ${LOSS_WEIGHT_GRID}; do
-          IFS=":" read -r nll mse mae <<< "${triple}"
-          FOLDER_NAME="${MODEL_NAME}_bs${BATCH_SIZE}_seed${SEED_VAL}_nll${nll}_mse${mse}_mae${mae}_spread${LOSS_WEIGHT_SPREAD}_ug${USER_GROUP_SIZE}_strat${STRATIFICATION}"
-          RUN_OUT="${OUTPUT_ROOT}/${FOLDER_NAME}"
-          echo ">>> Starting distributed age inference training for ${MODEL_NAME} seed=${SEED_VAL} (NLL=${nll}, MSE=${mse}, MAE=${mae}) -> ${RUN_OUT}"
-          torchrun \
-            --nnodes="${NNODES}" \
-            --nproc_per_node="${GPUS_PER_NODE}" \
-            --rdzv_backend=c10d \
-            --rdzv_endpoint="${MASTER_ADDR}:${MASTER_PORT}" \
-            "${PROJECT_ROOT}/train_distributed.py" \
-            --data-root "${DATA_ROOT}" \
-            --output-dir "${RUN_OUT}" \
-            --model "${MODEL_NAME}" \
-            --batch-size "${BATCH_SIZE}" \
-            --epochs 240 \
-            --lr 3e-4 \
-            --num-workers 8 \
-            --seed "${SEED_VAL}" \
-            --patience "${PATIENCE}" \
-            --stratification "${STRATIFICATION}" \
-            --loss-weight-nll "${nll}" \
-            --loss-weight-mse "${mse}" \
-            --loss-weight-mae "${mae}" \
-            --loss-weight-spread "${LOSS_WEIGHT_SPREAD}" \
-            --user-group-size "${USER_GROUP_SIZE}" \
-            --eval-aggregation-sizes ${AGG_SIZES} \
-            --eval-aggregation-seed "${AGG_SEED_EFF}" \
-            --dist-backend nccl
-          echo ">>> Training for ${MODEL_NAME} seed=${SEED_VAL} (NLL=${nll}, MSE=${mse}, MAE=${mae}) complete. Artifacts in ${RUN_OUT}"
-        done
-      else
-        FOLDER_NAME="${MODEL_NAME}_bs${BATCH_SIZE}_seed${SEED_VAL}_nll${LOSS_WEIGHT_NLL}_mse${LOSS_WEIGHT_MSE}_mae${LOSS_WEIGHT_MAE}_spread${LOSS_WEIGHT_SPREAD}_ug${USER_GROUP_SIZE}_strat${STRATIFICATION}"
-        RUN_OUT="${OUTPUT_ROOT}/${FOLDER_NAME}"
+      FOLDER_NAME="${MODEL_NAME}_bs${BATCH_SIZE}_seed${SEED_VAL}_nll${LOSS_WEIGHT_NLL}_mse${LOSS_WEIGHT_MSE}_mae${LOSS_WEIGHT_MAE}_spread${LOSS_WEIGHT_SPREAD}_ug${USER_GROUP_SIZE}_strat${STRATIFICATION}"
+      RUN_OUT="${OUTPUT_ROOT}/${FOLDER_NAME}"
 
-        echo ">>> Starting distributed age inference training for ${MODEL_NAME} seed=${SEED_VAL} (output: ${RUN_OUT})"
-        torchrun \
-          --nnodes="${NNODES}" \
-          --nproc_per_node="${GPUS_PER_NODE}" \
-          --rdzv_backend=c10d \
-          --rdzv_endpoint="${MASTER_ADDR}:${MASTER_PORT}" \
-          "${PROJECT_ROOT}/train_distributed.py" \
-          --data-root "${DATA_ROOT}" \
-          --output-dir "${RUN_OUT}" \
-          --model "${MODEL_NAME}" \
-          --batch-size "${BATCH_SIZE}" \
-          --epochs 240 \
-          --lr 3e-4 \
-          --num-workers 8 \
-          --seed "${SEED_VAL}" \
-          --patience "${PATIENCE}" \
-          --stratification "${STRATIFICATION}" \
-          --loss-weight-nll "${LOSS_WEIGHT_NLL}" \
-          --loss-weight-mse "${LOSS_WEIGHT_MSE}" \
-          --loss-weight-mae "${LOSS_WEIGHT_MAE}" \
-          --loss-weight-spread "${LOSS_WEIGHT_SPREAD}" \
-          --user-group-size "${USER_GROUP_SIZE}" \
-          --eval-aggregation-sizes ${AGG_SIZES} \
-          --eval-aggregation-seed "${AGG_SEED_EFF}" \
-          --dist-backend nccl
-        echo ">>> Training for ${MODEL_NAME} seed=${SEED_VAL} complete. Artifacts in ${RUN_OUT}"
-      fi
+      echo ">>> Starting distributed age inference training for ${MODEL_NAME} seed=${SEED_VAL} (output: ${RUN_OUT})"
+      torchrun \
+        --nnodes="${NNODES}" \
+        --nproc_per_node="${GPUS_PER_NODE}" \
+        --rdzv_backend=c10d \
+        --rdzv_endpoint="${MASTER_ADDR}:${MASTER_PORT}" \
+        "${PROJECT_ROOT}/train_distributed.py" \
+        --data-root "${DATA_ROOT}" \
+        --output-dir "${RUN_OUT}" \
+        --model "${MODEL_NAME}" \
+        --batch-size "${BATCH_SIZE}" \
+        --epochs 240 \
+        --lr 3e-4 \
+        --num-workers 8 \
+        --seed "${SEED_VAL}" \
+        --patience "${PATIENCE}" \
+        --stratification "${STRATIFICATION}" \
+        --loss-weight-nll "${LOSS_WEIGHT_NLL}" \
+        --loss-weight-mse "${LOSS_WEIGHT_MSE}" \
+        --loss-weight-mae "${LOSS_WEIGHT_MAE}" \
+        --loss-weight-spread "${LOSS_WEIGHT_SPREAD}" \
+        --user-group-size "${USER_GROUP_SIZE}" \
+        --eval-aggregation-sizes ${AGG_SIZES} \
+        --eval-aggregation-seed "${AGG_SEED_EFF}" \
+        --dist-backend nccl
+      echo ">>> Training for ${MODEL_NAME} seed=${SEED_VAL} complete. Artifacts in ${RUN_OUT}"
     done
   done
 done

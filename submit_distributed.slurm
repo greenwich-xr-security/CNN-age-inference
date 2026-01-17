@@ -37,15 +37,19 @@ export MASTER_ADDR MASTER_PORT
 SEEDS="${SEEDS:-${SEED:-32}}"              # space-separated seeds (or a single seed) 32 33 34 35 52 53 54 55 120 123 124 125 200 203 204 205
 BATCH_SIZE="${BATCH_SIZE:-32}"
 SEED="${SEED:-42}"
+LR="${LR:-3e-4}"
+EPOCHS="${EPOCHS:-240}"
 LOSS_WEIGHT_NLL="${LOSS_WEIGHT_NLL:-0.8}"
 LOSS_WEIGHT_MSE="${LOSS_WEIGHT_MSE:-0.2}"
 LOSS_WEIGHT_MAE="${LOSS_WEIGHT_MAE:-0.2}"
 LOSS_WEIGHT_SPREAD="${LOSS_WEIGHT_SPREAD:-0.8}"
-USER_GROUP_SIZES="2"
+USER_GROUP_SIZES="${USER_GROUP_SIZES:-2}"
 PATIENCE="${PATIENCE:-30}"
 MODELS="${MODELS:-${MODEL:-b2}}" # choices: b0-b7, v2_{s,m,l}, convnext_{tiny,small,base,large,xlarge}, aliases: cnt,cns,cnb,cnl,cnx
 AGG_SIZES="${AGG_SIZES:-${EVAL_AGG_SIZES:-1 2 3 4}}"   # space-separated list, e.g., "1 2 3"
 AGG_SEED="${AGG_SEED:-${EVAL_AGG_SEED:-${SEED}}}"
+NUM_WORKERS="${NUM_WORKERS:-8}"
+RUN_SUFFIX="${RUN_SUFFIX:-}"
 # K-fold settings (set KFOLDS > 1 to enable).
 KFOLDS="${KFOLDS:-5}"
 FOLD_SEED="${FOLD_SEED:-${SEED}}"
@@ -57,6 +61,9 @@ for USER_GROUP_SIZE in ${USER_GROUP_SIZES}; do
     for SEED_VAL in ${SEEDS}; do
       AGG_SEED_EFF="${AGG_SEED:-${SEED_VAL}}"
       FOLDER_NAME="${MODEL_NAME}_bs${BATCH_SIZE}_seed${SEED_VAL}_nll${LOSS_WEIGHT_NLL}_mse${LOSS_WEIGHT_MSE}_mae${LOSS_WEIGHT_MAE}_spread${LOSS_WEIGHT_SPREAD}_ug${USER_GROUP_SIZE}"
+      if [[ -n "${RUN_SUFFIX}" ]]; then
+        FOLDER_NAME="${FOLDER_NAME}_${RUN_SUFFIX}"
+      fi
       FOLD_FILE="${OUTPUT_ROOT}/${FOLDER_NAME}/folds_k${KFOLDS}.json"
 
       if [[ "${KFOLDS}" -gt 1 ]]; then
@@ -81,9 +88,9 @@ for USER_GROUP_SIZE in ${USER_GROUP_SIZES}; do
             --output-dir "${RUN_OUT}" \
             --model "${MODEL_NAME}" \
             --batch-size "${BATCH_SIZE}" \
-            --epochs 240 \
-            --lr 3e-4 \
-            --num-workers 8 \
+            --epochs "${EPOCHS}" \
+            --lr "${LR}" \
+            --num-workers "${NUM_WORKERS}" \
             --seed "${SEED_VAL}" \
             --patience "${PATIENCE}" \
             --loss-weight-nll "${LOSS_WEIGHT_NLL}" \
@@ -119,9 +126,9 @@ for USER_GROUP_SIZE in ${USER_GROUP_SIZES}; do
           --output-dir "${RUN_OUT}" \
           --model "${MODEL_NAME}" \
           --batch-size "${BATCH_SIZE}" \
-          --epochs 240 \
-          --lr 3e-4 \
-          --num-workers 8 \
+          --epochs "${EPOCHS}" \
+          --lr "${LR}" \
+          --num-workers "${NUM_WORKERS}" \
           --seed "${SEED_VAL}" \
           --patience "${PATIENCE}" \
           --loss-weight-nll "${LOSS_WEIGHT_NLL}" \

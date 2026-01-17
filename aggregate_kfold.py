@@ -174,7 +174,7 @@ def plot_age_error(
                 out[i] = float(np.nanmean(window_vals))
         return out
 
-    smooth_window = 5
+    smooth_window = 10
     mae_smooth = rolling_mean(mae_mean, smooth_window)
     rmse_smooth = rolling_mean(rmse_mean, smooth_window)
 

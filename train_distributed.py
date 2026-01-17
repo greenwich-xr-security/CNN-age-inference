@@ -16,7 +16,7 @@ from dataset.age import AgeDataset
 from dataset.hand_metadata import get_dataset_root, load_combined_metadata, set_dataset_root
 from dataset.samplers import DistributedGroupedBatchSampler
 from dataset.transforms import build_transforms
-from dataset.utils import filter_metadata, stratified_user_split
+from dataset.utils import filter_metadata, load_kfold_splits, stratified_user_split
 from displayUtils import DisplayUtils
 from metrics import (
     CHALLENGE_BINS,
@@ -55,6 +55,18 @@ def parse_args() -> argparse.Namespace:
         "--no-stratified-user-split",
         action="store_true",
         help="Disable per-user stratification when splitting the dataset.",
+    )
+    parser.add_argument(
+        "--fold-file",
+        type=str,
+        default=None,
+        help="Path to a k-fold split JSON file. When set, --fold-index selects the validation fold.",
+    )
+    parser.add_argument(
+        "--fold-index",
+        type=int,
+        default=None,
+        help="Fold index to use as validation set (0-based). Required with --fold-file.",
     )
     parser.add_argument(
         "--stratification",
@@ -222,23 +234,48 @@ def build_datasets(args: argparse.Namespace, seed: int, img_size: int):
     train_transform, test_transform = build_transforms(img_size)
 
     metadata = filter_metadata(load_combined_metadata(root=active_root))
-    stratification_mode = "no" if args.no_stratified_user_split else args.stratification
-    if stratification_mode == "no":
-        user_ids = metadata["user_id"].unique()
-        train_ids, val_ids = train_test_split(user_ids, test_size=0.2, random_state=seed)
+    fold_info = None
+    if args.fold_file:
+        if args.fold_index is None:
+            raise ValueError("--fold-index is required when --fold-file is set.")
+        fold_data = load_kfold_splits(args.fold_file)
+        folds = fold_data.get("folds", [])
+        if not folds:
+            raise ValueError("Fold file does not contain any folds.")
+        if args.fold_index < 0 or args.fold_index >= len(folds):
+            raise ValueError(f"fold-index must be in [0, {len(folds) - 1}].")
+        val_ids = {str(uid) for uid in folds[args.fold_index]}
+        train_ids = set()
+        for idx, fold in enumerate(folds):
+            if idx == args.fold_index:
+                continue
+            train_ids.update(str(uid) for uid in fold)
+        available_ids = set(metadata["user_id"].astype(str).unique())
+        val_ids = [uid for uid in val_ids if uid in available_ids]
+        train_ids = [uid for uid in train_ids if uid in available_ids and uid not in val_ids]
+        fold_info = {
+            "k": len(folds),
+            "index": args.fold_index,
+            "stratification": fold_data.get("stratification", "unknown"),
+        }
     else:
-        train_ids, val_ids = stratified_user_split(
-            metadata,
-            test_size=0.2,
-            random_state=seed,
-            stratification=stratification_mode,
-        )
+        stratification_mode = "no" if args.no_stratified_user_split else args.stratification
+        if stratification_mode == "no":
+            user_ids = metadata["user_id"].unique()
+            train_ids, val_ids = train_test_split(user_ids, test_size=0.2, random_state=seed)
+        else:
+            train_ids, val_ids = stratified_user_split(
+                metadata,
+                test_size=0.2,
+                random_state=seed,
+                stratification=stratification_mode,
+            )
     train_meta = metadata[metadata["user_id"].isin(train_ids)]
     val_meta = metadata[metadata["user_id"].isin(val_ids)]
 
     train_ds = AgeDataset(train_meta, transform=train_transform)
     val_ds = AgeDataset(val_meta, transform=test_transform)
-    return train_ds, val_ds, active_root, len(train_meta), len(val_meta)
+    return train_ds, val_ds, active_root, len(train_meta), len(val_meta), fold_info
 
 
 def build_dataloaders(
@@ -328,8 +365,6 @@ def main() -> None:
     )
     rank, world_size, local_rank, device = init_distributed(args)
     is_main = rank == 0
-    stratification_mode = "no" if args.no_stratified_user_split else args.stratification
-
     model_builder, default_size, model_desc, model_key = resolve_model_builder(args.model)
     if args.img_size is not None and args.img_size != default_size and is_main:
         print(
@@ -339,7 +374,9 @@ def main() -> None:
 
     set_random_seed(args.seed + rank)
 
-    train_dataset, val_dataset, active_root, train_len, val_len = build_datasets(args, args.seed, default_size)
+    train_dataset, val_dataset, active_root, train_len, val_len, fold_info = build_datasets(
+        args, args.seed, default_size
+    )
     train_loader, val_loader, train_sampler = build_dataloaders(
         train_dataset,
         val_dataset,
@@ -373,12 +410,20 @@ def main() -> None:
             f"Eval aggregation group sizes: {eval_group_sizes} | "
             f"aggregation seed: {eval_agg_seed}"
         )
-        split_desc = {
-            "no": "Unstratified per-user split (random).",
-            "minorAdults": "Stratified per-user split (adult/minor aware).",
-            "bins": "Stratified per-user split (multi-bin age labels).",
-        }.get(stratification_mode, f"Split mode: {stratification_mode}")
-        print(f"Split mode: {split_desc}")
+        if fold_info:
+            print(
+                "Split mode: k-fold "
+                f"(fold {fold_info['index'] + 1}/{fold_info['k']}, "
+                f"stratification={fold_info['stratification']})"
+            )
+        else:
+            stratification_mode = "no" if args.no_stratified_user_split else args.stratification
+            split_desc = {
+                "no": "Unstratified per-user split (random).",
+                "minorAdults": "Stratified per-user split (adult/minor aware).",
+                "bins": "Stratified per-user split (multi-bin age labels).",
+            }.get(stratification_mode, f"Split mode: {stratification_mode}")
+            print(f"Split mode: {split_desc}")
 
     model = model_builder().to(device)
     ddp_model = DistributedDataParallel(

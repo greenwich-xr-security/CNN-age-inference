@@ -17,7 +17,7 @@ from dataset.hand_metadata import (
 )
 from dataset.samplers import GroupedBatchSampler
 from dataset.transforms import build_transforms
-from dataset.utils import filter_metadata, stratified_user_split
+from dataset.utils import filter_metadata, load_kfold_splits, stratified_user_split
 from displayUtils import DisplayUtils
 from metrics import (
     CHALLENGE_BINS,
@@ -161,6 +161,18 @@ def main() -> None:
         help="Disable per-user stratification when splitting the dataset.",
     )
     parser.add_argument(
+        "--fold-file",
+        type=str,
+        default=None,
+        help="Path to a k-fold split JSON file. When set, --fold-index selects the test fold.",
+    )
+    parser.add_argument(
+        "--fold-index",
+        type=int,
+        default=None,
+        help="Fold index to use as test set (0-based). Required with --fold-file.",
+    )
+    parser.add_argument(
         "--loss-weight-nll",
         type=float,
         default=0.5,
@@ -224,19 +236,44 @@ def main() -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
     train_transform, test_transform = build_transforms(img_size)
     metadata = filter_metadata(load_combined_metadata(root=active_root))
-    stratification_mode = "no" if args.no_stratified_user_split else args.stratification
-    if stratification_mode == "no":
-        user_ids = metadata["user_id"].unique()
-        train_ids, test_ids = train_test_split(
-            user_ids, test_size=0.2, random_state=args.seed
-        )
+    fold_info = None
+    if args.fold_file:
+        if args.fold_index is None:
+            raise ValueError("--fold-index is required when --fold-file is set.")
+        fold_data = load_kfold_splits(args.fold_file)
+        folds = fold_data.get("folds", [])
+        if not folds:
+            raise ValueError("Fold file does not contain any folds.")
+        if args.fold_index < 0 or args.fold_index >= len(folds):
+            raise ValueError(f"fold-index must be in [0, {len(folds) - 1}].")
+        test_ids = {str(uid) for uid in folds[args.fold_index]}
+        train_ids = set()
+        for idx, fold in enumerate(folds):
+            if idx == args.fold_index:
+                continue
+            train_ids.update(str(uid) for uid in fold)
+        available_ids = set(metadata["user_id"].astype(str).unique())
+        test_ids = [uid for uid in test_ids if uid in available_ids]
+        train_ids = [uid for uid in train_ids if uid in available_ids and uid not in test_ids]
+        fold_info = {
+            "k": len(folds),
+            "index": args.fold_index,
+            "stratification": fold_data.get("stratification", "unknown"),
+        }
     else:
-        train_ids, test_ids = stratified_user_split(
-            metadata,
-            test_size=0.2,
-            random_state=args.seed,
-            stratification=stratification_mode,
-        )
+        stratification_mode = "no" if args.no_stratified_user_split else args.stratification
+        if stratification_mode == "no":
+            user_ids = metadata["user_id"].unique()
+            train_ids, test_ids = train_test_split(
+                user_ids, test_size=0.2, random_state=args.seed
+            )
+        else:
+            train_ids, test_ids = stratified_user_split(
+                metadata,
+                test_size=0.2,
+                random_state=args.seed,
+                stratification=stratification_mode,
+            )
     train_meta = metadata[metadata["user_id"].isin(train_ids)]
     test_meta = metadata[metadata["user_id"].isin(test_ids)]
     print(
@@ -257,12 +294,20 @@ def main() -> None:
         f"Eval aggregation group sizes: {eval_group_sizes} | "
         f"aggregation seed: {eval_agg_seed}"
     )
-    split_desc = {
-        "no": "Unstratified per-user split (random).",
-        "minorAdults": "Stratified per-user split (adult/minor aware).",
-        "bins": "Stratified per-user split (multi-bin age labels).",
-    }.get(stratification_mode, f"Split mode: {stratification_mode}")
-    print(f"Split mode: {split_desc}")
+    if fold_info:
+        print(
+            "Split mode: k-fold "
+            f"(fold {fold_info['index'] + 1}/{fold_info['k']}, "
+            f"stratification={fold_info['stratification']})"
+        )
+    else:
+        stratification_mode = "no" if args.no_stratified_user_split else args.stratification
+        split_desc = {
+            "no": "Unstratified per-user split (random).",
+            "minorAdults": "Stratified per-user split (adult/minor aware).",
+            "bins": "Stratified per-user split (multi-bin age labels).",
+        }.get(stratification_mode, f"Split mode: {stratification_mode}")
+        print(f"Split mode: {split_desc}")
     train_ds = AgeDataset(train_meta, transform=train_transform)
     test_ds = AgeDataset(test_meta, transform=test_transform)
     train_sampler = GroupedBatchSampler(

@@ -24,13 +24,6 @@ def parse_args() -> argparse.Namespace:
         help="Number of folds to create.",
     )
     parser.add_argument(
-        "--stratification",
-        type=str,
-        default="minorAdults",
-        choices=["no", "minorAdults", "bins"],
-        help="Stratification mode for the folds (default: minorAdults).",
-    )
-    parser.add_argument(
         "--seed",
         type=int,
         default=42,
@@ -64,12 +57,10 @@ def main() -> None:
         metadata,
         k=args.k,
         random_state=args.seed,
-        stratification=args.stratification,
     )
     saved_path = save_kfold_splits(
         folds,
         out_path,
-        stratification=args.stratification,
         seed=args.seed,
     )
 

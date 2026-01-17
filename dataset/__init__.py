@@ -9,7 +9,7 @@ from .hand_metadata import (
 )
 from .age import AgeDataset
 from .transforms import build_transforms
-from .utils import filter_metadata, stratified_user_split
+from .utils import filter_metadata
 
 __all__ = [
     "get_dataset_root",
@@ -21,5 +21,4 @@ __all__ = [
     "AgeDataset",
     "build_transforms",
     "filter_metadata",
-    "stratified_user_split",
 ]

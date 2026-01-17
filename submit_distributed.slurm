@@ -44,7 +44,6 @@ LOSS_WEIGHT_SPREAD="${LOSS_WEIGHT_SPREAD:-0.8}"
 USER_GROUP_SIZES="4"
 PATIENCE="${PATIENCE:-40}"
 MODELS="${MODELS:-${MODEL:-b2}}" # choices: b0-b7, v2_{s,m,l}, convnext_{tiny,small,base,large,xlarge}, aliases: cnt,cns,cnb,cnl,cnx
-STRATIFICATION="${STRATIFICATION:-no}"  # choices: no, minorAdults, bins
 AGG_SIZES="${AGG_SIZES:-${EVAL_AGG_SIZES:-1 2 3 4}}"   # space-separated list, e.g., "1 2 3"
 AGG_SEED="${AGG_SEED:-${EVAL_AGG_SEED:-${SEED}}}"
 # K-fold settings (set KFOLDS > 1 to enable).
@@ -60,7 +59,6 @@ if [[ "${KFOLDS}" -gt 1 ]]; then
     python "${PROJECT_ROOT}/make_kfold_splits.py" \
       --data-root "${DATA_ROOT}" \
       --k "${KFOLDS}" \
-      --stratification "${STRATIFICATION}" \
       --seed "${FOLD_SEED}" \
       --out-file "${FOLD_FILE}" \
       $( [[ "${FOLD_OVERWRITE}" -gt 0 ]] && echo "--overwrite" )
@@ -71,7 +69,7 @@ for USER_GROUP_SIZE in ${USER_GROUP_SIZES}; do
   for MODEL_NAME in ${MODELS}; do
     for SEED_VAL in ${SEEDS}; do
       AGG_SEED_EFF="${AGG_SEED:-${SEED_VAL}}"
-      FOLDER_NAME="${MODEL_NAME}_bs${BATCH_SIZE}_seed${SEED_VAL}_nll${LOSS_WEIGHT_NLL}_mse${LOSS_WEIGHT_MSE}_mae${LOSS_WEIGHT_MAE}_spread${LOSS_WEIGHT_SPREAD}_ug${USER_GROUP_SIZE}_strat${STRATIFICATION}"
+      FOLDER_NAME="${MODEL_NAME}_bs${BATCH_SIZE}_seed${SEED_VAL}_nll${LOSS_WEIGHT_NLL}_mse${LOSS_WEIGHT_MSE}_mae${LOSS_WEIGHT_MAE}_spread${LOSS_WEIGHT_SPREAD}_ug${USER_GROUP_SIZE}"
 
       if [[ "${KFOLDS}" -gt 1 ]]; then
         for ((FOLD_IDX=0; FOLD_IDX<KFOLDS; FOLD_IDX++)); do
@@ -92,7 +90,6 @@ for USER_GROUP_SIZE in ${USER_GROUP_SIZES}; do
             --num-workers 8 \
             --seed "${SEED_VAL}" \
             --patience "${PATIENCE}" \
-            --stratification "${STRATIFICATION}" \
             --loss-weight-nll "${LOSS_WEIGHT_NLL}" \
             --loss-weight-mse "${LOSS_WEIGHT_MSE}" \
             --loss-weight-mae "${LOSS_WEIGHT_MAE}" \
@@ -132,7 +129,6 @@ for USER_GROUP_SIZE in ${USER_GROUP_SIZES}; do
           --num-workers 8 \
           --seed "${SEED_VAL}" \
           --patience "${PATIENCE}" \
-          --stratification "${STRATIFICATION}" \
           --loss-weight-nll "${LOSS_WEIGHT_NLL}" \
           --loss-weight-mse "${LOSS_WEIGHT_MSE}" \
           --loss-weight-mae "${LOSS_WEIGHT_MAE}" \

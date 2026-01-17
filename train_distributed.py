@@ -16,7 +16,7 @@ from dataset.age import AgeDataset
 from dataset.hand_metadata import get_dataset_root, load_combined_metadata, set_dataset_root
 from dataset.samplers import DistributedGroupedBatchSampler
 from dataset.transforms import build_transforms
-from dataset.utils import filter_metadata, load_kfold_splits, stratified_user_split
+from dataset.utils import filter_metadata, load_kfold_splits
 from displayUtils import DisplayUtils
 from metrics import (
     CHALLENGE_BINS,
@@ -52,11 +52,6 @@ def parse_args() -> argparse.Namespace:
         help="Path to the dataset root directory. Overrides the default or env var.",
     )
     parser.add_argument(
-        "--no-stratified-user-split",
-        action="store_true",
-        help="Disable per-user stratification when splitting the dataset.",
-    )
-    parser.add_argument(
         "--fold-file",
         type=str,
         default=None,
@@ -67,18 +62,6 @@ def parse_args() -> argparse.Namespace:
         type=int,
         default=None,
         help="Fold index to use as validation set (0-based). Required with --fold-file.",
-    )
-    parser.add_argument(
-        "--stratification",
-        type=str,
-        default="minorAdults",
-        choices=["no", "minorAdults", "bins"],
-        help=(
-            "Dataset split mode: "
-            "no=unstratified per-user random split; "
-            "minorAdults=preserve adult/minor ratio (default); "
-            "bins=preserve multi-bin age ratios."
-        ),
     )
     parser.add_argument(
         "--output-dir",
@@ -256,20 +239,10 @@ def build_datasets(args: argparse.Namespace, seed: int, img_size: int):
         fold_info = {
             "k": len(folds),
             "index": args.fold_index,
-            "stratification": fold_data.get("stratification", "unknown"),
         }
     else:
-        stratification_mode = "no" if args.no_stratified_user_split else args.stratification
-        if stratification_mode == "no":
-            user_ids = metadata["user_id"].unique()
-            train_ids, val_ids = train_test_split(user_ids, test_size=0.2, random_state=seed)
-        else:
-            train_ids, val_ids = stratified_user_split(
-                metadata,
-                test_size=0.2,
-                random_state=seed,
-                stratification=stratification_mode,
-            )
+        user_ids = metadata["user_id"].unique()
+        train_ids, val_ids = train_test_split(user_ids, test_size=0.2, random_state=seed)
     train_meta = metadata[metadata["user_id"].isin(train_ids)]
     val_meta = metadata[metadata["user_id"].isin(val_ids)]
 
@@ -413,17 +386,10 @@ def main() -> None:
         if fold_info:
             print(
                 "Split mode: k-fold "
-                f"(fold {fold_info['index'] + 1}/{fold_info['k']}, "
-                f"stratification={fold_info['stratification']})"
+                f"(fold {fold_info['index'] + 1}/{fold_info['k']})"
             )
         else:
-            stratification_mode = "no" if args.no_stratified_user_split else args.stratification
-            split_desc = {
-                "no": "Unstratified per-user split (random).",
-                "minorAdults": "Stratified per-user split (adult/minor aware).",
-                "bins": "Stratified per-user split (multi-bin age labels).",
-            }.get(stratification_mode, f"Split mode: {stratification_mode}")
-            print(f"Split mode: {split_desc}")
+            print("Split mode: Unstratified per-user split (random).")
 
     model = model_builder().to(device)
     ddp_model = DistributedDataParallel(

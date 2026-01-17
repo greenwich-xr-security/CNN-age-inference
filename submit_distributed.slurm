@@ -47,7 +47,7 @@ MODELS="${MODELS:-${MODEL:-b2}}" # choices: b0-b7, v2_{s,m,l}, convnext_{tiny,sm
 AGG_SIZES="${AGG_SIZES:-${EVAL_AGG_SIZES:-1 2 3 4}}"   # space-separated list, e.g., "1 2 3"
 AGG_SEED="${AGG_SEED:-${EVAL_AGG_SEED:-${SEED}}}"
 # K-fold settings (set KFOLDS > 1 to enable).
-KFOLDS="${KFOLDS:-0}"
+KFOLDS="${KFOLDS:-5}"
 FOLD_SEED="${FOLD_SEED:-${SEED}}"
 FOLD_ROOT="${FOLD_ROOT:-${OUTPUT_ROOT}/kfold}"
 FOLD_FILE="${FOLD_FILE:-${FOLD_ROOT}/folds_k${KFOLDS}.json}"

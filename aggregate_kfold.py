@@ -134,9 +134,32 @@ def plot_age_error(
     title: str,
     output_path: Path,
 ) -> None:
+    def rolling_mean(values: np.ndarray, window: int) -> np.ndarray:
+        if window <= 1:
+            return values.copy()
+        arr = np.asarray(values, dtype=float)
+        n = arr.size
+        half = window // 2
+        out = np.empty_like(arr)
+        for i in range(n):
+            start = max(0, i - half)
+            end = min(n, i + half + 1)
+            window_vals = arr[start:end]
+            if np.all(np.isnan(window_vals)):
+                out[i] = np.nan
+            else:
+                out[i] = float(np.nanmean(window_vals))
+        return out
+
+    smooth_window = 5
+    mae_smooth = rolling_mean(mae_mean, smooth_window)
+    rmse_smooth = rolling_mean(rmse_mean, smooth_window)
+
     fig, ax = plt.subplots(figsize=(7, 4))
     ax.plot(ages, mae_mean, label="MAE", marker="o", linewidth=1.5)
     ax.plot(ages, rmse_mean, label="RMSE", marker="s", linewidth=1.5)
+    ax.plot(ages, mae_smooth, label="MAE (smooth)", linestyle="--", linewidth=1.5)
+    ax.plot(ages, rmse_smooth, label="RMSE (smooth)", linestyle="--", linewidth=1.5)
     ax.fill_between(ages, mae_mean - mae_std, mae_mean + mae_std, alpha=0.15)
     ax.fill_between(ages, rmse_mean - rmse_std, rmse_mean + rmse_std, alpha=0.15)
     ax.set_xlabel("Target Age")

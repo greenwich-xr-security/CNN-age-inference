@@ -114,9 +114,9 @@ for USER_GROUP_SIZE in ${USER_GROUP_SIZES}; do
         echo ">>> Found existing DINO checkpoint for ${MODEL_NAME} seed=${SEED_VAL}: ${DINO_CKPT}"
       fi
 
-      SSL_NAME="${MODEL_NAME}_bs${BATCH_SIZE}_seed${SEED_VAL}_nll${LOSS_WEIGHT_NLL}_mse${LOSS_WEIGHT_MSE}_mae${LOSS_WEIGHT_MAE}_spread${LOSS_WEIGHT_SPREAD}_ug${USER_GROUP_SIZE}_strat${STRATIFICATION}_ssl60"
+      SSL_NAME="${MODEL_NAME}_bs${BATCH_SIZE}_seed${SEED_VAL}_nll${LOSS_WEIGHT_NLL}_mse${LOSS_WEIGHT_MSE}_mae${LOSS_WEIGHT_MAE}_spread${LOSS_WEIGHT_SPREAD}_ug${USER_GROUP_SIZE}_strat${STRATIFICATION}_ssl${DINO_EPOCHS}"
       SSL_OUT="${OUTPUT_ROOT}/${SSL_NAME}"
-      echo ">>> Starting SSL-60 training for ${MODEL_NAME} seed=${SEED_VAL} -> ${SSL_OUT}"
+      echo ">>> Starting SSL-${DINO_EPOCHS} training for ${MODEL_NAME} seed=${SEED_VAL} -> ${SSL_OUT}"
       torchrun \
         --nnodes="${NNODES}" \
         --nproc_per_node="${GPUS_PER_NODE}" \
@@ -142,7 +142,7 @@ for USER_GROUP_SIZE in ${USER_GROUP_SIZES}; do
         --eval-aggregation-sizes ${AGG_SIZES} \
         --eval-aggregation-seed "${AGG_SEED_EFF}" \
         --dist-backend nccl
-      echo ">>> SSL-60 training for ${MODEL_NAME} seed=${SEED_VAL} complete. Artifacts in ${SSL_OUT}"
+      echo ">>> SSL-${DINO_EPOCHS} training for ${MODEL_NAME} seed=${SEED_VAL} complete. Artifacts in ${SSL_OUT}"
     done
   done
 done

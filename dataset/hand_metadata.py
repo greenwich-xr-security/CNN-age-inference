@@ -530,7 +530,7 @@ def load_combined_metadata(root: Optional[PathLike] = None) -> pd.DataFrame:
     handrgbd_df = load_handrgbd_metadata(root=root)
     combined = pd.concat([primary_df, archive_df, handrgbd_df], ignore_index=True)
     combined = combined.drop_duplicates(subset="image_path")
-    combined = _limit_users_per_age(combined, max_users_per_year=20)
+    combined = _limit_users_per_age(combined, max_users_per_year=15)
     return combined.reset_index(drop=True)
 
 

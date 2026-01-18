@@ -4,12 +4,16 @@ from pathlib import Path
 
 import torch
 
+_REPO_ROOT = Path(__file__).resolve().parent.parent
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
 from models.efficientnet_age import EFFICIENTNET_IMG_SIZES, EfficientNetAgeRegressor
 
 # Example commands:
-#   python export_onnx.py --model b2 --checkpoint runs\b2_bs32_seed204_nll0.5_mse0.25_mae0.25_stratno\b2_age_regressor_ddp.pth --output runs\b2_bs32_seed204_nll0.5_mse0.25_mae0.25_stratno\b2_age_regressor_ddp.onnx
-#   python export_onnx.py --model b2 --checkpoint runs\b2_bs32_seed204_nll0.5_mse0.25_mae0.25_stratno\b2_age_regressor_ddp.pth --output runs\b2_bs32_seed204_nll0.5_mse0.25_mae0.25_stratno\b2_age_regressor_ddp_fp16.onnx --precision fp16
-#   python export_onnx.py --model b2 --checkpoint runs\b2_bs32_seed204_nll0.5_mse0.25_mae0.25_stratno\b2_age_regressor_ddp.pth --output runs\b2_bs32_seed204_nll0.5_mse0.25_mae0.25_stratno\b2_age_regressor_ddp_int8.onnx --precision int8
+#   python onnx_tools/export_onnx.py --model b2 --checkpoint runs\b2_bs32_seed204_nll0.5_mse0.25_mae0.25_ug2\b2_age_regressor_ddp.pth --output runs\b2_bs32_seed204_nll0.5_mse0.25_mae0.25_ug2\b2_age_regressor_ddp.onnx
+#   python onnx_tools/export_onnx.py --model b2 --checkpoint runs\b2_bs32_seed204_nll0.5_mse0.25_mae0.25_ug2\b2_age_regressor_ddp.pth --output runs\b2_bs32_seed204_nll0.5_mse0.25_mae0.25_ug2\b2_age_regressor_ddp_fp16.onnx --precision fp16
+#   python onnx_tools/export_onnx.py --model b2 --checkpoint runs\b2_bs32_seed204_nll0.5_mse0.25_mae0.25_ug2\b2_age_regressor_ddp.pth --output runs\b2_bs32_seed204_nll0.5_mse0.25_mae0.25_ug2\b2_age_regressor_ddp_int8.onnx --precision int8
 
 
 def _parse_args() -> argparse.Namespace:

@@ -143,7 +143,11 @@ class GradCamRunner:
         checkpoint_path: Path,
         device: str = "cpu",
         target_layer: str | None = None,
+        method: str = "gradcam",
     ) -> None:
+        method = method.lower().replace(" ", "")
+        if method not in ("gradcam", "gradcam++"):
+            raise ValueError("method must be 'gradcam' or 'gradcam++'.")
         builder, default_size, _, _ = resolve_model_builder(model_name)
         model = builder()
         _load_checkpoint(model, checkpoint_path)
@@ -151,6 +155,7 @@ class GradCamRunner:
         self.device = torch.device(device)
         self.model = model.to(self.device)
         self.default_size = default_size
+        self.method = method
         self.layer_name, layer_module = _resolve_target_layer(self.model, target_layer)
         self._hook = _FeatureHook(layer_module)
 
@@ -181,7 +186,17 @@ class GradCamRunner:
         if activations is None or gradients is None:
             raise RuntimeError("Grad-CAM hooks did not capture activations/gradients.")
 
-        weights = gradients.mean(dim=(2, 3), keepdim=True)
+        if self.method == "gradcam":
+            weights = gradients.mean(dim=(2, 3), keepdim=True)
+        else:
+            grads2 = gradients.pow(2)
+            grads3 = gradients.pow(3)
+            sum_a_grads3 = (activations * grads3).sum(dim=(2, 3), keepdim=True)
+            denom = 2.0 * grads2 + sum_a_grads3
+            denom = torch.where(denom != 0, denom, torch.ones_like(denom))
+            alpha = grads2 / denom
+            positive_grads = torch.relu(gradients)
+            weights = (alpha * positive_grads).sum(dim=(2, 3), keepdim=True)
         cam = (weights * activations).sum(dim=1)
         cam = torch.relu(cam)
         cam_np = cam[0].detach().cpu().numpy()
@@ -213,6 +228,12 @@ def main() -> int:
     parser.add_argument("--layer", type=str, default=None, help="Target layer path (dot notation).")
     parser.add_argument("--alpha", type=float, default=0.45, help="Heatmap overlay alpha.")
     parser.add_argument(
+        "--method",
+        choices=["gradcam", "gradcam++"],
+        default="gradcam",
+        help="Grad-CAM variant to use.",
+    )
+    parser.add_argument(
         "--device",
         choices=["cpu", "cuda"],
         default="cuda" if torch.cuda.is_available() else "cpu",
@@ -225,6 +246,7 @@ def main() -> int:
         checkpoint_path=Path(args.checkpoint),
         device=args.device,
         target_layer=args.layer,
+        method=args.method,
     )
     try:
         overlay = runner.render(

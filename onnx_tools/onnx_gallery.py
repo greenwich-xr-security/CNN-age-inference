@@ -111,6 +111,7 @@ def _build_cam_cache_path(
     layer_name: str | None,
     img_size: int,
     alpha: float,
+    method: str,
 ) -> Path:
     key = "|".join(
         [
@@ -121,6 +122,7 @@ def _build_cam_cache_path(
             layer_name or "",
             str(img_size),
             f"{alpha:.4f}",
+            method,
         ]
     )
     digest = hashlib.sha1(key.encode("utf-8")).hexdigest()
@@ -189,6 +191,7 @@ def _build_items(
     cam_model_key: str | None = None,
     cam_checkpoint: Path | None = None,
     cam_layer_name: str | None = None,
+    cam_method: str = "gradcam",
 ) -> tuple[list[tuple], int, int, str, list[float], float | None]:
     shown_limit = len(records) if max_items is None else max(0, max_items)
     total_count = len(records)
@@ -235,6 +238,7 @@ def _build_items(
                 layer_name=cam_layer_name,
                 img_size=img_size,
                 alpha=cam_alpha,
+                method=cam_method,
             )
             cam_preview = None
             if cam_path.is_file():
@@ -549,6 +553,7 @@ class ExplainDetailDialog(QtWidgets.QDialog):
         img_size: int,
         alpha: float,
         device: str,
+        method: str,
         initial_layer: str | None,
     ) -> None:
         super().__init__()
@@ -559,6 +564,7 @@ class ExplainDetailDialog(QtWidgets.QDialog):
         self.img_size = img_size
         self.alpha = alpha
         self.device = device
+        self.method = method
         self._runner = None
         self._runner_layer = None
         self._layer_names: list[str] = []
@@ -567,6 +573,15 @@ class ExplainDetailDialog(QtWidgets.QDialog):
         layout = QtWidgets.QVBoxLayout(self)
 
         controls = QtWidgets.QHBoxLayout()
+        controls.addWidget(QtWidgets.QLabel("Method:"))
+        self.method_combo = QtWidgets.QComboBox()
+        self.method_combo.addItem("Grad-CAM", "gradcam")
+        self.method_combo.addItem("Grad-CAM++", "gradcam++")
+        self.method_combo.currentIndexChanged.connect(self._on_method_changed)
+        method_idx = self.method_combo.findData(self.method)
+        if method_idx >= 0:
+            self.method_combo.setCurrentIndex(method_idx)
+        controls.addWidget(self.method_combo)
         controls.addWidget(QtWidgets.QLabel("Layer:"))
         self.layer_combo = QtWidgets.QComboBox()
         self.layer_combo.currentIndexChanged.connect(self._on_layer_changed)
@@ -597,15 +612,18 @@ class ExplainDetailDialog(QtWidgets.QDialog):
 
     def _init_layers(self, initial_layer: str | None) -> None:
         if not self.model_key or not self.checkpoint:
+            self.method_combo.setEnabled(False)
             self.layer_combo.setEnabled(False)
             self.status_label.setText("Grad-CAM unavailable: model/checkpoint missing.")
             return
         self._ensure_runner(initial_layer)
         if self._runner is None:
+            self.method_combo.setEnabled(False)
             self.layer_combo.setEnabled(False)
             if not self.status_label.text():
                 self.status_label.setText("Grad-CAM failed to initialize.")
             return
+        self.method_combo.setEnabled(True)
         self._layer_names = self._list_conv_layers()
         self._populate_layers(initial_layer)
         self._render()
@@ -653,6 +671,7 @@ class ExplainDetailDialog(QtWidgets.QDialog):
                 checkpoint_path=self.checkpoint,
                 device=self.device,
                 target_layer=layer_name,
+                method=self.method,
             )
             self._runner_layer = layer_name
         except Exception as exc:
@@ -683,6 +702,12 @@ class ExplainDetailDialog(QtWidgets.QDialog):
     def _on_layer_changed(self) -> None:
         selected = self.layer_combo.currentData()
         self._ensure_runner(selected if selected else None)
+        self._render()
+
+    def _on_method_changed(self) -> None:
+        self.method = self.method_combo.currentData() or "gradcam"
+        self._runner_layer = None
+        self._ensure_runner(self.layer_combo.currentData())
         self._render()
 
     def closeEvent(self, event: QtGui.QCloseEvent) -> None:
@@ -718,6 +743,7 @@ class Gallery(QtWidgets.QWidget):
         explain_cache: Path | None,
         explain_alpha: float,
         explain_device: str,
+        explain_method: str,
     ) -> None:
         super().__init__()
         self.metadata_all = metadata
@@ -750,6 +776,7 @@ class Gallery(QtWidgets.QWidget):
         self.explain_cache_dir = explain_cache
         self.explain_alpha = explain_alpha
         self.explain_device = explain_device
+        self.explain_method = explain_method
         self.explain_error: str | None = None
         self.explain_model_key: str | None = None
         self.explain_checkpoint: Path | None = None
@@ -782,8 +809,15 @@ class Gallery(QtWidgets.QWidget):
         self.explain_button = QtWidgets.QPushButton("Explain")
         self.explain_button.setCheckable(True)
         self.explain_button.clicked.connect(self._toggle_explain)
+        self.method_combo = QtWidgets.QComboBox()
+        self.method_combo.addItem("Grad-CAM", "gradcam")
+        self.method_combo.addItem("Grad-CAM++", "gradcam++")
+        self.method_combo.currentIndexChanged.connect(self._on_explain_method_changed)
         self.layer_combo = QtWidgets.QComboBox()
         self.layer_combo.currentIndexChanged.connect(self._on_explain_layer_changed)
+        method_idx = self.method_combo.findData(self.explain_method)
+        if method_idx >= 0:
+            self.method_combo.setCurrentIndex(method_idx)
 
         controls_row.addWidget(QtWidgets.QLabel("Model:"))
         controls_row.addWidget(self.model_combo, 1)
@@ -796,6 +830,8 @@ class Gallery(QtWidgets.QWidget):
         layout.addLayout(controls_row)
 
         explain_row = QtWidgets.QHBoxLayout()
+        explain_row.addWidget(QtWidgets.QLabel("Method:"))
+        explain_row.addWidget(self.method_combo)
         explain_row.addWidget(QtWidgets.QLabel("Layer:"))
         explain_row.addWidget(self.layer_combo, 1)
         explain_row.addWidget(self.explain_button)
@@ -907,6 +943,7 @@ class Gallery(QtWidgets.QWidget):
                 checkpoint_path=checkpoint,
                 device=self.explain_device,
                 target_layer=self.explain_layer,
+                method=self.explain_method,
             )
         except Exception as exc:
             self.explain_error = f"Grad-CAM init failed: {exc}"
@@ -1037,7 +1074,7 @@ class Gallery(QtWidgets.QWidget):
             else:
                 metrics_text = "metrics=n/a"
             text_label = QtWidgets.QLabel(
-                f"age={age:.2f}\nstd_val={std_val:.2f}\ntrue_age={true_age}\n{metrics_text}"
+                f"age={age:.2f}\nuncertainty={std_val:.2f}\ntrue_age={true_age}\n{metrics_text}"
             )
             text_label.setAlignment(QtCore.Qt.AlignCenter)
 
@@ -1070,6 +1107,7 @@ class Gallery(QtWidgets.QWidget):
             cam_model_key=self.explain_model_key,
             cam_checkpoint=self.explain_checkpoint,
             cam_layer_name=getattr(self.grad_cam_runner, "layer_name", None),
+            cam_method=self.explain_method,
         )
         fold_label = f"{self.fold_index}" if self.fold_index is not None else "n/a"
         explain_status = ""
@@ -1147,6 +1185,12 @@ class Gallery(QtWidgets.QWidget):
             self._refresh_explain_runner()
             self._refresh_users()
 
+    def _on_explain_method_changed(self) -> None:
+        self.explain_method = self.method_combo.currentData() or "gradcam"
+        if self.explain_enabled:
+            self._refresh_explain_runner()
+            self._refresh_users()
+
     def _open_detail_view(self, image_path: Path, mask_path: Path | None) -> None:
         if self.model_path is None:
             return
@@ -1168,6 +1212,7 @@ class Gallery(QtWidgets.QWidget):
             img_size=self.img_size,
             alpha=self.explain_alpha,
             device=self.explain_device,
+            method=self.explain_method,
             initial_layer=self.explain_layer,
         )
         dialog.setAttribute(QtCore.Qt.WA_DeleteOnClose, True)
@@ -1294,6 +1339,12 @@ def parse_args() -> argparse.Namespace:
         default="cpu",
         help="Device to run Grad-CAM on.",
     )
+    parser.add_argument(
+        "--explain-method",
+        choices=["gradcam", "gradcam++"],
+        default="gradcam",
+        help="Grad-CAM variant to use.",
+    )
     return parser.parse_args()
 
 
@@ -1347,6 +1398,7 @@ def main() -> int:
         explain_cache=Path(args.explain_cache) if args.explain_cache else None,
         explain_alpha=args.explain_alpha,
         explain_device=args.explain_device,
+        explain_method=args.explain_method,
     )
     window.setWindowTitle("ONNX age gallery")
     window.resize(1200, 800)

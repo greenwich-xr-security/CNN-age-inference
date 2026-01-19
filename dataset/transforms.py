@@ -35,8 +35,10 @@ class AugmentConfig:
             raise ValueError("random_grayscale_p must be in [0, 1].")
         if self.gaussian_blur_kernel_size < 1 or self.gaussian_blur_kernel_size % 2 == 0:
             raise ValueError("gaussian_blur_kernel_size must be an odd integer >= 1.")
-        if self.gaussian_blur_sigma_min <= 0 or self.gaussian_blur_sigma_max <= 0:
-            raise ValueError("gaussian_blur_sigma_min/max must be > 0.")
+        if self.gaussian_blur_sigma_min < 0 or self.gaussian_blur_sigma_max < 0:
+            raise ValueError("gaussian_blur_sigma_min/max must be >= 0.")
+        if (self.gaussian_blur_sigma_min == 0) != (self.gaussian_blur_sigma_max == 0):
+            raise ValueError("gaussian_blur_sigma_min/max must both be 0 to disable blur.")
         if self.gaussian_blur_sigma_min > self.gaussian_blur_sigma_max:
             raise ValueError("gaussian_blur_sigma_min must be <= gaussian_blur_sigma_max.")
         if not (0.0 <= self.random_erasing_p <= 1.0):
@@ -53,11 +55,11 @@ class AugmentConfig:
 
 PHOTOMETRIC_LEVELS = {
     "low": {
-        "brightness": 0.15,
-        "contrast": 0.15,
-        "saturation": 0.1,
-        "hue": 0.01,
-        "gray_p": 0.05,
+        "brightness": 0.0,
+        "contrast": 0.0,
+        "saturation": 0.0,
+        "hue": 0.0,
+        "gray_p": 0.0,
     },
     "med": {
         "brightness": 0.35,
@@ -78,8 +80,8 @@ PHOTOMETRIC_LEVELS = {
 FOCUS_LEVELS = {
     "low": {
         "kernel": 3,
-        "sigma_min": 0.05,
-        "sigma_max": 0.6,
+        "sigma_min": 0.0,
+        "sigma_max": 0.0,
     },
     "med": {
         "kernel": 3,
@@ -95,7 +97,7 @@ FOCUS_LEVELS = {
 
 OCCLUSION_LEVELS = {
     "tiny": {
-        "erase_p": 0.15,
+        "erase_p": 0.0,
         "scale_min": 0.005,
         "scale_max": 0.03,
     },
@@ -242,28 +244,31 @@ def build_transforms(img_size: int, augment: AugmentConfig | None = None):
         augment = AugmentConfig()
     augment.validate()
 
-    train_transform = transforms.Compose(
-        [
-            # transforms.RandomResizedCrop(img_size, scale=(0.7, 1.0)),
-            # transforms.RandomRotation(degrees=(-180, 180)),
-            # transforms.RandomHorizontalFlip(),
-            # transforms.RandomVerticalFlip(),
-            
-            # Photometric robustness
-            transforms.ColorJitter(
-                brightness=augment.color_jitter_brightness,
-                contrast=augment.color_jitter_contrast,
-                saturation=augment.color_jitter_saturation,
-                hue=augment.color_jitter_hue,
-            ),
-            transforms.RandomGrayscale(p=augment.random_grayscale_p),
-
-            # Camera / focus robustness
+    train_steps = [
+        transforms.Resize((img_size, img_size)),
+        # transforms.RandomResizedCrop(img_size, scale=(0.7, 1.0)),
+        # transforms.RandomRotation(degrees=(-180, 180)),
+        # transforms.RandomHorizontalFlip(),
+        # transforms.RandomVerticalFlip(),
+        
+        # Photometric robustness
+        transforms.ColorJitter(
+            brightness=augment.color_jitter_brightness,
+            contrast=augment.color_jitter_contrast,
+            saturation=augment.color_jitter_saturation,
+            hue=augment.color_jitter_hue,
+        ),
+        transforms.RandomGrayscale(p=augment.random_grayscale_p),
+    ]
+    if augment.gaussian_blur_sigma_max > 0:
+        train_steps.append(
             transforms.GaussianBlur(
                 kernel_size=augment.gaussian_blur_kernel_size,
                 sigma=(augment.gaussian_blur_sigma_min, augment.gaussian_blur_sigma_max),
-            ),
-
+            )
+        )
+    train_steps.extend(
+        [
             transforms.ToTensor(),
             
             # Occlusion robustness (forces not relying on tiny regions)
@@ -277,6 +282,7 @@ def build_transforms(img_size: int, augment: AugmentConfig | None = None):
             transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
         ]
     )
+    train_transform = transforms.Compose(train_steps)
 
     test_transform = transforms.Compose(
         [

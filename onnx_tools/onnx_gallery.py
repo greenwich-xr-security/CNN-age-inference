@@ -1,4 +1,6 @@
 import argparse
+import hashlib
+import re
 import sys
 from pathlib import Path
 
@@ -14,6 +16,7 @@ if str(_REPO_ROOT) not in sys.path:
 
 from dataset.hand_metadata import get_dataset_root, load_combined_metadata, set_dataset_root
 from dataset.utils import load_kfold_splits
+from models import CONVNEXT_IMG_SIZES, EFFICIENTNET_IMG_SIZES, MODEL_ALIASES
 from onnx_tools.exposure_check import compute_exposure_metrics
 from onnx_tools.run_onnx import IMAGENET_MEAN, IMAGENET_STD, _infer_img_size
 
@@ -52,6 +55,76 @@ def _find_fold_file(path: Path) -> Path | None:
         if matches:
             return matches[0]
     return None
+
+
+def _infer_model_key_from_path(path: Path) -> str | None:
+    parts = [path.stem] + [p for p in path.parts]
+    tokens = re.split(r"[^a-z0-9]+", " ".join(parts).lower())
+    token_set = {t for t in tokens if t}
+
+    model_keys = set(EFFICIENTNET_IMG_SIZES.keys())
+    model_keys.update(f"convnext_{k}" for k in CONVNEXT_IMG_SIZES.keys())
+    model_keys.update(MODEL_ALIASES.keys())
+
+    for key in sorted(model_keys, key=len, reverse=True):
+        if key in token_set:
+            return key
+
+    for variant in CONVNEXT_IMG_SIZES:
+        if "convnext" in token_set and variant in token_set:
+            return f"convnext_{variant}"
+
+    for suffix in ("s", "m", "l"):
+        if "v2" in token_set and suffix in token_set:
+            candidate = f"v2_{suffix}"
+            if candidate in EFFICIENTNET_IMG_SIZES:
+                return candidate
+
+    return None
+
+
+def _infer_checkpoint_path(model_path: Path) -> Path | None:
+    if not model_path or not model_path.is_file():
+        return None
+    parent = model_path.parent
+    stem = model_path.stem
+    stem = re.sub(r"_(fp16|int8|fp32)$", "", stem)
+    candidate = parent / f"{stem}.pth"
+    if candidate.is_file():
+        return candidate
+    matches = sorted(parent.glob(f"{stem}*.pth"))
+    if len(matches) == 1:
+        return matches[0]
+    matches = sorted(parent.glob("*.pth"))
+    if len(matches) == 1:
+        return matches[0]
+    return None
+
+
+def _build_cam_cache_path(
+    cache_dir: Path,
+    *,
+    image_path: Path,
+    mask_path: Path | None,
+    model_key: str,
+    checkpoint_path: Path,
+    layer_name: str | None,
+    img_size: int,
+    alpha: float,
+) -> Path:
+    key = "|".join(
+        [
+            str(image_path.resolve()),
+            str(mask_path.resolve()) if mask_path else "",
+            model_key,
+            str(checkpoint_path.resolve()),
+            layer_name or "",
+            str(img_size),
+            f"{alpha:.4f}",
+        ]
+    )
+    digest = hashlib.sha1(key.encode("utf-8")).hexdigest()
+    return cache_dir / f"{digest}.png"
 
 
 def _load_metadata(data_root: str | None, aspect_filter: str | None) -> pd.DataFrame:
@@ -109,6 +182,13 @@ def _build_items(
     img_size: int,
     max_items: int | None,
     dataset_root: Path,
+    *,
+    grad_cam_runner=None,
+    cam_cache_dir: Path | None = None,
+    cam_alpha: float = 0.45,
+    cam_model_key: str | None = None,
+    cam_checkpoint: Path | None = None,
+    cam_layer_name: str | None = None,
 ) -> tuple[list[tuple], int, int, str, list[float], float | None]:
     shown_limit = len(records) if max_items is None else max(0, max_items)
     total_count = len(records)
@@ -138,9 +218,48 @@ def _build_items(
         except Exception as exc:
             print(f"[gallery] Skipping {image_path}: {exc}", file=sys.stderr)
             continue
+        if (
+            idx < shown_limit
+            and preview is not None
+            and grad_cam_runner is not None
+            and cam_cache_dir is not None
+            and cam_model_key
+            and cam_checkpoint is not None
+        ):
+            cam_path = _build_cam_cache_path(
+                cam_cache_dir,
+                image_path=image_path,
+                mask_path=mask_path,
+                model_key=cam_model_key,
+                checkpoint_path=cam_checkpoint,
+                layer_name=cam_layer_name,
+                img_size=img_size,
+                alpha=cam_alpha,
+            )
+            cam_preview = None
+            if cam_path.is_file():
+                try:
+                    with Image.open(cam_path) as img:
+                        cam_preview = img.convert("RGB").copy()
+                except Exception as exc:
+                    print(f"[gallery] Failed to load cached Grad-CAM: {exc}", file=sys.stderr)
+            else:
+                try:
+                    cam_preview = grad_cam_runner.render(
+                        image_path,
+                        mask_path=mask_path,
+                        img_size=img_size,
+                        alpha=cam_alpha,
+                    )
+                    cam_path.parent.mkdir(parents=True, exist_ok=True)
+                    cam_preview.save(cam_path)
+                except Exception as exc:
+                    print(f"[gallery] Grad-CAM failed for {image_path}: {exc}", file=sys.stderr)
+            if cam_preview is not None:
+                preview = cam_preview
         predictions.append(age_pred)
         if idx < shown_limit:
-            items.append((image_path, age_pred, std_val, true_age, preview, metrics, hist))
+            items.append((image_path, mask_path, age_pred, std_val, true_age, preview, metrics, hist))
 
     return items, len(items), total_count, true_age, predictions, true_age_value
 
@@ -298,6 +417,15 @@ def _run_inference(session: ort.InferenceSession, input_name: str, arr: np.ndarr
     return mean_val, std_val
 
 
+class ClickableLabel(QtWidgets.QLabel):
+    clicked = QtCore.Signal()
+
+    def mousePressEvent(self, event: QtGui.QMouseEvent) -> None:
+        if event.button() == QtCore.Qt.LeftButton:
+            self.clicked.emit()
+        super().mousePressEvent(event)
+
+
 class BoxPlotWidget(QtWidgets.QWidget):
     def __init__(self, width: int = 220, height: int = 64) -> None:
         super().__init__()
@@ -410,6 +538,163 @@ class BoxPlotWidget(QtWidgets.QWidget):
             )
 
 
+class ExplainDetailDialog(QtWidgets.QDialog):
+    def __init__(
+        self,
+        *,
+        image_path: Path,
+        mask_path: Path | None,
+        model_key: str | None,
+        checkpoint: Path | None,
+        img_size: int,
+        alpha: float,
+        device: str,
+        initial_layer: str | None,
+    ) -> None:
+        super().__init__()
+        self.image_path = image_path
+        self.mask_path = mask_path
+        self.model_key = model_key
+        self.checkpoint = checkpoint
+        self.img_size = img_size
+        self.alpha = alpha
+        self.device = device
+        self._runner = None
+        self._runner_layer = None
+        self._layer_names: list[str] = []
+
+        self.setWindowTitle(f"Explain: {image_path.name}")
+        layout = QtWidgets.QVBoxLayout(self)
+
+        controls = QtWidgets.QHBoxLayout()
+        controls.addWidget(QtWidgets.QLabel("Layer:"))
+        self.layer_combo = QtWidgets.QComboBox()
+        self.layer_combo.currentIndexChanged.connect(self._on_layer_changed)
+        controls.addWidget(self.layer_combo, 1)
+        layout.addLayout(controls)
+
+        self.image_label = QtWidgets.QLabel()
+        self.image_label.setAlignment(QtCore.Qt.AlignCenter)
+        self.image_label.setFixedSize(self.img_size, self.img_size)
+        layout.addWidget(self.image_label, alignment=QtCore.Qt.AlignCenter)
+
+        self.status_label = QtWidgets.QLabel()
+        self.status_label.setWordWrap(True)
+        layout.addWidget(self.status_label)
+
+        base_arr, _ = _load_masked_base(image_path, mask_path)
+        base_preview = Image.fromarray(base_arr, mode="RGB").resize(
+            (self.img_size, self.img_size), Image.BILINEAR
+        )
+        self._base_preview = base_preview
+        self._set_pixmap(base_preview)
+
+        self._init_layers(initial_layer)
+
+    def _set_pixmap(self, img: Image.Image) -> None:
+        pixmap = _pixmap_from_pil(img)
+        self.image_label.setPixmap(pixmap)
+
+    def _init_layers(self, initial_layer: str | None) -> None:
+        if not self.model_key or not self.checkpoint:
+            self.layer_combo.setEnabled(False)
+            self.status_label.setText("Grad-CAM unavailable: model/checkpoint missing.")
+            return
+        self._ensure_runner(initial_layer)
+        if self._runner is None:
+            self.layer_combo.setEnabled(False)
+            if not self.status_label.text():
+                self.status_label.setText("Grad-CAM failed to initialize.")
+            return
+        self._layer_names = self._list_conv_layers()
+        self._populate_layers(initial_layer)
+        self._render()
+
+    def _list_conv_layers(self) -> list[str]:
+        if self._runner is None:
+            return []
+        layers = []
+        for name, module in self._runner.model.named_modules():
+            if module.__class__.__name__ == "Conv2d":
+                layers.append(name)
+        return layers
+
+    def _populate_layers(self, selected: str | None) -> None:
+        self.layer_combo.blockSignals(True)
+        self.layer_combo.clear()
+        self.layer_combo.addItem("auto", None)
+        for name in self._layer_names:
+            self.layer_combo.addItem(name, name)
+        if selected and selected in self._layer_names:
+            idx = self.layer_combo.findData(selected)
+            if idx >= 0:
+                self.layer_combo.setCurrentIndex(idx)
+        else:
+            self.layer_combo.setCurrentIndex(0)
+        self.layer_combo.blockSignals(False)
+
+    def _ensure_runner(self, layer_name: str | None) -> None:
+        if self._runner is not None and self._runner_layer == layer_name:
+            return
+        if self._runner is not None:
+            try:
+                self._runner.close()
+            except Exception:
+                pass
+            self._runner = None
+        try:
+            from onnx_tools.grad_cam import GradCamRunner
+        except Exception as exc:
+            self.status_label.setText(f"Grad-CAM import failed: {exc}")
+            return
+        try:
+            self._runner = GradCamRunner(
+                model_name=self.model_key,
+                checkpoint_path=self.checkpoint,
+                device=self.device,
+                target_layer=layer_name,
+            )
+            self._runner_layer = layer_name
+        except Exception as exc:
+            self.status_label.setText(f"Grad-CAM init failed: {exc}")
+            self._runner = None
+
+    def _render(self) -> None:
+        if self._runner is None:
+            self._set_pixmap(self._base_preview)
+            return
+        QtWidgets.QApplication.setOverrideCursor(QtCore.Qt.WaitCursor)
+        try:
+            overlay = self._runner.render(
+                self.image_path,
+                mask_path=self.mask_path,
+                img_size=self.img_size,
+                alpha=self.alpha,
+            )
+        except Exception as exc:
+            self.status_label.setText(f"Grad-CAM failed: {exc}")
+            self._set_pixmap(self._base_preview)
+        else:
+            self.status_label.setText("")
+            self._set_pixmap(overlay)
+        finally:
+            QtWidgets.QApplication.restoreOverrideCursor()
+
+    def _on_layer_changed(self) -> None:
+        selected = self.layer_combo.currentData()
+        self._ensure_runner(selected if selected else None)
+        self._render()
+
+    def closeEvent(self, event: QtGui.QCloseEvent) -> None:
+        if self._runner is not None:
+            try:
+                self._runner.close()
+            except Exception:
+                pass
+            self._runner = None
+        super().closeEvent(event)
+
+
 class Gallery(QtWidgets.QWidget):
     def __init__(
         self,
@@ -427,6 +712,12 @@ class Gallery(QtWidgets.QWidget):
         thumb_size: int | None,
         max_items: int | None,
         aspect_filter: str | None,
+        explain_model: str | None,
+        explain_checkpoint: Path | None,
+        explain_layer: str | None,
+        explain_cache: Path | None,
+        explain_alpha: float,
+        explain_device: str,
     ) -> None:
         super().__init__()
         self.metadata_all = metadata
@@ -452,8 +743,18 @@ class Gallery(QtWidgets.QWidget):
         self.img_size = 224
         self.model_name = ""
         self.hist_height = 24
-
-        self._load_model(model_path)
+        self.explain_enabled = False
+        self.explain_model_override = explain_model
+        self.explain_checkpoint_override = explain_checkpoint
+        self.explain_layer = explain_layer
+        self.explain_cache_dir = explain_cache
+        self.explain_alpha = explain_alpha
+        self.explain_device = explain_device
+        self.explain_error: str | None = None
+        self.explain_model_key: str | None = None
+        self.explain_checkpoint: Path | None = None
+        self.grad_cam_runner = None
+        self._detail_windows: list[ExplainDetailDialog] = []
 
         layout = QtWidgets.QVBoxLayout(self)
 
@@ -478,6 +779,12 @@ class Gallery(QtWidgets.QWidget):
         self.fold_combo.currentIndexChanged.connect(self._on_fold_changed)
         self._resolve_fold_data()
 
+        self.explain_button = QtWidgets.QPushButton("Explain")
+        self.explain_button.setCheckable(True)
+        self.explain_button.clicked.connect(self._toggle_explain)
+        self.layer_combo = QtWidgets.QComboBox()
+        self.layer_combo.currentIndexChanged.connect(self._on_explain_layer_changed)
+
         controls_row.addWidget(QtWidgets.QLabel("Model:"))
         controls_row.addWidget(self.model_combo, 1)
         controls_row.addWidget(QtWidgets.QLabel("Dataset:"))
@@ -487,6 +794,12 @@ class Gallery(QtWidgets.QWidget):
         controls_row.addWidget(QtWidgets.QLabel("Fold:"))
         controls_row.addWidget(self.fold_combo)
         layout.addLayout(controls_row)
+
+        explain_row = QtWidgets.QHBoxLayout()
+        explain_row.addWidget(QtWidgets.QLabel("Layer:"))
+        explain_row.addWidget(self.layer_combo, 1)
+        explain_row.addWidget(self.explain_button)
+        layout.addLayout(explain_row)
 
         top_row = QtWidgets.QHBoxLayout()
         self.prev_button = QtWidgets.QPushButton("Prev")
@@ -514,6 +827,7 @@ class Gallery(QtWidgets.QWidget):
         self.grid.setContentsMargins(12, 12, 12, 12)
         self.scroll.setWidget(self.grid_host)
 
+        self._load_model(model_path)
         self._refresh_users()
 
     def _populate_model_combo(self) -> None:
@@ -544,6 +858,92 @@ class Gallery(QtWidgets.QWidget):
             self.thumb_size = max(1, self.img_size // 2)
         self.hist_height = max(24, self.thumb_size // 3)
         self.model_name = model_path.name
+        self._refresh_explain_runner()
+
+    def _refresh_explain_runner(self) -> None:
+        if self.grad_cam_runner is not None:
+            try:
+                self.grad_cam_runner.close()
+            except Exception:
+                pass
+        self.grad_cam_runner = None
+        self.explain_error = None
+        self.explain_model_key = None
+        self.explain_checkpoint = None
+
+        if not self.explain_enabled or self.model_path is None:
+            self._populate_explain_layers([])
+            return
+
+        model_key = self.explain_model_override or _infer_model_key_from_path(self.model_path)
+        if not model_key:
+            self.explain_error = "Grad-CAM disabled: could not infer model key."
+            self._populate_explain_layers([])
+            return
+
+        checkpoint = self.explain_checkpoint_override or _infer_checkpoint_path(self.model_path)
+        if not checkpoint or not checkpoint.is_file():
+            self.explain_error = "Grad-CAM disabled: checkpoint not found."
+            self._populate_explain_layers([])
+            return
+
+        if self.explain_cache_dir is not None:
+            try:
+                self.explain_cache_dir.mkdir(parents=True, exist_ok=True)
+            except Exception as exc:
+                print(f"[gallery] Grad-CAM cache init failed: {exc}", file=sys.stderr)
+                self.explain_cache_dir = None
+
+        try:
+            from onnx_tools.grad_cam import GradCamRunner
+        except Exception as exc:
+            self.explain_error = f"Grad-CAM import failed: {exc}"
+            self._populate_explain_layers([])
+            return
+
+        try:
+            self.grad_cam_runner = GradCamRunner(
+                model_name=model_key,
+                checkpoint_path=checkpoint,
+                device=self.explain_device,
+                target_layer=self.explain_layer,
+            )
+        except Exception as exc:
+            self.explain_error = f"Grad-CAM init failed: {exc}"
+            self.grad_cam_runner = None
+            self._populate_explain_layers([])
+            return
+
+        self.explain_model_key = model_key
+        self.explain_checkpoint = checkpoint
+        conv_layers = self._list_conv_layers()
+        self._populate_explain_layers(conv_layers)
+
+    def _list_conv_layers(self) -> list[str]:
+        if self.grad_cam_runner is None:
+            return []
+        layers = []
+        for name, module in self.grad_cam_runner.model.named_modules():
+            if module.__class__.__name__ == "Conv2d":
+                layers.append(name)
+        return layers
+
+    def _populate_explain_layers(self, layers: list[str]) -> None:
+        self.layer_combo.blockSignals(True)
+        self.layer_combo.clear()
+        self.layer_combo.addItem("auto", None)
+        if layers:
+            for name in layers:
+                self.layer_combo.addItem(name, name)
+            self.layer_combo.setEnabled(True)
+        else:
+            self.layer_combo.setEnabled(False)
+        if self.explain_layer and self.explain_layer in layers:
+            idx = self.layer_combo.findData(self.explain_layer)
+        else:
+            idx = 0
+        self.layer_combo.setCurrentIndex(idx)
+        self.layer_combo.blockSignals(False)
 
     def _resolve_fold_data(self) -> None:
         fold_file = self.fold_file_override or _find_fold_file(self.model_path or Path())
@@ -594,7 +994,7 @@ class Gallery(QtWidgets.QWidget):
             self.grid.addWidget(empty_label, 0, 0)
             return
 
-        for idx, (path, age, std_val, true_age, preview, metrics, hist) in enumerate(items):
+        for idx, (path, mask_path, age, std_val, true_age, preview, metrics, hist) in enumerate(items):
             row, col = divmod(idx, self.columns)
             cell = QtWidgets.QWidget()
             cell_layout = QtWidgets.QVBoxLayout(cell)
@@ -609,9 +1009,10 @@ class Gallery(QtWidgets.QWidget):
                 _histogram_pixmap(hist, self.thumb_size, self.hist_height)
             )
 
-            thumb_label = QtWidgets.QLabel()
+            thumb_label = ClickableLabel()
             thumb_label.setFixedSize(self.thumb_size, self.thumb_size)
             thumb_label.setAlignment(QtCore.Qt.AlignCenter)
+            thumb_label.clicked.connect(lambda p=path, m=mask_path: self._open_detail_view(p, m))
             if preview is not None:
                 pixmap = _pixmap_from_pil(preview)
                 if not pixmap.isNull():
@@ -663,14 +1064,32 @@ class Gallery(QtWidgets.QWidget):
             self.img_size,
             self.max_items,
             self.dataset_root,
+            grad_cam_runner=self.grad_cam_runner,
+            cam_cache_dir=self.explain_cache_dir,
+            cam_alpha=self.explain_alpha,
+            cam_model_key=self.explain_model_key,
+            cam_checkpoint=self.explain_checkpoint,
+            cam_layer_name=getattr(self.grad_cam_runner, "layer_name", None),
         )
         fold_label = f"{self.fold_index}" if self.fold_index is not None else "n/a"
+        explain_status = ""
+        if self.explain_enabled:
+            if self.explain_error:
+                explain_status = " | explain=error"
+            elif self.grad_cam_runner is None:
+                explain_status = " | explain=off"
+            else:
+                explain_status = " | explain=on"
         self._render_items(items)
         self.header.setText(
             f"user={user_id} | dataset={self.dataset_choice} | split={self.split_choice} "
             f"| fold={fold_label} | model={self.model_name} | input_size={self.img_size} "
-            f"| showing {shown_count}/{total_count} | true_age={true_age}"
+            f"| showing {shown_count}/{total_count} | true_age={true_age}{explain_status}"
         )
+        if self.explain_error:
+            self.header.setToolTip(self.explain_error)
+        else:
+            self.header.setToolTip("")
         self.box_plot.set_data(predictions, true_age_value)
         self.prev_button.setEnabled(self.index > 0)
         self.next_button.setEnabled(self.index < len(self.user_groups) - 1)
@@ -705,6 +1124,60 @@ class Gallery(QtWidgets.QWidget):
         self._load_model(Path(model_path))
         self._resolve_fold_data()
         self._refresh_users()
+
+    def _toggle_explain(self, checked: bool) -> None:
+        self.explain_enabled = bool(checked)
+        if not self.explain_enabled:
+            if self.grad_cam_runner is not None:
+                try:
+                    self.grad_cam_runner.close()
+                except Exception:
+                    pass
+            self.grad_cam_runner = None
+            self.explain_error = None
+            self._populate_explain_layers([])
+        else:
+            self._refresh_explain_runner()
+        self._refresh_users()
+
+    def _on_explain_layer_changed(self) -> None:
+        selected = self.layer_combo.currentData()
+        self.explain_layer = selected if selected else None
+        if self.explain_enabled:
+            self._refresh_explain_runner()
+            self._refresh_users()
+
+    def _open_detail_view(self, image_path: Path, mask_path: Path | None) -> None:
+        if self.model_path is None:
+            return
+        model_key = (
+            self.explain_model_key
+            or self.explain_model_override
+            or _infer_model_key_from_path(self.model_path)
+        )
+        checkpoint = (
+            self.explain_checkpoint
+            or self.explain_checkpoint_override
+            or _infer_checkpoint_path(self.model_path)
+        )
+        dialog = ExplainDetailDialog(
+            image_path=image_path,
+            mask_path=mask_path,
+            model_key=model_key,
+            checkpoint=checkpoint,
+            img_size=self.img_size,
+            alpha=self.explain_alpha,
+            device=self.explain_device,
+            initial_layer=self.explain_layer,
+        )
+        dialog.setAttribute(QtCore.Qt.WA_DeleteOnClose, True)
+        dialog.finished.connect(lambda _: self._on_detail_closed(dialog))
+        self._detail_windows.append(dialog)
+        dialog.show()
+
+    def _on_detail_closed(self, dialog: ExplainDetailDialog) -> None:
+        if dialog in self._detail_windows:
+            self._detail_windows.remove(dialog)
 
     def _prev(self) -> None:
         if self.index > 0:
@@ -785,6 +1258,42 @@ def parse_args() -> argparse.Namespace:
         default=15,
         help="Maximum images to show per user.",
     )
+    parser.add_argument(
+        "--explain-model",
+        type=str,
+        default=None,
+        help="Model name for Grad-CAM (e.g. b2, convnext_base).",
+    )
+    parser.add_argument(
+        "--explain-checkpoint",
+        type=str,
+        default=None,
+        help="Path to .pth checkpoint for Grad-CAM.",
+    )
+    parser.add_argument(
+        "--explain-layer",
+        type=str,
+        default=None,
+        help="Target layer path for Grad-CAM (dot notation).",
+    )
+    parser.add_argument(
+        "--explain-cache",
+        type=str,
+        default=str(_REPO_ROOT / "onnx_tools" / "grad_cam_cache"),
+        help="Cache directory for Grad-CAM overlays.",
+    )
+    parser.add_argument(
+        "--explain-alpha",
+        type=float,
+        default=0.45,
+        help="Overlay alpha for Grad-CAM.",
+    )
+    parser.add_argument(
+        "--explain-device",
+        choices=["cpu", "cuda"],
+        default="cpu",
+        help="Device to run Grad-CAM on.",
+    )
     return parser.parse_args()
 
 
@@ -832,6 +1341,12 @@ def main() -> int:
         thumb_size=args.thumb_size,
         max_items=args.max_items,
         aspect_filter=args.aspect,
+        explain_model=args.explain_model,
+        explain_checkpoint=Path(args.explain_checkpoint) if args.explain_checkpoint else None,
+        explain_layer=args.explain_layer,
+        explain_cache=Path(args.explain_cache) if args.explain_cache else None,
+        explain_alpha=args.explain_alpha,
+        explain_device=args.explain_device,
     )
     window.setWindowTitle("ONNX age gallery")
     window.resize(1200, 800)

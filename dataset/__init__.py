@@ -8,7 +8,14 @@ from .hand_metadata import (
     set_dataset_root,
 )
 from .age import AgeDataset
-from .transforms import build_transforms
+from .transforms import (
+    AugmentConfig,
+    FOCUS_LEVEL_CHOICES,
+    OCCLUSION_LEVEL_CHOICES,
+    PHOTOMETRIC_LEVEL_CHOICES,
+    apply_augmentation_levels,
+    build_transforms,
+)
 from .utils import filter_metadata
 
 __all__ = [
@@ -19,6 +26,11 @@ __all__ = [
     "load_primary_metadata",
     "set_dataset_root",
     "AgeDataset",
+    "AugmentConfig",
+    "PHOTOMETRIC_LEVEL_CHOICES",
+    "FOCUS_LEVEL_CHOICES",
+    "OCCLUSION_LEVEL_CHOICES",
+    "apply_augmentation_levels",
     "build_transforms",
     "filter_metadata",
 ]

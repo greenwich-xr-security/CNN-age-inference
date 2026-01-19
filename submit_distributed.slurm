@@ -43,6 +43,22 @@ LOSS_WEIGHT_NLL="${LOSS_WEIGHT_NLL:-0.8}"
 LOSS_WEIGHT_MSE="${LOSS_WEIGHT_MSE:-0.2}"
 LOSS_WEIGHT_MAE="${LOSS_WEIGHT_MAE:-0.2}"
 LOSS_WEIGHT_SPREAD="${LOSS_WEIGHT_SPREAD:-0.8}"
+AUG_CJ_BRIGHTNESS="${AUG_CJ_BRIGHTNESS:-0.35}"
+AUG_CJ_CONTRAST="${AUG_CJ_CONTRAST:-0.35}"
+AUG_CJ_SATURATION="${AUG_CJ_SATURATION:-0.2}"
+AUG_CJ_HUE="${AUG_CJ_HUE:-0.02}"
+AUG_GRAY_P="${AUG_GRAY_P:-0.15}"
+AUG_BLUR_KERNEL="${AUG_BLUR_KERNEL:-3}"
+AUG_BLUR_SIGMA_MIN="${AUG_BLUR_SIGMA_MIN:-0.1}"
+AUG_BLUR_SIGMA_MAX="${AUG_BLUR_SIGMA_MAX:-1.2}"
+AUG_ERASE_P="${AUG_ERASE_P:-0.25}"
+AUG_ERASE_SCALE_MIN="${AUG_ERASE_SCALE_MIN:-0.02}"
+AUG_ERASE_SCALE_MAX="${AUG_ERASE_SCALE_MAX:-0.12}"
+AUG_ERASE_RATIO_MIN="${AUG_ERASE_RATIO_MIN:-0.3}"
+AUG_ERASE_RATIO_MAX="${AUG_ERASE_RATIO_MAX:-3.3}"
+AUG_PHOTOMETRIC_LEVEL="${AUG_PHOTOMETRIC_LEVEL:-}"
+AUG_FOCUS_LEVEL="${AUG_FOCUS_LEVEL:-}"
+AUG_OCCLUSION_LEVEL="${AUG_OCCLUSION_LEVEL:-}"
 USER_GROUP_SIZES="${USER_GROUP_SIZES:-2}"
 PATIENCE="${PATIENCE:-30}"
 MODELS="${MODELS:-${MODEL:-b2}}" # choices: b0-b7, v2_{s,m,l}, convnext_{tiny,small,base,large,xlarge}, aliases: cnt,cns,cnb,cnl,cnx
@@ -97,6 +113,22 @@ for USER_GROUP_SIZE in ${USER_GROUP_SIZES}; do
             --loss-weight-mse "${LOSS_WEIGHT_MSE}" \
             --loss-weight-mae "${LOSS_WEIGHT_MAE}" \
             --loss-weight-spread "${LOSS_WEIGHT_SPREAD}" \
+            --aug-cj-brightness "${AUG_CJ_BRIGHTNESS}" \
+            --aug-cj-contrast "${AUG_CJ_CONTRAST}" \
+            --aug-cj-saturation "${AUG_CJ_SATURATION}" \
+            --aug-cj-hue "${AUG_CJ_HUE}" \
+            --aug-gray-p "${AUG_GRAY_P}" \
+            --aug-blur-kernel "${AUG_BLUR_KERNEL}" \
+            --aug-blur-sigma-min "${AUG_BLUR_SIGMA_MIN}" \
+            --aug-blur-sigma-max "${AUG_BLUR_SIGMA_MAX}" \
+            --aug-erase-p "${AUG_ERASE_P}" \
+            --aug-erase-scale-min "${AUG_ERASE_SCALE_MIN}" \
+            --aug-erase-scale-max "${AUG_ERASE_SCALE_MAX}" \
+            --aug-erase-ratio-min "${AUG_ERASE_RATIO_MIN}" \
+            --aug-erase-ratio-max "${AUG_ERASE_RATIO_MAX}" \
+            $( [[ -n "${AUG_PHOTOMETRIC_LEVEL}" ]] && echo "--aug-photometric-level ${AUG_PHOTOMETRIC_LEVEL}" ) \
+            $( [[ -n "${AUG_FOCUS_LEVEL}" ]] && echo "--aug-focus-level ${AUG_FOCUS_LEVEL}" ) \
+            $( [[ -n "${AUG_OCCLUSION_LEVEL}" ]] && echo "--aug-occlusion-level ${AUG_OCCLUSION_LEVEL}" ) \
             --user-group-size "${USER_GROUP_SIZE}" \
             --eval-aggregation-sizes ${AGG_SIZES} \
             --eval-aggregation-seed "${AGG_SEED_EFF}" \
@@ -135,6 +167,22 @@ for USER_GROUP_SIZE in ${USER_GROUP_SIZES}; do
           --loss-weight-mse "${LOSS_WEIGHT_MSE}" \
           --loss-weight-mae "${LOSS_WEIGHT_MAE}" \
           --loss-weight-spread "${LOSS_WEIGHT_SPREAD}" \
+          --aug-cj-brightness "${AUG_CJ_BRIGHTNESS}" \
+          --aug-cj-contrast "${AUG_CJ_CONTRAST}" \
+          --aug-cj-saturation "${AUG_CJ_SATURATION}" \
+          --aug-cj-hue "${AUG_CJ_HUE}" \
+          --aug-gray-p "${AUG_GRAY_P}" \
+          --aug-blur-kernel "${AUG_BLUR_KERNEL}" \
+          --aug-blur-sigma-min "${AUG_BLUR_SIGMA_MIN}" \
+          --aug-blur-sigma-max "${AUG_BLUR_SIGMA_MAX}" \
+          --aug-erase-p "${AUG_ERASE_P}" \
+          --aug-erase-scale-min "${AUG_ERASE_SCALE_MIN}" \
+          --aug-erase-scale-max "${AUG_ERASE_SCALE_MAX}" \
+          --aug-erase-ratio-min "${AUG_ERASE_RATIO_MIN}" \
+          --aug-erase-ratio-max "${AUG_ERASE_RATIO_MAX}" \
+          $( [[ -n "${AUG_PHOTOMETRIC_LEVEL}" ]] && echo "--aug-photometric-level ${AUG_PHOTOMETRIC_LEVEL}" ) \
+          $( [[ -n "${AUG_FOCUS_LEVEL}" ]] && echo "--aug-focus-level ${AUG_FOCUS_LEVEL}" ) \
+          $( [[ -n "${AUG_OCCLUSION_LEVEL}" ]] && echo "--aug-occlusion-level ${AUG_OCCLUSION_LEVEL}" ) \
           --user-group-size "${USER_GROUP_SIZE}" \
           --eval-aggregation-sizes ${AGG_SIZES} \
           --eval-aggregation-seed "${AGG_SEED_EFF}" \

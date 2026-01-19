@@ -16,7 +16,7 @@ from dataset.hand_metadata import (
     set_dataset_root,
 )
 from dataset.samplers import GroupedBatchSampler
-from dataset.transforms import build_transforms
+from dataset.transforms import AugmentConfig, apply_augmentation_levels, build_transforms
 from dataset.utils import filter_metadata, load_kfold_splits
 from displayUtils import DisplayUtils
 from metrics import (
@@ -138,6 +138,102 @@ def main() -> None:
         help="Seed used for random per-user aggregation; defaults to --seed when omitted.",
     )
     parser.add_argument(
+        "--aug-photometric-level",
+        type=float,
+        default=None,
+        help="Photometric strength in [0, 1]. Overrides per-parameter settings.",
+    )
+    parser.add_argument(
+        "--aug-focus-level",
+        type=float,
+        default=None,
+        help="Focus/blur strength in [0, 1]. Overrides per-parameter settings.",
+    )
+    parser.add_argument(
+        "--aug-occlusion-level",
+        type=float,
+        default=None,
+        help="Occlusion strength in [0, 1]. Overrides per-parameter settings.",
+    )
+    parser.add_argument(
+        "--aug-cj-brightness",
+        type=float,
+        default=0.35,
+        help="Color jitter brightness strength (default: 0.35).",
+    )
+    parser.add_argument(
+        "--aug-cj-contrast",
+        type=float,
+        default=0.35,
+        help="Color jitter contrast strength (default: 0.35).",
+    )
+    parser.add_argument(
+        "--aug-cj-saturation",
+        type=float,
+        default=0.2,
+        help="Color jitter saturation strength (default: 0.2).",
+    )
+    parser.add_argument(
+        "--aug-cj-hue",
+        type=float,
+        default=0.02,
+        help="Color jitter hue strength (default: 0.02).",
+    )
+    parser.add_argument(
+        "--aug-gray-p",
+        type=float,
+        default=0.15,
+        help="Random grayscale probability (default: 0.15).",
+    )
+    parser.add_argument(
+        "--aug-blur-kernel",
+        type=int,
+        default=3,
+        help="Gaussian blur kernel size (odd integer, default: 3).",
+    )
+    parser.add_argument(
+        "--aug-blur-sigma-min",
+        type=float,
+        default=0.1,
+        help="Gaussian blur sigma min (default: 0.1).",
+    )
+    parser.add_argument(
+        "--aug-blur-sigma-max",
+        type=float,
+        default=1.2,
+        help="Gaussian blur sigma max (default: 1.2).",
+    )
+    parser.add_argument(
+        "--aug-erase-p",
+        type=float,
+        default=0.25,
+        help="Random erasing probability (default: 0.25).",
+    )
+    parser.add_argument(
+        "--aug-erase-scale-min",
+        type=float,
+        default=0.02,
+        help="Random erasing scale min (default: 0.02).",
+    )
+    parser.add_argument(
+        "--aug-erase-scale-max",
+        type=float,
+        default=0.12,
+        help="Random erasing scale max (default: 0.12).",
+    )
+    parser.add_argument(
+        "--aug-erase-ratio-min",
+        type=float,
+        default=0.3,
+        help="Random erasing ratio min (default: 0.3).",
+    )
+    parser.add_argument(
+        "--aug-erase-ratio-max",
+        type=float,
+        default=3.3,
+        help="Random erasing ratio max (default: 3.3).",
+    )
+    parser.add_argument(
         "--lr",
         type=float,
         default=DEFAULT_LR,
@@ -202,6 +298,34 @@ def main() -> None:
     eval_agg_seed = (
         args.eval_aggregation_seed if args.eval_aggregation_seed is not None else args.seed
     )
+    augment = AugmentConfig(
+        color_jitter_brightness=args.aug_cj_brightness,
+        color_jitter_contrast=args.aug_cj_contrast,
+        color_jitter_saturation=args.aug_cj_saturation,
+        color_jitter_hue=args.aug_cj_hue,
+        random_grayscale_p=args.aug_gray_p,
+        gaussian_blur_kernel_size=args.aug_blur_kernel,
+        gaussian_blur_sigma_min=args.aug_blur_sigma_min,
+        gaussian_blur_sigma_max=args.aug_blur_sigma_max,
+        random_erasing_p=args.aug_erase_p,
+        random_erasing_scale_min=args.aug_erase_scale_min,
+        random_erasing_scale_max=args.aug_erase_scale_max,
+        random_erasing_ratio_min=args.aug_erase_ratio_min,
+        random_erasing_ratio_max=args.aug_erase_ratio_max,
+    )
+    if (
+        args.aug_photometric_level is not None
+        or args.aug_focus_level is not None
+        or args.aug_occlusion_level is not None
+    ):
+        augment = apply_augmentation_levels(
+            augment,
+            photometric_level=args.aug_photometric_level,
+            focus_level=args.aug_focus_level,
+            occlusion_level=args.aug_occlusion_level,
+        )
+    else:
+        augment.validate()
     set_random_seed(args.seed)
     model_builder, default_size, model_desc, model_key = resolve_model_builder(
         args.model
@@ -217,7 +341,7 @@ def main() -> None:
     active_root = get_dataset_root()
     output_dir = Path(args.output_dir).expanduser()
     output_dir.mkdir(parents=True, exist_ok=True)
-    train_transform, test_transform = build_transforms(img_size)
+    train_transform, test_transform = build_transforms(img_size, augment)
     metadata = filter_metadata(load_combined_metadata(root=active_root))
     fold_info = None
     if args.fold_file:
@@ -267,6 +391,18 @@ def main() -> None:
         f"Eval aggregation group sizes: {eval_group_sizes} | "
         f"aggregation seed: {eval_agg_seed}"
     )
+    if (
+        args.aug_photometric_level is not None
+        or args.aug_focus_level is not None
+        or args.aug_occlusion_level is not None
+    ):
+        print(
+            "Augment levels -> "
+            f"photometric={args.aug_photometric_level}, "
+            f"focus={args.aug_focus_level}, "
+            f"occlusion={args.aug_occlusion_level}"
+        )
+    print(f"Augmentations -> {augment}")
     if fold_info:
         print(
             "Split mode: k-fold "

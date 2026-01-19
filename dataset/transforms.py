@@ -244,10 +244,10 @@ def build_transforms(img_size: int, augment: AugmentConfig | None = None):
 
     train_transform = transforms.Compose(
         [
-            transforms.RandomResizedCrop(img_size, scale=(0.7, 1.0)),
-            transforms.RandomRotation(degrees=(-180, 180)),
-            transforms.RandomHorizontalFlip(),
-            transforms.RandomVerticalFlip(),
+            # transforms.RandomResizedCrop(img_size, scale=(0.7, 1.0)),
+            # transforms.RandomRotation(degrees=(-180, 180)),
+            # transforms.RandomHorizontalFlip(),
+            # transforms.RandomVerticalFlip(),
             
             # Photometric robustness
             transforms.ColorJitter(

@@ -143,11 +143,14 @@ def _load_metadata(data_root: str | None, aspect_filter: str | None) -> pd.DataF
     if data_root:
         set_dataset_root(data_root)
     active_root = get_dataset_root()
-    df = load_combined_metadata(root=active_root)
+    df = load_combined_metadata(root=active_root, handrgbd_include_wall3=True)
     df = df.copy()
     df["user_id"] = df["user_id"].astype(str)
     df["source"] = df["source"].astype(str).str.lower()
     df["age"] = pd.to_numeric(df["age"], errors="coerce")
+    if "wall_label" not in df.columns:
+        df["wall_label"] = pd.NA
+    df["wall_label"] = pd.to_numeric(df["wall_label"], errors="coerce")
     df["image_path"] = df["image_path"].apply(Path)
     if aspect_filter:
         df = df[df["aspect"].str.contains(aspect_filter, case=False, na=False)]
@@ -161,6 +164,7 @@ def _apply_filters(
     split_choice: str,
     fold_data: dict | None,
     fold_index: int | None,
+    handrgbd_walls: set[int] | None,
 ) -> pd.DataFrame:
     out = df
     if dataset_choice != "all":
@@ -171,6 +175,13 @@ def _apply_filters(
             out = out[out["user_id"].isin(fold_ids)]
         else:
             out = out[~out["user_id"].isin(fold_ids)]
+    if handrgbd_walls is not None:
+        wall_set = {int(w) for w in handrgbd_walls}
+        is_hand = out["source"] == "handrgbd"
+        if wall_set:
+            out = out[~is_hand | out["wall_label"].isin(wall_set)]
+        else:
+            out = out[~is_hand]
     return out.reset_index(drop=True)
 
 
@@ -833,6 +844,7 @@ class Gallery(QtWidgets.QWidget):
         self.scatter_aggregate = False
         self.handrgbd_rgb_root = HANDRGBD_RGB_ROOT_OPTIONS[0]
         self.handrgbd_mask_root = HANDRGBD_MASK_ROOT_OPTIONS[0]
+        self.handrgbd_wall_filter = {1, 2, 3, 4}
         self.columns = columns
         self.thumb_size = thumb_size or 0
         self.thumb_size_override = thumb_size is not None
@@ -902,6 +914,13 @@ class Gallery(QtWidgets.QWidget):
         self.handrgbd_mask_combo.setCurrentText(self.handrgbd_mask_root)
         self.handrgbd_mask_combo.currentIndexChanged.connect(self._on_handrgbd_root_changed)
 
+        self.handrgbd_wall_checks: dict[int, QtWidgets.QCheckBox] = {}
+        for label in (1, 2, 3, 4):
+            checkbox = QtWidgets.QCheckBox(str(label))
+            checkbox.setChecked(True)
+            checkbox.stateChanged.connect(self._on_handrgbd_wall_changed)
+            self.handrgbd_wall_checks[label] = checkbox
+
         self.explain_button = QtWidgets.QPushButton("Explain")
         self.explain_button.setCheckable(True)
         self.explain_button.clicked.connect(self._toggle_explain)
@@ -933,6 +952,13 @@ class Gallery(QtWidgets.QWidget):
         handrgbd_row.addWidget(QtWidgets.QLabel("Mask:"))
         handrgbd_row.addWidget(self.handrgbd_mask_combo)
         layout.addLayout(handrgbd_row)
+
+        wall_row = QtWidgets.QHBoxLayout()
+        wall_row.addWidget(QtWidgets.QLabel("HandRGBD wall:"))
+        for label in (1, 2, 3, 4):
+            wall_row.addWidget(self.handrgbd_wall_checks[label])
+        wall_row.addStretch(1)
+        layout.addLayout(wall_row)
 
         self.explain_panel = QtWidgets.QWidget()
         explain_row = QtWidgets.QHBoxLayout(self.explain_panel)
@@ -1324,6 +1350,7 @@ class Gallery(QtWidgets.QWidget):
             self.split_choice,
             self.fold_data,
             self.fold_index,
+            self.handrgbd_wall_filter,
         )
         self.user_groups = _build_user_groups(filtered)
         self._load_index(0)
@@ -1373,6 +1400,7 @@ class Gallery(QtWidgets.QWidget):
             split_choice,
             self.fold_data,
             self.fold_index,
+            self.handrgbd_wall_filter,
         )
         if filtered.empty:
             self.scatter_stats.setText("MAE=n/a | RMSE=n/a | n=0")
@@ -1632,6 +1660,12 @@ class Gallery(QtWidgets.QWidget):
         self.handrgbd_rgb_root = self.handrgbd_rgb_combo.currentText()
         self.handrgbd_mask_root = self.handrgbd_mask_combo.currentText()
         self._load_index(self.index)
+        self._mark_scatter_dirty()
+
+    def _on_handrgbd_wall_changed(self) -> None:
+        selected = {label for label, cb in self.handrgbd_wall_checks.items() if cb.isChecked()}
+        self.handrgbd_wall_filter = selected
+        self._refresh_users()
         self._mark_scatter_dirty()
 
     def _on_fold_changed(self) -> None:

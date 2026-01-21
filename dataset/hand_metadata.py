@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+import re
 from pathlib import Path
 import sys
 from typing import Dict, Optional, Tuple, Union
@@ -409,7 +410,11 @@ def load_archive_metadata(root: Optional[PathLike] = None) -> pd.DataFrame:
     return df_out
 
 
-def load_handrgbd_metadata(root: Optional[PathLike] = None) -> pd.DataFrame:
+def load_handrgbd_metadata(
+    root: Optional[PathLike] = None,
+    *,
+    include_wall3: bool = False,
+) -> pd.DataFrame:
     dataset_root = _resolve_root(root)
     hand_root = dataset_root / "handRGBD"
     rgb_root = hand_root / "rgb_xyz_jpg"
@@ -422,7 +427,16 @@ def load_handrgbd_metadata(root: Optional[PathLike] = None) -> pd.DataFrame:
         return pd.DataFrame(columns=["source", "user_id", "age", "gender", "aspect", "image_path", "bbox"])
     metadata_csv = dataset_root / "handRGBD" / "reference_table.csv"
 
-    empty_cols = ["source", "user_id", "age", "gender", "aspect", "image_path", "bbox"]
+    empty_cols = [
+        "source",
+        "user_id",
+        "age",
+        "gender",
+        "aspect",
+        "image_path",
+        "bbox",
+        "wall_label",
+    ]
     if not metadata_csv.exists():
         return pd.DataFrame(columns=empty_cols)
 
@@ -431,7 +445,21 @@ def load_handrgbd_metadata(root: Optional[PathLike] = None) -> pd.DataFrame:
         return pd.DataFrame(columns=empty_cols)
 
     working_df = raw_df.copy()
-    working_df = working_df[~working_df["name"].astype(str).str.contains("wall-3", case=False, na=False)]
+
+    def parse_wall_label(name_val: object) -> int | None:
+        if name_val is None or (isinstance(name_val, float) and pd.isna(name_val)):
+            return None
+        match = re.search(r"wall[-_\s]*(\d+)", str(name_val), re.IGNORECASE)
+        if not match:
+            return None
+        try:
+            return int(match.group(1))
+        except ValueError:
+            return None
+
+    working_df["wall_label"] = working_df["name"].apply(parse_wall_label)
+    if not include_wall3:
+        working_df = working_df[working_df["wall_label"].ne(3)]
 
     if "aspect" in working_df.columns:
         working_df["aspect_norm"] = working_df["aspect"].apply(_normalise_label)
@@ -480,6 +508,7 @@ def load_handrgbd_metadata(root: Optional[PathLike] = None) -> pd.DataFrame:
             "aspect": working_df["aspect_norm"],
             "image_path": working_df["image_path"].apply(Path),
             "bbox": working_df["bbox_tuple"],
+            "wall_label": working_df["wall_label"],
         }
     )
     df_out = df_out.reset_index(drop=True)
@@ -524,10 +553,14 @@ def _limit_users_per_age(df: pd.DataFrame, *, max_users_per_year: int = 15) -> p
     return pd.concat([age_unknown, filtered_known], ignore_index=True)
 
 
-def load_combined_metadata(root: Optional[PathLike] = None) -> pd.DataFrame:
+def load_combined_metadata(
+    root: Optional[PathLike] = None,
+    *,
+    handrgbd_include_wall3: bool = False,
+) -> pd.DataFrame:
     #primary_df = load_primary_metadata(root=root)
     #archive_df = load_archive_metadata(root=root)
-    handrgbd_df = load_handrgbd_metadata(root=root)
+    handrgbd_df = load_handrgbd_metadata(root=root, include_wall3=handrgbd_include_wall3)
     #combined = pd.concat([primary_df, archive_df, handrgbd_df], ignore_index=True)
     combined = handrgbd_df
     combined = combined.drop_duplicates(subset="image_path")

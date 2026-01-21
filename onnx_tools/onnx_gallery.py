@@ -151,6 +151,9 @@ def _load_metadata(data_root: str | None, aspect_filter: str | None) -> pd.DataF
     if "wall_label" not in df.columns:
         df["wall_label"] = pd.NA
     df["wall_label"] = pd.to_numeric(df["wall_label"], errors="coerce")
+    if "lights_label" not in df.columns:
+        df["lights_label"] = pd.NA
+    df["lights_label"] = df["lights_label"].astype(str).str.lower()
     df["image_path"] = df["image_path"].apply(Path)
     if aspect_filter:
         df = df[df["aspect"].str.contains(aspect_filter, case=False, na=False)]
@@ -165,6 +168,7 @@ def _apply_filters(
     fold_data: dict | None,
     fold_index: int | None,
     handrgbd_walls: set[int] | None,
+    handrgbd_lights: set[str] | None,
 ) -> pd.DataFrame:
     out = df
     if dataset_choice != "all":
@@ -180,6 +184,13 @@ def _apply_filters(
         is_hand = out["source"] == "handrgbd"
         if wall_set:
             out = out[~is_hand | out["wall_label"].isin(wall_set)]
+        else:
+            out = out[~is_hand]
+    if handrgbd_lights is not None:
+        light_set = {str(val).lower() for val in handrgbd_lights}
+        is_hand = out["source"] == "handrgbd"
+        if light_set:
+            out = out[~is_hand | out["lights_label"].isin(light_set)]
         else:
             out = out[~is_hand]
     return out.reset_index(drop=True)
@@ -845,6 +856,7 @@ class Gallery(QtWidgets.QWidget):
         self.handrgbd_rgb_root = HANDRGBD_RGB_ROOT_OPTIONS[0]
         self.handrgbd_mask_root = HANDRGBD_MASK_ROOT_OPTIONS[0]
         self.handrgbd_wall_filter = {1, 2, 3, 4}
+        self.handrgbd_lights_filter = {"on", "off"}
         self.columns = columns
         self.thumb_size = thumb_size or 0
         self.thumb_size_override = thumb_size is not None
@@ -921,6 +933,13 @@ class Gallery(QtWidgets.QWidget):
             checkbox.stateChanged.connect(self._on_handrgbd_wall_changed)
             self.handrgbd_wall_checks[label] = checkbox
 
+        self.handrgbd_light_checks: dict[str, QtWidgets.QCheckBox] = {}
+        for label in ("on", "off"):
+            checkbox = QtWidgets.QCheckBox(label)
+            checkbox.setChecked(True)
+            checkbox.stateChanged.connect(self._on_handrgbd_lights_changed)
+            self.handrgbd_light_checks[label] = checkbox
+
         self.explain_button = QtWidgets.QPushButton("Explain")
         self.explain_button.setCheckable(True)
         self.explain_button.clicked.connect(self._toggle_explain)
@@ -959,6 +978,13 @@ class Gallery(QtWidgets.QWidget):
             wall_row.addWidget(self.handrgbd_wall_checks[label])
         wall_row.addStretch(1)
         layout.addLayout(wall_row)
+
+        lights_row = QtWidgets.QHBoxLayout()
+        lights_row.addWidget(QtWidgets.QLabel("HandRGBD lights:"))
+        for label in ("on", "off"):
+            lights_row.addWidget(self.handrgbd_light_checks[label])
+        lights_row.addStretch(1)
+        layout.addLayout(lights_row)
 
         self.explain_panel = QtWidgets.QWidget()
         explain_row = QtWidgets.QHBoxLayout(self.explain_panel)
@@ -1351,6 +1377,7 @@ class Gallery(QtWidgets.QWidget):
             self.fold_data,
             self.fold_index,
             self.handrgbd_wall_filter,
+            self.handrgbd_lights_filter,
         )
         self.user_groups = _build_user_groups(filtered)
         self._load_index(0)
@@ -1401,6 +1428,7 @@ class Gallery(QtWidgets.QWidget):
             self.fold_data,
             self.fold_index,
             self.handrgbd_wall_filter,
+            self.handrgbd_lights_filter,
         )
         if filtered.empty:
             self.scatter_stats.setText("MAE=n/a | RMSE=n/a | n=0")
@@ -1665,6 +1693,12 @@ class Gallery(QtWidgets.QWidget):
     def _on_handrgbd_wall_changed(self) -> None:
         selected = {label for label, cb in self.handrgbd_wall_checks.items() if cb.isChecked()}
         self.handrgbd_wall_filter = selected
+        self._refresh_users()
+        self._mark_scatter_dirty()
+
+    def _on_handrgbd_lights_changed(self) -> None:
+        selected = {label for label, cb in self.handrgbd_light_checks.items() if cb.isChecked()}
+        self.handrgbd_lights_filter = selected
         self._refresh_users()
         self._mark_scatter_dirty()
 

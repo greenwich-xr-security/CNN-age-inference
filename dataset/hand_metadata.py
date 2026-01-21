@@ -436,6 +436,7 @@ def load_handrgbd_metadata(
         "image_path",
         "bbox",
         "wall_label",
+        "lights_label",
     ]
     if not metadata_csv.exists():
         return pd.DataFrame(columns=empty_cols)
@@ -457,7 +458,31 @@ def load_handrgbd_metadata(
         except ValueError:
             return None
 
+    def normalise_lights(val: object) -> str | None:
+        if val is None or (isinstance(val, float) and pd.isna(val)):
+            return None
+        text = str(val).strip().lower()
+        if text in ("on", "1", "true", "yes"):
+            return "on"
+        if text in ("off", "0", "false", "no"):
+            return "off"
+        return None
+
+    def parse_lights_label(name_val: object) -> str | None:
+        if name_val is None or (isinstance(name_val, float) and pd.isna(name_val)):
+            return None
+        match = re.search(r"lights[-_\s]*(on|off)", str(name_val), re.IGNORECASE)
+        if not match:
+            return None
+        return match.group(1).lower()
+
     working_df["wall_label"] = working_df["name"].apply(parse_wall_label)
+    if "lights" in working_df.columns:
+        working_df["lights_label"] = working_df["lights"].apply(normalise_lights)
+    else:
+        working_df["lights_label"] = None
+    if working_df["lights_label"].isna().all():
+        working_df["lights_label"] = working_df["name"].apply(parse_lights_label)
     if not include_wall3:
         working_df = working_df[working_df["wall_label"].ne(3)]
 
@@ -509,6 +534,7 @@ def load_handrgbd_metadata(
             "image_path": working_df["image_path"].apply(Path),
             "bbox": working_df["bbox_tuple"],
             "wall_label": working_df["wall_label"],
+            "lights_label": working_df["lights_label"],
         }
     )
     df_out = df_out.reset_index(drop=True)

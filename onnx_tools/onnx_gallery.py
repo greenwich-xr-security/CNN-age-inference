@@ -3,7 +3,6 @@ import io
 import hashlib
 import re
 import sys
-import threading
 from pathlib import Path
 
 import numpy as np
@@ -349,7 +348,7 @@ def _prepare_inference_input(base_arr: np.ndarray, size: int) -> np.ndarray:
     arr = np.asarray(resized, dtype=np.float32) / 255.0
     arr = (arr - IMAGENET_MEAN) / IMAGENET_STD
     arr = np.transpose(arr, (2, 0, 1))[None, ...]
-    return arr
+    return np.ascontiguousarray(arr)
 
 
 def _find_matching_file(root: Path, name: str) -> Path | None:
@@ -606,83 +605,6 @@ class BoxPlotWidget(QtWidgets.QWidget):
             )
 
 
-class SubsetScatterWorker(QtCore.QObject):
-    progress = QtCore.Signal(int, int)
-    finished = QtCore.Signal(object)
-    failed = QtCore.Signal(str)
-
-    def __init__(
-        self,
-        *,
-        records: list[dict],
-        model_path: Path,
-        img_size: int,
-        dataset_root: Path,
-        handrgbd_rgb_root: str | None,
-        handrgbd_mask_root: str | None,
-        abort_event: threading.Event | None = None,
-    ) -> None:
-        super().__init__()
-        self.records = records
-        self.model_path = model_path
-        self.img_size = img_size
-        self.dataset_root = dataset_root
-        self.handrgbd_rgb_root = handrgbd_rgb_root
-        self.handrgbd_mask_root = handrgbd_mask_root
-        self.abort_event = abort_event or threading.Event()
-
-    def run(self) -> None:
-        try:
-            session_options = ort.SessionOptions()
-            session_options.intra_op_num_threads = 1
-            session_options.inter_op_num_threads = 1
-            session_options.execution_mode = ort.ExecutionMode.ORT_SEQUENTIAL
-            session_options.enable_mem_pattern = False
-            try:
-                session = ort.InferenceSession(
-                    str(self.model_path),
-                    sess_options=session_options,
-                    providers=["CPUExecutionProvider"],
-                )
-            except Exception:
-                session = ort.InferenceSession(
-                    str(self.model_path),
-                    sess_options=session_options,
-                )
-            input_name = session.get_inputs()[0].name
-            total = len(self.records)
-            preds: list[float] = []
-            trues: list[float] = []
-            for idx, rec in enumerate(self.records):
-                if self.abort_event.is_set():
-                    self.failed.emit("Cancelled.")
-                    return
-                image_path = Path(rec["image_path"])
-                mask_path = None
-                if rec.get("source") == "handrgbd":
-                    image_path, mask_path = _resolve_handrgbd_paths(
-                        image_path,
-                        self.dataset_root,
-                        rgb_root_name=self.handrgbd_rgb_root,
-                        mask_root_name=self.handrgbd_mask_root,
-                    )
-                if not image_path.is_file():
-                    continue
-                try:
-                    base_arr, _ = _load_masked_base(image_path, mask_path)
-                    arr = _prepare_inference_input(base_arr, self.img_size)
-                    mean_val, _ = _run_inference(session, input_name, arr)
-                except Exception:
-                    continue
-                preds.append(float(mean_val))
-                trues.append(float(rec["age"]))
-                if idx % 10 == 0 or idx == total - 1:
-                    self.progress.emit(idx + 1, total)
-            self.finished.emit({"preds": preds, "trues": trues, "total": total})
-        except Exception as exc:
-            self.failed.emit(str(exc))
-
-
 class ExplainDetailDialog(QtWidgets.QDialog):
     def __init__(
         self,
@@ -896,11 +818,19 @@ class Gallery(QtWidgets.QWidget):
         self.fold_file_override = fold_file
         self.fold_index_override = fold_index
         self.view_mode = VIEW_OPTIONS[0]
-        self.scatter_thread: QtCore.QThread | None = None
-        self.scatter_worker: SubsetScatterWorker | None = None
-        self.scatter_abort: threading.Event | None = None
+        self.scatter_timer = QtCore.QTimer(self)
+        self.scatter_timer.setInterval(0)
+        self.scatter_timer.timeout.connect(self._process_scatter_batch)
+        self.scatter_session: ort.InferenceSession | None = None
+        self.scatter_input_name = ""
+        self.scatter_records: list[dict] = []
+        self.scatter_index = 0
+        self.scatter_preds: list[float] = []
+        self.scatter_trues: list[float] = []
+        self.scatter_user_acc: dict[str, tuple[float, float, int]] = {}
         self.scatter_running = False
         self.scatter_dirty = True
+        self.scatter_aggregate = False
         self.handrgbd_rgb_root = HANDRGBD_RGB_ROOT_OPTIONS[0]
         self.handrgbd_mask_root = HANDRGBD_MASK_ROOT_OPTIONS[0]
         self.columns = columns
@@ -1061,9 +991,13 @@ class Gallery(QtWidgets.QWidget):
         scatter_controls = QtWidgets.QHBoxLayout()
         self.scatter_run_button = QtWidgets.QPushButton("Run subset")
         self.scatter_run_button.clicked.connect(self._run_scatter)
+        self.scatter_agg_check = QtWidgets.QCheckBox("Aggregate per user")
+        self.scatter_agg_check.setChecked(self.scatter_aggregate)
+        self.scatter_agg_check.stateChanged.connect(self._on_scatter_aggregate_changed)
         self.scatter_status = QtWidgets.QLabel("Click Run subset to plot.")
         self.scatter_status.setWordWrap(True)
         scatter_controls.addWidget(self.scatter_run_button)
+        scatter_controls.addWidget(self.scatter_agg_check)
         scatter_controls.addWidget(self.scatter_status, 1)
         scatter_layout.addLayout(scatter_controls)
         self.scatter_stats = QtWidgets.QLabel("MAE=n/a | RMSE=n/a | n=0")
@@ -1414,6 +1348,10 @@ class Gallery(QtWidgets.QWidget):
         if not self.scatter_running:
             self.scatter_status.setText("Filters changed; click Run subset.")
 
+    def _on_scatter_aggregate_changed(self) -> None:
+        self.scatter_aggregate = bool(self.scatter_agg_check.isChecked())
+        self._mark_scatter_dirty()
+
     def _set_scatter_placeholder(self, text: str) -> None:
         self.scatter_plot.setPixmap(QtGui.QPixmap())
         self.scatter_plot.setText(text)
@@ -1454,6 +1392,7 @@ class Gallery(QtWidgets.QWidget):
                     "image_path": Path(row["image_path"]),
                     "age": float(age_val),
                     "source": str(row.get("source", "")).lower(),
+                    "user_id": str(row.get("user_id", "")),
                 }
             )
 
@@ -1470,28 +1409,105 @@ class Gallery(QtWidgets.QWidget):
         self.scatter_stats.setText("MAE=n/a | RMSE=n/a | n=0")
         self.scatter_status.setText(f"Running 0/{total}...")
 
-        self.scatter_abort = threading.Event()
-        self.scatter_thread = QtCore.QThread(self)
-        self.scatter_worker = SubsetScatterWorker(
-            records=records,
-            model_path=self.model_path,
-            img_size=self.img_size,
-            dataset_root=self.dataset_root,
-            handrgbd_rgb_root=self.handrgbd_rgb_root,
-            handrgbd_mask_root=self.handrgbd_mask_root,
-            abort_event=self.scatter_abort,
-        )
-        self.scatter_worker.moveToThread(self.scatter_thread)
-        self.scatter_thread.started.connect(self.scatter_worker.run)
-        self.scatter_worker.progress.connect(self._on_scatter_progress)
-        self.scatter_worker.finished.connect(self._on_scatter_finished)
-        self.scatter_worker.failed.connect(self._on_scatter_failed)
-        self.scatter_worker.finished.connect(self.scatter_thread.quit)
-        self.scatter_worker.failed.connect(self.scatter_thread.quit)
-        self.scatter_worker.finished.connect(self.scatter_worker.deleteLater)
-        self.scatter_worker.failed.connect(self.scatter_worker.deleteLater)
-        self.scatter_thread.finished.connect(self.scatter_thread.deleteLater)
-        self.scatter_thread.start()
+        session_options = ort.SessionOptions()
+        session_options.intra_op_num_threads = 1
+        session_options.inter_op_num_threads = 1
+        session_options.execution_mode = ort.ExecutionMode.ORT_SEQUENTIAL
+        session_options.enable_mem_pattern = False
+        try:
+            self.scatter_session = ort.InferenceSession(
+                str(self.model_path),
+                sess_options=session_options,
+                providers=["CPUExecutionProvider"],
+            )
+        except Exception as exc:
+            self.scatter_session = None
+            self._on_scatter_failed(f"Session init failed: {exc}")
+            return
+        self.scatter_input_name = self.scatter_session.get_inputs()[0].name
+        self.scatter_records = records
+        self.scatter_index = 0
+        self.scatter_preds = []
+        self.scatter_trues = []
+        self.scatter_user_acc = {}
+        if not self.scatter_timer.isActive():
+            self.scatter_timer.start()
+
+    def _process_scatter_batch(self) -> None:
+        if not self.scatter_running:
+            if self.scatter_timer.isActive():
+                self.scatter_timer.stop()
+            return
+        if self.scatter_session is None:
+            self._on_scatter_failed("Scatter session missing.")
+            return
+
+        total = len(self.scatter_records)
+        if total == 0:
+            if self.scatter_timer.isActive():
+                self.scatter_timer.stop()
+            self._on_scatter_finished({"preds": [], "trues": [], "total": 0, "mode": "image"})
+            return
+
+        batch_size = 5
+        processed = 0
+        while processed < batch_size and self.scatter_index < total:
+            rec = self.scatter_records[self.scatter_index]
+            self.scatter_index += 1
+            processed += 1
+            image_path = Path(rec["image_path"])
+            mask_path = None
+            if rec.get("source") == "handrgbd":
+                image_path, mask_path = _resolve_handrgbd_paths(
+                    image_path,
+                    self.dataset_root,
+                    rgb_root_name=self.handrgbd_rgb_root,
+                    mask_root_name=self.handrgbd_mask_root,
+                )
+            if not image_path.is_file():
+                continue
+            try:
+                base_arr, _ = _load_masked_base(image_path, mask_path)
+                arr = _prepare_inference_input(base_arr, self.img_size)
+                mean_val, _ = _run_inference(self.scatter_session, self.scatter_input_name, arr)
+            except Exception:
+                continue
+            pred_val = float(mean_val)
+            true_val = float(rec["age"])
+            if self.scatter_aggregate:
+                user_id = str(rec.get("user_id", ""))
+                sum_pred, sum_true, count = self.scatter_user_acc.get(user_id, (0.0, 0.0, 0))
+                self.scatter_user_acc[user_id] = (
+                    sum_pred + pred_val,
+                    sum_true + true_val,
+                    count + 1,
+                )
+            else:
+                self.scatter_preds.append(pred_val)
+                self.scatter_trues.append(true_val)
+
+        if self.scatter_index >= total:
+            if self.scatter_timer.isActive():
+                self.scatter_timer.stop()
+            if self.scatter_aggregate:
+                preds: list[float] = []
+                trues: list[float] = []
+                for sum_pred, sum_true, count in self.scatter_user_acc.values():
+                    if count <= 0:
+                        continue
+                    preds.append(sum_pred / count)
+                    trues.append(sum_true / count)
+                payload = {"preds": preds, "trues": trues, "total": total, "mode": "user"}
+            else:
+                payload = {
+                    "preds": self.scatter_preds,
+                    "trues": self.scatter_trues,
+                    "total": total,
+                    "mode": "image",
+                }
+            self._on_scatter_finished(payload)
+        else:
+            self._on_scatter_progress(self.scatter_index, total)
 
     def _on_scatter_progress(self, done: int, total: int) -> None:
         if not self.scatter_running:
@@ -1501,14 +1517,22 @@ class Gallery(QtWidgets.QWidget):
     def _on_scatter_finished(self, payload: object) -> None:
         self.scatter_running = False
         self.scatter_run_button.setEnabled(True)
-        self.scatter_worker = None
-        self.scatter_thread = None
-        self.scatter_abort = None
+        if self.scatter_timer.isActive():
+            self.scatter_timer.stop()
+        self.scatter_session = None
+        self.scatter_input_name = ""
+        self.scatter_records = []
+        self.scatter_index = 0
+        self.scatter_preds = []
+        self.scatter_trues = []
+        self.scatter_user_acc = {}
 
         data = payload if isinstance(payload, dict) else {}
         preds = data.get("preds", [])
         trues = data.get("trues", [])
         total = int(data.get("total", len(preds)))
+        mode = data.get("mode", "image")
+        mode_label = "users" if mode == "user" else "images"
         if not preds or not trues:
             self.scatter_stats.setText("MAE=n/a | RMSE=n/a | n=0")
             self._set_scatter_placeholder("No predictions to plot.")
@@ -1526,20 +1550,32 @@ class Gallery(QtWidgets.QWidget):
             self.scatter_status.setText(f"Done. 0/{total} samples.")
             return
 
+        count = int(preds_arr.size)
         errors = preds_arr - trues_arr
         mae = float(np.mean(np.abs(errors)))
         rmse = float(np.sqrt(np.mean(np.square(errors))))
-        self.scatter_stats.setText(f"MAE={mae:.2f} | RMSE={rmse:.2f} | n={preds_arr.size}")
-        self.scatter_status.setText(f"Done. {preds_arr.size}/{total} samples.")
+        self.scatter_stats.setText(
+            f"MAE={mae:.2f} | RMSE={rmse:.2f} | n={count} ({mode_label})"
+        )
+        if mode == "user":
+            self.scatter_status.setText(f"Done. {count} users from {total} images.")
+        else:
+            self.scatter_status.setText(f"Done. {count}/{total} samples.")
         self._render_scatter_plot(trues_arr.tolist(), preds_arr.tolist())
 
     def _on_scatter_failed(self, message: str) -> None:
         self.scatter_running = False
         self.scatter_run_button.setEnabled(True)
         self.scatter_dirty = True
-        self.scatter_worker = None
-        self.scatter_thread = None
-        self.scatter_abort = None
+        if self.scatter_timer.isActive():
+            self.scatter_timer.stop()
+        self.scatter_session = None
+        self.scatter_input_name = ""
+        self.scatter_records = []
+        self.scatter_index = 0
+        self.scatter_preds = []
+        self.scatter_trues = []
+        self.scatter_user_acc = {}
         if message:
             self.scatter_status.setText(f"Scatter failed: {message}")
         else:
@@ -1684,11 +1720,10 @@ class Gallery(QtWidgets.QWidget):
             self._load_index(self.index + 1)
 
     def closeEvent(self, event: QtGui.QCloseEvent) -> None:
-        if self.scatter_abort is not None:
-            self.scatter_abort.set()
-        if self.scatter_thread is not None and self.scatter_thread.isRunning():
-            self.scatter_thread.quit()
-            self.scatter_thread.wait(2000)
+        if self.scatter_timer.isActive():
+            self.scatter_timer.stop()
+        self.scatter_running = False
+        self.scatter_session = None
         super().closeEvent(event)
 
 

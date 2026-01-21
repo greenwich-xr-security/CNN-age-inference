@@ -1004,13 +1004,15 @@ class Gallery(QtWidgets.QWidget):
         handrgbd_row.addWidget(self.handrgbd_mask_combo)
         layout.addLayout(handrgbd_row)
 
-        explain_row = QtWidgets.QHBoxLayout()
+        self.explain_panel = QtWidgets.QWidget()
+        explain_row = QtWidgets.QHBoxLayout(self.explain_panel)
+        explain_row.setContentsMargins(0, 0, 0, 0)
         explain_row.addWidget(QtWidgets.QLabel("Method:"))
         explain_row.addWidget(self.method_combo)
         explain_row.addWidget(QtWidgets.QLabel("Layer:"))
         explain_row.addWidget(self.layer_combo, 1)
         explain_row.addWidget(self.explain_button)
-        layout.addLayout(explain_row)
+        layout.addWidget(self.explain_panel)
 
         self.gallery_panel = QtWidgets.QWidget()
         gallery_layout = QtWidgets.QVBoxLayout(self.gallery_panel)
@@ -1396,6 +1398,7 @@ class Gallery(QtWidgets.QWidget):
         is_scatter = self.view_mode == VIEW_OPTIONS[1]
         self.gallery_panel.setVisible(not is_scatter)
         self.scatter_panel.setVisible(is_scatter)
+        self.explain_panel.setVisible(not is_scatter)
 
     def _on_mode_changed(self) -> None:
         self.view_mode = self.mode_combo.currentText()

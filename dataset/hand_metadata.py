@@ -417,13 +417,13 @@ def load_handrgbd_metadata(
 ) -> pd.DataFrame:
     dataset_root = _resolve_root(root)
     hand_root = dataset_root / "handRGBD"
-    rgb_root = hand_root / "rgb_xyz_jpg"
+    rgb_root = hand_root / "rgb_dorsal_jpg"
     if not rgb_root.exists():
         alt_root = hand_root / "rgb"
         if alt_root.exists():
             rgb_root = alt_root
     if not rgb_root.exists():
-        print(f"[handRGBD] RGB folder not found (tried 'rgb_xyz_jpg' and 'rgb' under {hand_root})")
+        print(f"[handRGBD] RGB folder not found (tried 'rgb_dorsal_jpg' and 'rgb' under {hand_root})")
         return pd.DataFrame(columns=["source", "user_id", "age", "gender", "aspect", "image_path", "bbox"])
     metadata_csv = dataset_root / "handRGBD" / "reference_table.csv"
 

@@ -1,7 +1,9 @@
 import argparse
+import io
 import hashlib
 import re
 import sys
+import threading
 from pathlib import Path
 
 import numpy as np
@@ -24,6 +26,15 @@ from onnx_tools.run_onnx import IMAGENET_MEAN, IMAGENET_STD, _infer_img_size
 MASK_THRESHOLD = 0
 DATASET_OPTIONS = ("all", "primary", "archive", "handrgbd")
 SPLIT_OPTIONS = ("all", "train", "val")
+VIEW_OPTIONS = ("Gallery", "Full subset scatter")
+HANDRGBD_RGB_ROOT_OPTIONS = (
+    "auto",
+    "rgb_jpg",
+    "rotated_CLAHE_rgb_jpg",
+    "rgb_xyz_jpg",
+    "rotated_rgb_jpg",
+)
+HANDRGBD_MASK_ROOT_OPTIONS = ("auto", "rgb_mask", "rotated_rgb_mask", "xyz_mask")
 
 
 def _scan_onnx_models(root: Path) -> list[Path]:
@@ -185,6 +196,8 @@ def _build_items(
     max_items: int | None,
     dataset_root: Path,
     *,
+    handrgbd_rgb_root: str | None = None,
+    handrgbd_mask_root: str | None = None,
     grad_cam_runner=None,
     cam_cache_dir: Path | None = None,
     cam_alpha: float = 0.45,
@@ -205,7 +218,12 @@ def _build_items(
         image_path = Path(row["image_path"])
         mask_path = None
         if str(row.get("source", "")).lower() == "handrgbd":
-            image_path, mask_path = _resolve_handrgbd_paths(image_path, dataset_root)
+            image_path, mask_path = _resolve_handrgbd_paths(
+                image_path,
+                dataset_root,
+                rgb_root_name=handrgbd_rgb_root,
+                mask_root_name=handrgbd_mask_root,
+            )
         if not image_path.is_file():
             continue
         try:
@@ -296,10 +314,12 @@ def _compute_luma_histogram(
 def _load_masked_base(
     image_path: Path, mask_path: Path | None, mask_threshold: int = MASK_THRESHOLD
 ) -> tuple[np.ndarray, np.ndarray | None]:
-    img = Image.open(image_path).convert("RGB")
+    with Image.open(image_path) as img_file:
+        img = img_file.convert("RGB")
     mask = None
     if mask_path is not None:
-        mask = Image.open(mask_path).convert("L")
+        with Image.open(mask_path) as mask_file:
+            mask = mask_file.convert("L")
         if mask.size != img.size:
             mask = mask.resize(img.size, Image.NEAREST)
 
@@ -346,14 +366,50 @@ def _find_matching_file(root: Path, name: str) -> Path | None:
     return None
 
 
-def _resolve_handrgbd_paths(image_path: Path, dataset_root: Path) -> tuple[Path, Path | None]:
+def _resolve_handrgbd_paths(
+    image_path: Path,
+    dataset_root: Path,
+    *,
+    rgb_root_name: str | None = None,
+    mask_root_name: str | None = None,
+) -> tuple[Path, Path | None]:
     hand_root = dataset_root / "handRGBD"
-    rgb_root = hand_root / "rgb"
-    if not rgb_root.is_dir():
-        alt_root = hand_root / "rgb_jpg"
-        if alt_root.is_dir():
-            rgb_root = alt_root
-    mask_root = hand_root / "rgb_mask"
+
+    rgb_root = None
+    if rgb_root_name and rgb_root_name != "auto":
+        candidate = hand_root / rgb_root_name
+        if candidate.is_dir():
+            rgb_root = candidate
+    else:
+        for name in (
+            "rgb",
+            "rgb_xyz_jpg",
+            "rgb_jpg",
+            "rotated_CLAHE_rgb_jpg",
+            "rotated_rgb_jpg",
+        ):
+            candidate = hand_root / name
+            if candidate.is_dir():
+                rgb_root = candidate
+                break
+
+    mask_root = None
+    if mask_root_name and mask_root_name != "auto":
+        candidate = hand_root / mask_root_name
+        if candidate.is_dir():
+            mask_root = candidate
+    else:
+        for name in ("xyz_mask", "rgb_mask", "rotated_rgb_mask"):
+            candidate = hand_root / name
+            if candidate.is_dir():
+                mask_root = candidate
+                break
+
+    if rgb_root is None:
+        rgb_root = hand_root
+    if mask_root is None:
+        mask_root = hand_root
+
     resolved_image = _find_matching_file(rgb_root, image_path.name) or image_path
     resolved_mask = _find_matching_file(mask_root, resolved_image.name) or _find_matching_file(
         mask_root, image_path.name
@@ -488,6 +544,14 @@ class BoxPlotWidget(QtWidgets.QWidget):
             scale_min -= 0.5
             scale_max += 0.5
 
+        info_bits = [f"median={median:.2f}"]
+        if self._true_age is not None:
+            info_bits.append(f"true={self._true_age:.2f}")
+        if info_bits:
+            painter.setPen(QtGui.QColor(90, 90, 90))
+            painter.drawText(rect, QtCore.Qt.AlignTop | QtCore.Qt.AlignLeft, " ".join(info_bits))
+            rect = rect.adjusted(0, 12, 0, 0)
+
         def x_at(value: float) -> float:
             return rect.left() + (value - scale_min) / span * rect.width()
 
@@ -540,6 +604,83 @@ class BoxPlotWidget(QtWidgets.QWidget):
                 int(true_x),
                 int(rect.bottom()),
             )
+
+
+class SubsetScatterWorker(QtCore.QObject):
+    progress = QtCore.Signal(int, int)
+    finished = QtCore.Signal(object)
+    failed = QtCore.Signal(str)
+
+    def __init__(
+        self,
+        *,
+        records: list[dict],
+        model_path: Path,
+        img_size: int,
+        dataset_root: Path,
+        handrgbd_rgb_root: str | None,
+        handrgbd_mask_root: str | None,
+        abort_event: threading.Event | None = None,
+    ) -> None:
+        super().__init__()
+        self.records = records
+        self.model_path = model_path
+        self.img_size = img_size
+        self.dataset_root = dataset_root
+        self.handrgbd_rgb_root = handrgbd_rgb_root
+        self.handrgbd_mask_root = handrgbd_mask_root
+        self.abort_event = abort_event or threading.Event()
+
+    def run(self) -> None:
+        try:
+            session_options = ort.SessionOptions()
+            session_options.intra_op_num_threads = 1
+            session_options.inter_op_num_threads = 1
+            session_options.execution_mode = ort.ExecutionMode.ORT_SEQUENTIAL
+            session_options.enable_mem_pattern = False
+            try:
+                session = ort.InferenceSession(
+                    str(self.model_path),
+                    sess_options=session_options,
+                    providers=["CPUExecutionProvider"],
+                )
+            except Exception:
+                session = ort.InferenceSession(
+                    str(self.model_path),
+                    sess_options=session_options,
+                )
+            input_name = session.get_inputs()[0].name
+            total = len(self.records)
+            preds: list[float] = []
+            trues: list[float] = []
+            for idx, rec in enumerate(self.records):
+                if self.abort_event.is_set():
+                    self.failed.emit("Cancelled.")
+                    return
+                image_path = Path(rec["image_path"])
+                mask_path = None
+                if rec.get("source") == "handrgbd":
+                    image_path, mask_path = _resolve_handrgbd_paths(
+                        image_path,
+                        self.dataset_root,
+                        rgb_root_name=self.handrgbd_rgb_root,
+                        mask_root_name=self.handrgbd_mask_root,
+                    )
+                if not image_path.is_file():
+                    continue
+                try:
+                    base_arr, _ = _load_masked_base(image_path, mask_path)
+                    arr = _prepare_inference_input(base_arr, self.img_size)
+                    mean_val, _ = _run_inference(session, input_name, arr)
+                except Exception:
+                    continue
+                preds.append(float(mean_val))
+                trues.append(float(rec["age"]))
+                if idx % 10 == 0 or idx == total - 1:
+                    self.progress.emit(idx + 1, total)
+            self.finished.emit({"preds": preds, "trues": trues, "total": total})
+        except Exception as exc:
+            self.failed.emit(str(exc))
 
 
 class ExplainDetailDialog(QtWidgets.QDialog):
@@ -754,6 +895,14 @@ class Gallery(QtWidgets.QWidget):
         self.split_choice = split_choice if split_choice in SPLIT_OPTIONS else "all"
         self.fold_file_override = fold_file
         self.fold_index_override = fold_index
+        self.view_mode = VIEW_OPTIONS[0]
+        self.scatter_thread: QtCore.QThread | None = None
+        self.scatter_worker: SubsetScatterWorker | None = None
+        self.scatter_abort: threading.Event | None = None
+        self.scatter_running = False
+        self.scatter_dirty = True
+        self.handrgbd_rgb_root = HANDRGBD_RGB_ROOT_OPTIONS[0]
+        self.handrgbd_mask_root = HANDRGBD_MASK_ROOT_OPTIONS[0]
         self.columns = columns
         self.thumb_size = thumb_size or 0
         self.thumb_size_override = thumb_size is not None
@@ -804,7 +953,24 @@ class Gallery(QtWidgets.QWidget):
 
         self.fold_combo = QtWidgets.QComboBox()
         self.fold_combo.currentIndexChanged.connect(self._on_fold_changed)
-        self._resolve_fold_data()
+
+        self.mode_combo = QtWidgets.QComboBox()
+        for option in VIEW_OPTIONS:
+            self.mode_combo.addItem(option)
+        self.mode_combo.setCurrentText(self.view_mode)
+        self.mode_combo.currentIndexChanged.connect(self._on_mode_changed)
+
+        self.handrgbd_rgb_combo = QtWidgets.QComboBox()
+        for option in HANDRGBD_RGB_ROOT_OPTIONS:
+            self.handrgbd_rgb_combo.addItem(option)
+        self.handrgbd_rgb_combo.setCurrentText(self.handrgbd_rgb_root)
+        self.handrgbd_rgb_combo.currentIndexChanged.connect(self._on_handrgbd_root_changed)
+
+        self.handrgbd_mask_combo = QtWidgets.QComboBox()
+        for option in HANDRGBD_MASK_ROOT_OPTIONS:
+            self.handrgbd_mask_combo.addItem(option)
+        self.handrgbd_mask_combo.setCurrentText(self.handrgbd_mask_root)
+        self.handrgbd_mask_combo.currentIndexChanged.connect(self._on_handrgbd_root_changed)
 
         self.explain_button = QtWidgets.QPushButton("Explain")
         self.explain_button.setCheckable(True)
@@ -827,7 +993,16 @@ class Gallery(QtWidgets.QWidget):
         controls_row.addWidget(self.split_combo)
         controls_row.addWidget(QtWidgets.QLabel("Fold:"))
         controls_row.addWidget(self.fold_combo)
+        controls_row.addWidget(QtWidgets.QLabel("Mode:"))
+        controls_row.addWidget(self.mode_combo)
         layout.addLayout(controls_row)
+
+        handrgbd_row = QtWidgets.QHBoxLayout()
+        handrgbd_row.addWidget(QtWidgets.QLabel("HandRGBD RGB:"))
+        handrgbd_row.addWidget(self.handrgbd_rgb_combo)
+        handrgbd_row.addWidget(QtWidgets.QLabel("Mask:"))
+        handrgbd_row.addWidget(self.handrgbd_mask_combo)
+        layout.addLayout(handrgbd_row)
 
         explain_row = QtWidgets.QHBoxLayout()
         explain_row.addWidget(QtWidgets.QLabel("Method:"))
@@ -836,6 +1011,11 @@ class Gallery(QtWidgets.QWidget):
         explain_row.addWidget(self.layer_combo, 1)
         explain_row.addWidget(self.explain_button)
         layout.addLayout(explain_row)
+
+        self.gallery_panel = QtWidgets.QWidget()
+        gallery_layout = QtWidgets.QVBoxLayout(self.gallery_panel)
+        gallery_layout.setContentsMargins(0, 0, 0, 0)
+        gallery_layout.setSpacing(6)
 
         top_row = QtWidgets.QHBoxLayout()
         self.prev_button = QtWidgets.QPushButton("Prev")
@@ -846,16 +1026,25 @@ class Gallery(QtWidgets.QWidget):
         self.header = QtWidgets.QLabel()
         self.header.setWordWrap(True)
         self.box_plot = BoxPlotWidget()
+        self.metrics_label = QtWidgets.QLabel("MAE=n/a | RMSE=n/a")
+        self.metrics_label.setAlignment(QtCore.Qt.AlignCenter)
+        self.metrics_label.setToolTip("Per-user prediction error vs true age.")
+        stats_host = QtWidgets.QWidget()
+        stats_layout = QtWidgets.QVBoxLayout(stats_host)
+        stats_layout.setContentsMargins(0, 0, 0, 0)
+        stats_layout.setSpacing(2)
+        stats_layout.addWidget(self.box_plot, 0, QtCore.Qt.AlignCenter)
+        stats_layout.addWidget(self.metrics_label, 0, QtCore.Qt.AlignCenter)
 
         top_row.addWidget(self.prev_button)
         top_row.addWidget(self.next_button)
         top_row.addWidget(self.header, 1)
-        top_row.addWidget(self.box_plot)
-        layout.addLayout(top_row)
+        top_row.addWidget(stats_host)
+        gallery_layout.addLayout(top_row)
 
         self.scroll = QtWidgets.QScrollArea()
         self.scroll.setWidgetResizable(True)
-        layout.addWidget(self.scroll)
+        gallery_layout.addWidget(self.scroll)
 
         self.grid_host = QtWidgets.QWidget()
         self.grid = QtWidgets.QGridLayout(self.grid_host)
@@ -863,7 +1052,41 @@ class Gallery(QtWidgets.QWidget):
         self.grid.setContentsMargins(12, 12, 12, 12)
         self.scroll.setWidget(self.grid_host)
 
+        self.scatter_panel = QtWidgets.QWidget()
+        scatter_layout = QtWidgets.QVBoxLayout(self.scatter_panel)
+        scatter_layout.setContentsMargins(0, 0, 0, 0)
+        scatter_layout.setSpacing(8)
+        scatter_controls = QtWidgets.QHBoxLayout()
+        self.scatter_run_button = QtWidgets.QPushButton("Run subset")
+        self.scatter_run_button.clicked.connect(self._run_scatter)
+        self.scatter_status = QtWidgets.QLabel("Click Run subset to plot.")
+        self.scatter_status.setWordWrap(True)
+        scatter_controls.addWidget(self.scatter_run_button)
+        scatter_controls.addWidget(self.scatter_status, 1)
+        scatter_layout.addLayout(scatter_controls)
+        self.scatter_stats = QtWidgets.QLabel("MAE=n/a | RMSE=n/a | n=0")
+        self.scatter_stats.setAlignment(QtCore.Qt.AlignCenter)
+        scatter_layout.addWidget(self.scatter_stats)
+        self.scatter_plot = QtWidgets.QLabel("No scatter yet.")
+        self.scatter_plot.setAlignment(QtCore.Qt.AlignCenter)
+        self.scatter_plot.setMinimumSize(320, 320)
+        self.scatter_plot.setScaledContents(False)
+        self.scatter_plot.setSizePolicy(
+            QtWidgets.QSizePolicy.Fixed,
+            QtWidgets.QSizePolicy.Fixed,
+        )
+        self.scatter_scroll = QtWidgets.QScrollArea()
+        self.scatter_scroll.setWidgetResizable(False)
+        self.scatter_scroll.setWidget(self.scatter_plot)
+        self.scatter_scroll.setMinimumHeight(320)
+        scatter_layout.addWidget(self.scatter_scroll, 1)
+
+        layout.addWidget(self.gallery_panel)
+        layout.addWidget(self.scatter_panel)
+
+        self._apply_view_mode()
         self._load_model(model_path)
+        self._resolve_fold_data()
         self._refresh_users()
 
     def _populate_model_combo(self) -> None:
@@ -1088,6 +1311,7 @@ class Gallery(QtWidgets.QWidget):
             self._render_items([])
             self.header.setText("No samples for current filters.")
             self.box_plot.set_data([], None)
+            self._update_metrics_label([], None)
             self.prev_button.setEnabled(False)
             self.next_button.setEnabled(False)
             return
@@ -1101,6 +1325,8 @@ class Gallery(QtWidgets.QWidget):
             self.img_size,
             self.max_items,
             self.dataset_root,
+            handrgbd_rgb_root=self.handrgbd_rgb_root,
+            handrgbd_mask_root=self.handrgbd_mask_root,
             grad_cam_runner=self.grad_cam_runner,
             cam_cache_dir=self.explain_cache_dir,
             cam_alpha=self.explain_alpha,
@@ -1129,9 +1355,29 @@ class Gallery(QtWidgets.QWidget):
         else:
             self.header.setToolTip("")
         self.box_plot.set_data(predictions, true_age_value)
+        self._update_metrics_label(predictions, true_age_value)
         self.prev_button.setEnabled(self.index > 0)
         self.next_button.setEnabled(self.index < len(self.user_groups) - 1)
         self.scroll.verticalScrollBar().setValue(0)
+
+    def _update_metrics_label(
+        self, predictions: list[float], true_age_value: float | None
+    ) -> None:
+        if true_age_value is None or not predictions:
+            self.metrics_label.setText("MAE=n/a | RMSE=n/a")
+            return
+        if not np.isfinite(true_age_value):
+            self.metrics_label.setText("MAE=n/a | RMSE=n/a")
+            return
+        values = np.asarray(predictions, dtype=np.float32)
+        values = values[np.isfinite(values)]
+        if values.size == 0:
+            self.metrics_label.setText("MAE=n/a | RMSE=n/a")
+            return
+        errors = values - float(true_age_value)
+        mae = float(np.mean(np.abs(errors)))
+        rmse = float(np.sqrt(np.mean(np.square(errors))))
+        self.metrics_label.setText(f"MAE={mae:.2f} | RMSE={rmse:.2f}")
 
     def _refresh_users(self) -> None:
         self.dataset_choice = self.dataset_combo.currentText()
@@ -1146,14 +1392,215 @@ class Gallery(QtWidgets.QWidget):
         self.user_groups = _build_user_groups(filtered)
         self._load_index(0)
 
+    def _apply_view_mode(self) -> None:
+        is_scatter = self.view_mode == VIEW_OPTIONS[1]
+        self.gallery_panel.setVisible(not is_scatter)
+        self.scatter_panel.setVisible(is_scatter)
+
+    def _on_mode_changed(self) -> None:
+        self.view_mode = self.mode_combo.currentText()
+        self._apply_view_mode()
+        if self.view_mode == VIEW_OPTIONS[1] and not self.scatter_running:
+            if self.scatter_dirty:
+                self.scatter_status.setText("Filters changed; click Run subset.")
+            else:
+                self.scatter_status.setText("Click Run subset to plot.")
+
+    def _mark_scatter_dirty(self) -> None:
+        self.scatter_dirty = True
+        if not self.scatter_running:
+            self.scatter_status.setText("Filters changed; click Run subset.")
+
+    def _set_scatter_placeholder(self, text: str) -> None:
+        self.scatter_plot.setPixmap(QtGui.QPixmap())
+        self.scatter_plot.setText(text)
+        self.scatter_plot.setMinimumSize(320, 320)
+        self.scatter_plot.adjustSize()
+
+    def _run_scatter(self) -> None:
+        if self.scatter_running:
+            return
+        if self.model_path is None:
+            self.scatter_status.setText("Model not loaded.")
+            return
+
+        dataset_choice = self.dataset_combo.currentText()
+        split_choice = self.split_combo.currentText()
+        filtered = _apply_filters(
+            self.metadata_all,
+            dataset_choice,
+            split_choice,
+            self.fold_data,
+            self.fold_index,
+        )
+        if filtered.empty:
+            self.scatter_stats.setText("MAE=n/a | RMSE=n/a | n=0")
+            self._set_scatter_placeholder("No samples to plot.")
+            self.scatter_status.setText("No samples for current filters.")
+            return
+
+        records: list[dict] = []
+        for _, row in filtered.iterrows():
+            age_val = row.get("age")
+            if age_val is None or (isinstance(age_val, float) and np.isnan(age_val)):
+                continue
+            if not np.isfinite(float(age_val)):
+                continue
+            records.append(
+                {
+                    "image_path": Path(row["image_path"]),
+                    "age": float(age_val),
+                    "source": str(row.get("source", "")).lower(),
+                }
+            )
+
+        total = len(records)
+        if total == 0:
+            self.scatter_stats.setText("MAE=n/a | RMSE=n/a | n=0")
+            self._set_scatter_placeholder("No samples with valid ages.")
+            self.scatter_status.setText("No samples with valid ages.")
+            return
+
+        self.scatter_running = True
+        self.scatter_dirty = False
+        self.scatter_run_button.setEnabled(False)
+        self.scatter_stats.setText("MAE=n/a | RMSE=n/a | n=0")
+        self.scatter_status.setText(f"Running 0/{total}...")
+
+        self.scatter_abort = threading.Event()
+        self.scatter_thread = QtCore.QThread(self)
+        self.scatter_worker = SubsetScatterWorker(
+            records=records,
+            model_path=self.model_path,
+            img_size=self.img_size,
+            dataset_root=self.dataset_root,
+            handrgbd_rgb_root=self.handrgbd_rgb_root,
+            handrgbd_mask_root=self.handrgbd_mask_root,
+            abort_event=self.scatter_abort,
+        )
+        self.scatter_worker.moveToThread(self.scatter_thread)
+        self.scatter_thread.started.connect(self.scatter_worker.run)
+        self.scatter_worker.progress.connect(self._on_scatter_progress)
+        self.scatter_worker.finished.connect(self._on_scatter_finished)
+        self.scatter_worker.failed.connect(self._on_scatter_failed)
+        self.scatter_worker.finished.connect(self.scatter_thread.quit)
+        self.scatter_worker.failed.connect(self.scatter_thread.quit)
+        self.scatter_worker.finished.connect(self.scatter_worker.deleteLater)
+        self.scatter_worker.failed.connect(self.scatter_worker.deleteLater)
+        self.scatter_thread.finished.connect(self.scatter_thread.deleteLater)
+        self.scatter_thread.start()
+
+    def _on_scatter_progress(self, done: int, total: int) -> None:
+        if not self.scatter_running:
+            return
+        self.scatter_status.setText(f"Running {done}/{total}...")
+
+    def _on_scatter_finished(self, payload: object) -> None:
+        self.scatter_running = False
+        self.scatter_run_button.setEnabled(True)
+        self.scatter_worker = None
+        self.scatter_thread = None
+        self.scatter_abort = None
+
+        data = payload if isinstance(payload, dict) else {}
+        preds = data.get("preds", [])
+        trues = data.get("trues", [])
+        total = int(data.get("total", len(preds)))
+        if not preds or not trues:
+            self.scatter_stats.setText("MAE=n/a | RMSE=n/a | n=0")
+            self._set_scatter_placeholder("No predictions to plot.")
+            self.scatter_status.setText(f"Done. 0/{total} samples.")
+            return
+
+        preds_arr = np.asarray(preds, dtype=np.float32)
+        trues_arr = np.asarray(trues, dtype=np.float32)
+        mask = np.isfinite(preds_arr) & np.isfinite(trues_arr)
+        preds_arr = preds_arr[mask]
+        trues_arr = trues_arr[mask]
+        if preds_arr.size == 0:
+            self.scatter_stats.setText("MAE=n/a | RMSE=n/a | n=0")
+            self._set_scatter_placeholder("No valid predictions to plot.")
+            self.scatter_status.setText(f"Done. 0/{total} samples.")
+            return
+
+        errors = preds_arr - trues_arr
+        mae = float(np.mean(np.abs(errors)))
+        rmse = float(np.sqrt(np.mean(np.square(errors))))
+        self.scatter_stats.setText(f"MAE={mae:.2f} | RMSE={rmse:.2f} | n={preds_arr.size}")
+        self.scatter_status.setText(f"Done. {preds_arr.size}/{total} samples.")
+        self._render_scatter_plot(trues_arr.tolist(), preds_arr.tolist())
+
+    def _on_scatter_failed(self, message: str) -> None:
+        self.scatter_running = False
+        self.scatter_run_button.setEnabled(True)
+        self.scatter_dirty = True
+        self.scatter_worker = None
+        self.scatter_thread = None
+        self.scatter_abort = None
+        if message:
+            self.scatter_status.setText(f"Scatter failed: {message}")
+        else:
+            self.scatter_status.setText("Scatter failed.")
+
+    def _render_scatter_plot(self, trues: list[float], preds: list[float]) -> None:
+        if not trues or not preds:
+            self._set_scatter_placeholder("No data to plot.")
+            return
+        true_vals = np.asarray(trues, dtype=float)
+        pred_vals = np.asarray(preds, dtype=float)
+        mask = np.isfinite(true_vals) & np.isfinite(pred_vals)
+        if not mask.any():
+            self._set_scatter_placeholder("No valid data to plot.")
+            return
+        true_vals = true_vals[mask]
+        pred_vals = pred_vals[mask]
+
+        min_val = float(np.min([true_vals.min(), pred_vals.min()]))
+        max_val = float(np.max([true_vals.max(), pred_vals.max()]))
+        padding = max(1.0, 0.05 * (max_val - min_val))
+        axis_min = min_val - padding
+        axis_max = max_val + padding
+
+        from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
+        from matplotlib.figure import Figure
+
+        fig = Figure(figsize=(6, 6), dpi=100)
+        canvas = FigureCanvas(fig)
+        ax = fig.add_subplot(111)
+        ax.scatter(true_vals, pred_vals, s=12, alpha=0.6, edgecolors="none")
+        ax.plot([axis_min, axis_max], [axis_min, axis_max], "r--", linewidth=1)
+        ax.set_xlabel("True age")
+        ax.set_ylabel("Predicted age")
+        ax.set_xlim(axis_min, axis_max)
+        ax.set_ylim(axis_min, axis_max)
+        ax.set_aspect("equal", adjustable="box")
+        ax.grid(True, linestyle="--", linewidth=0.5, alpha=0.3)
+        fig.tight_layout()
+
+        buf = io.BytesIO()
+        fig.savefig(buf, format="png")
+        pixmap = QtGui.QPixmap()
+        pixmap.loadFromData(buf.getvalue(), "PNG")
+        self.scatter_plot.setText("")
+        self.scatter_plot.setPixmap(pixmap)
+        self.scatter_plot.setFixedSize(pixmap.size())
+
     def _on_filter_changed(self) -> None:
         self._refresh_users()
+        self._mark_scatter_dirty()
+
+    def _on_handrgbd_root_changed(self) -> None:
+        self.handrgbd_rgb_root = self.handrgbd_rgb_combo.currentText()
+        self.handrgbd_mask_root = self.handrgbd_mask_combo.currentText()
+        self._load_index(self.index)
+        self._mark_scatter_dirty()
 
     def _on_fold_changed(self) -> None:
         if not self.fold_data:
             return
         self.fold_index = int(self.fold_combo.currentText())
         self._refresh_users()
+        self._mark_scatter_dirty()
 
     def _on_model_changed(self) -> None:
         model_path = self.model_combo.currentData()
@@ -1162,6 +1609,7 @@ class Gallery(QtWidgets.QWidget):
         self._load_model(Path(model_path))
         self._resolve_fold_data()
         self._refresh_users()
+        self._mark_scatter_dirty()
 
     def _toggle_explain(self, checked: bool) -> None:
         self.explain_enabled = bool(checked)
@@ -1231,6 +1679,14 @@ class Gallery(QtWidgets.QWidget):
     def _next(self) -> None:
         if self.index < len(self.user_groups) - 1:
             self._load_index(self.index + 1)
+
+    def closeEvent(self, event: QtGui.QCloseEvent) -> None:
+        if self.scatter_abort is not None:
+            self.scatter_abort.set()
+        if self.scatter_thread is not None and self.scatter_thread.isRunning():
+            self.scatter_thread.quit()
+            self.scatter_thread.wait(2000)
+        super().closeEvent(event)
 
 
 def parse_args() -> argparse.Namespace:

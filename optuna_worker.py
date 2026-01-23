@@ -37,6 +37,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--lr", type=float, default=3e-4, help="Fixed learning rate when --tune-lr is off.")
     parser.add_argument("--lr-min", type=float, default=1e-4, help="Min LR when tuning.")
     parser.add_argument("--lr-max", type=float, default=1e-3, help="Max LR when tuning.")
+    parser.add_argument("--tune-weight-decay", action="store_true", help="Tune weight decay.")
+    parser.add_argument("--weight-decay", type=float, default=0.01, help="Fixed weight decay when --tune-weight-decay is off.")
+    parser.add_argument("--weight-decay-min", type=float, default=0.0, help="Min weight decay when tuning.")
+    parser.add_argument("--weight-decay-max", type=float, default=0.1, help="Max weight decay when tuning.")
     parser.add_argument("--nll-min", type=float, default=0.1, help="Min NLL weight.")
     parser.add_argument("--nll-max", type=float, default=1.0, help="Max NLL weight.")
     parser.add_argument("--mse-min", type=float, default=0.0, help="Min MSE weight.")
@@ -130,6 +134,12 @@ def main() -> None:
             lr = format_float(trial.suggest_float("lr", args.lr_min, args.lr_max, log=True))
         else:
             lr = format_float(args.lr)
+        if args.tune_weight_decay:
+            weight_decay = format_float(
+                trial.suggest_float("weight_decay", args.weight_decay_min, args.weight_decay_max)
+            )
+        else:
+            weight_decay = format_float(args.weight_decay)
 
         run_suffix = f"optuna_t{trial.number}"
         folder = folder_name(
@@ -162,6 +172,7 @@ def main() -> None:
                 "LOSS_WEIGHT_MAE": mae,
                 "LOSS_WEIGHT_SPREAD": spread,
                 "LR": lr,
+                "WEIGHT_DECAY": weight_decay,
                 "EPOCHS": str(args.epochs),
                 "NUM_WORKERS": str(args.num_workers),
                 "KFOLDS": str(args.kfolds),

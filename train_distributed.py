@@ -137,6 +137,12 @@ def parse_args() -> argparse.Namespace:
         help="Learning rate for AdamW optimizer (default: 3e-4).",
     )
     parser.add_argument(
+        "--weight-decay",
+        type=float,
+        default=0.01,
+        help="Weight decay for AdamW optimizer (default: 0.01).",
+    )
+    parser.add_argument(
         "--loss-weight-nll",
         type=float,
         default=0.5,
@@ -397,7 +403,11 @@ def main() -> None:
         output_device=local_rank if device.type == "cuda" else None,
         find_unused_parameters=args.find_unused_params,
     )
-    optimizer = torch.optim.AdamW(ddp_model.parameters(), lr=args.lr)
+    optimizer = torch.optim.AdamW(
+        ddp_model.parameters(),
+        lr=args.lr,
+        weight_decay=args.weight_decay,
+    )
 
     best_val_loss = float("inf")
     best_model_path = output_dir / f"{model_key}_age_regressor_ddp.pth"

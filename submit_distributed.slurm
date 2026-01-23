@@ -38,6 +38,7 @@ SEEDS="${SEEDS:-${SEED:-32}}"              # space-separated seeds (or a single 
 BATCH_SIZE="${BATCH_SIZE:-32}"
 SEED="${SEED:-42}"
 LR="${LR:-3e-4}"
+WEIGHT_DECAY="${WEIGHT_DECAY:-0.01}"
 EPOCHS="${EPOCHS:-240}"
 LOSS_WEIGHT_NLL="${LOSS_WEIGHT_NLL:-0.6}"
 LOSS_WEIGHT_MSE="${LOSS_WEIGHT_MSE:-0.9}"
@@ -45,7 +46,7 @@ LOSS_WEIGHT_MAE="${LOSS_WEIGHT_MAE:-0.4}"
 LOSS_WEIGHT_SPREAD="${LOSS_WEIGHT_SPREAD:-0.3}"
 
 USER_GROUP_SIZES="${USER_GROUP_SIZES:-2}"
-PATIENCE="${PATIENCE:-30}"
+PATIENCE="${PATIENCE:-10}"
 MODELS="${MODELS:-${MODEL:-b2}}" # choices: b0-b7, v2_{s,m,l}, convnext_{tiny,small,base,large,xlarge}, aliases: cnt,cns,cnb,cnl,cnx
 AGG_SIZES="${AGG_SIZES:-${EVAL_AGG_SIZES:-1 2 3 4}}"   # space-separated list, e.g., "1 2 3"
 AGG_SEED="${AGG_SEED:-${EVAL_AGG_SEED:-${SEED}}}"
@@ -91,6 +92,7 @@ for USER_GROUP_SIZE in ${USER_GROUP_SIZES}; do
             --batch-size "${BATCH_SIZE}" \
             --epochs "${EPOCHS}" \
             --lr "${LR}" \
+            --weight-decay "${WEIGHT_DECAY}" \
             --num-workers "${NUM_WORKERS}" \
             --seed "${SEED_VAL}" \
             --patience "${PATIENCE}" \
@@ -129,6 +131,7 @@ for USER_GROUP_SIZE in ${USER_GROUP_SIZES}; do
           --batch-size "${BATCH_SIZE}" \
           --epochs "${EPOCHS}" \
           --lr "${LR}" \
+          --weight-decay "${WEIGHT_DECAY}" \
           --num-workers "${NUM_WORKERS}" \
           --seed "${SEED_VAL}" \
           --patience "${PATIENCE}" \

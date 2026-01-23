@@ -34,6 +34,10 @@ TUNE_LR="${TUNE_LR:-0}"
 LR="${LR:-3e-4}"
 LR_MIN="${LR_MIN:-1e-4}"
 LR_MAX="${LR_MAX:-1e-3}"
+TUNE_WEIGHT_DECAY="${TUNE_WEIGHT_DECAY:-0}"
+WEIGHT_DECAY="${WEIGHT_DECAY:-0.01}"
+WEIGHT_DECAY_MIN="${WEIGHT_DECAY_MIN:-0.0}"
+WEIGHT_DECAY_MAX="${WEIGHT_DECAY_MAX:-0.1}"
 
 NLL_MIN="${NLL_MIN:-0.6}"
 NLL_MAX="${NLL_MAX:-0.6}"
@@ -70,6 +74,9 @@ CMD=(
   --lr "${LR}"
   --lr-min "${LR_MIN}"
   --lr-max "${LR_MAX}"
+  --weight-decay "${WEIGHT_DECAY}"
+  --weight-decay-min "${WEIGHT_DECAY_MIN}"
+  --weight-decay-max "${WEIGHT_DECAY_MAX}"
   --nll-min "${NLL_MIN}"
   --nll-max "${NLL_MAX}"
   --mse-min "${MSE_MIN}"
@@ -82,6 +89,9 @@ CMD=(
 
 if [[ "${TUNE_LR}" -gt 0 ]]; then
   CMD+=(--tune-lr)
+fi
+if [[ "${TUNE_WEIGHT_DECAY}" -gt 0 ]]; then
+  CMD+=(--tune-weight-decay)
 fi
 echo ">>> Starting Optuna worker: study=${STUDY_NAME}, trials=${TRIALS_PER_JOB}, storage=${STORAGE}"
 "${CMD[@]}"

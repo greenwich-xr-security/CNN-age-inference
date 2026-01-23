@@ -144,6 +144,12 @@ def main() -> None:
         help="Learning rate for AdamW optimizer (default: 3e-4).",
     )
     parser.add_argument(
+        "--weight-decay",
+        type=float,
+        default=0.01,
+        help="Weight decay for AdamW optimizer (default: 0.01).",
+    )
+    parser.add_argument(
         "--fold-file",
         type=str,
         default=None,
@@ -297,7 +303,11 @@ def main() -> None:
             print(f"Using {gpu_count} GPUs via DataParallel.")
             model = nn.DataParallel(model)
     model = model.to(DEVICE)
-    optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr)
+    optimizer = torch.optim.AdamW(
+        model.parameters(),
+        lr=args.lr,
+        weight_decay=args.weight_decay,
+    )
     best_val_loss = float("inf")
     best_model_path = output_dir / f"{model_key}_age_regressor.pth"
     history_log_path = output_dir / "history.log"

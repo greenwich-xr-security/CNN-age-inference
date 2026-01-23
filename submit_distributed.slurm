@@ -36,8 +36,8 @@ export MASTER_ADDR MASTER_PORT
 
 BATCH_SIZE="${BATCH_SIZE:-32}"
 SEED="${SEED:-42}"
-LR="${LR:-3e-4}"
-WEIGHT_DECAY="${WEIGHT_DECAY:-0.1}"
+LR="${LR:-2e-4}"
+WEIGHT_DECAY="${WEIGHT_DECAY:-0.15}"
 IMG_SIZE="${IMG_SIZE:-300}"
 EPOCHS="${EPOCHS:-240}"
 LOSS_WEIGHT_NLL="${LOSS_WEIGHT_NLL:-0.6}"
@@ -51,7 +51,7 @@ MODELS="${MODELS:-${MODEL:-b2}}" # choices: b0-b7, v2_{s,m,l}, convnext_{tiny,sm
 AGG_SIZES="${AGG_SIZES:-${EVAL_AGG_SIZES:-1 2 3 4}}"   # space-separated list, e.g., "1 2 3"
 AGG_SEED="${AGG_SEED:-${EVAL_AGG_SEED:-${SEED}}}"
 NUM_WORKERS="${NUM_WORKERS:-8}"
-RUN_NAME="${RUN_NAME:-run}"
+RUN_NAME="${RUN_NAME:-regularization swipe}"
 # K-fold settings (set KFOLDS > 1 to enable).
 KFOLDS="${KFOLDS:-5}"
 FOLD_SEED="${FOLD_SEED:-${SEED}}"

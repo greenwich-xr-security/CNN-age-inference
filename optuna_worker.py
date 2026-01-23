@@ -45,57 +45,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--mae-max", type=float, default=1.0, help="Max MAE weight.")
     parser.add_argument("--spread-min", type=float, default=0.0, help="Min spread weight.")
     parser.add_argument("--spread-max", type=float, default=1.0, help="Max spread weight.")
-    parser.add_argument("--tune-aug-levels", action="store_true", help="Tune continuous augmentation levels.")
-    parser.add_argument("--aug-photometric-level", type=float, default=None, help="Fixed photometric level (0-1).")
-    parser.add_argument("--aug-photometric-level-min", type=float, default=0.0, help="Min photometric level.")
-    parser.add_argument("--aug-photometric-level-max", type=float, default=1.0, help="Max photometric level.")
-    parser.add_argument("--aug-focus-level", type=float, default=None, help="Fixed focus level (0-1).")
-    parser.add_argument("--aug-focus-level-min", type=float, default=0.0, help="Min focus level.")
-    parser.add_argument("--aug-focus-level-max", type=float, default=1.0, help="Max focus level.")
-    parser.add_argument("--aug-occlusion-level", type=float, default=None, help="Fixed occlusion level (0-1).")
-    parser.add_argument("--aug-occlusion-level-min", type=float, default=0.0, help="Min occlusion level.")
-    parser.add_argument("--aug-occlusion-level-max", type=float, default=1.0, help="Max occlusion level.")
     return parser.parse_args()
 
 
 def format_float(value: float) -> str:
     text = f"{value:.4f}"
     return text.rstrip("0").rstrip(".")
-
-
-def build_aug_env(trial: optuna.Trial, args: argparse.Namespace) -> dict[str, str]:
-    level_env: dict[str, str] = {}
-    if args.tune_aug_levels:
-        level_env["AUG_PHOTOMETRIC_LEVEL"] = format_float(
-            trial.suggest_float(
-                "aug_photometric_level",
-                args.aug_photometric_level_min,
-                args.aug_photometric_level_max,
-            )
-        )
-        level_env["AUG_FOCUS_LEVEL"] = format_float(
-            trial.suggest_float(
-                "aug_focus_level",
-                args.aug_focus_level_min,
-                args.aug_focus_level_max,
-            )
-        )
-        level_env["AUG_OCCLUSION_LEVEL"] = format_float(
-            trial.suggest_float(
-                "aug_occlusion_level",
-                args.aug_occlusion_level_min,
-                args.aug_occlusion_level_max,
-            )
-        )
-    else:
-        if args.aug_photometric_level is not None:
-            level_env["AUG_PHOTOMETRIC_LEVEL"] = format_float(args.aug_photometric_level)
-        if args.aug_focus_level is not None:
-            level_env["AUG_FOCUS_LEVEL"] = format_float(args.aug_focus_level)
-        if args.aug_occlusion_level is not None:
-            level_env["AUG_OCCLUSION_LEVEL"] = format_float(args.aug_occlusion_level)
-
-    return level_env
 
 
 def folder_name(
@@ -215,7 +170,6 @@ def main() -> None:
                 "AGG_SIZES": str(args.agg_size),
             }
         )
-        env.update(build_aug_env(trial, args))
 
         subprocess.run(["bash", str(submit_script)], cwd=repo_root, env=env, check=True)
 

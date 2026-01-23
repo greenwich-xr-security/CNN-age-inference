@@ -35,14 +35,6 @@ LR="${LR:-3e-4}"
 LR_MIN="${LR_MIN:-1e-4}"
 LR_MAX="${LR_MAX:-1e-3}"
 
-TUNE_AUG_LEVELS="${TUNE_AUG_LEVELS:-1}"
-AUG_PHOTOMETRIC_LEVEL_MIN="${AUG_PHOTOMETRIC_LEVEL_MIN:-0.0}"
-AUG_PHOTOMETRIC_LEVEL_MAX="${AUG_PHOTOMETRIC_LEVEL_MAX:-1.0}"
-AUG_FOCUS_LEVEL_MIN="${AUG_FOCUS_LEVEL_MIN:-0.0}"
-AUG_FOCUS_LEVEL_MAX="${AUG_FOCUS_LEVEL_MAX:-1.0}"
-AUG_OCCLUSION_LEVEL_MIN="${AUG_OCCLUSION_LEVEL_MIN:-0.0}"
-AUG_OCCLUSION_LEVEL_MAX="${AUG_OCCLUSION_LEVEL_MAX:-1.0}"
-
 NLL_MIN="${NLL_MIN:-0.6}"
 NLL_MAX="${NLL_MAX:-0.6}"
 MSE_MIN="${MSE_MIN:-0.9}"
@@ -86,19 +78,10 @@ CMD=(
   --mae-max "${MAE_MAX}"
   --spread-min "${SPREAD_MIN}"
   --spread-max "${SPREAD_MAX}"
-  --aug-photometric-level-min "${AUG_PHOTOMETRIC_LEVEL_MIN}"
-  --aug-photometric-level-max "${AUG_PHOTOMETRIC_LEVEL_MAX}"
-  --aug-focus-level-min "${AUG_FOCUS_LEVEL_MIN}"
-  --aug-focus-level-max "${AUG_FOCUS_LEVEL_MAX}"
-  --aug-occlusion-level-min "${AUG_OCCLUSION_LEVEL_MIN}"
-  --aug-occlusion-level-max "${AUG_OCCLUSION_LEVEL_MAX}"
 )
 
 if [[ "${TUNE_LR}" -gt 0 ]]; then
   CMD+=(--tune-lr)
-fi
-if [[ "${TUNE_AUG_LEVELS}" -gt 0 ]]; then
-  CMD+=(--tune-aug-levels)
 fi
 echo ">>> Starting Optuna worker: study=${STUDY_NAME}, trials=${TRIALS_PER_JOB}, storage=${STORAGE}"
 "${CMD[@]}"

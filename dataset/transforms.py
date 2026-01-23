@@ -247,9 +247,9 @@ def build_transforms(img_size: int, augment: AugmentConfig | None = None):
     train_steps = [
         transforms.Resize((img_size, img_size)),
         # transforms.RandomResizedCrop(img_size, scale=(0.7, 1.0)),
-        # transforms.RandomRotation(degrees=(-180, 180)),
-        # transforms.RandomHorizontalFlip(),
-        # transforms.RandomVerticalFlip(),
+        transforms.RandomRotation(degrees=(-20, 20)),
+        transforms.RandomHorizontalFlip(),
+        transforms.RandomVerticalFlip(),
         
         # Photometric robustness
         transforms.ColorJitter(

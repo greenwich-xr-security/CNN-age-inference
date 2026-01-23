@@ -371,6 +371,21 @@ def main() -> None:
     output_dir = Path(args.output_dir).expanduser()
     if is_main:
         output_dir.mkdir(parents=True, exist_ok=True)
+        config_path = output_dir / "config.txt"
+        with config_path.open("w", encoding="utf-8") as fp:
+            fp.write("# Training configuration\n")
+            for key, value in sorted(vars(args).items()):
+                fp.write(f"{key}={value}\n")
+            fp.write(f"resolved_model={model_desc}\n")
+            fp.write(f"resolved_img_size={img_size}\n")
+            fp.write(f"resolved_batch_size={args.batch_size}\n")
+            fp.write(f"resolved_lr={args.lr}\n")
+            fp.write(f"resolved_weight_decay={args.weight_decay}\n")
+            fp.write(f"resolved_patience={args.patience}\n")
+            fp.write(f"resolved_user_group_size={args.user_group_size}\n")
+            fp.write(f"resolved_loss_weights_nll={loss_weights.nll}\n")
+            fp.write(f"resolved_loss_weights_mse={loss_weights.mse}\n")
+            fp.write(f"resolved_loss_weights_mae={loss_weights.mae}\n")
         print(
             f"Using dataset root: {active_root}\n"
             f"Saving artifacts to: {output_dir}\n"

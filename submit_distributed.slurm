@@ -34,7 +34,6 @@ GPUS_PER_NODE=${SLURM_GPUS_ON_NODE:-${SLURM_GPUS_PER_NODE:-${GPUS_PER_NODE_OVERR
 
 export MASTER_ADDR MASTER_PORT
 
-SEEDS="${SEEDS:-${SEED:-32}}"              # space-separated seeds (or a single seed) 32 33 34 35 52 53 54 55 120 123 124 125 200 203 204 205
 BATCH_SIZE="${BATCH_SIZE:-32}"
 SEED="${SEED:-42}"
 LR="${LR:-3e-4}"
@@ -52,7 +51,7 @@ MODELS="${MODELS:-${MODEL:-b2}}" # choices: b0-b7, v2_{s,m,l}, convnext_{tiny,sm
 AGG_SIZES="${AGG_SIZES:-${EVAL_AGG_SIZES:-1 2 3 4}}"   # space-separated list, e.g., "1 2 3"
 AGG_SEED="${AGG_SEED:-${EVAL_AGG_SEED:-${SEED}}}"
 NUM_WORKERS="${NUM_WORKERS:-8}"
-RUN_SUFFIX="${RUN_SUFFIX:-}"
+RUN_NAME="${RUN_NAME:-run}"
 # K-fold settings (set KFOLDS > 1 to enable).
 KFOLDS="${KFOLDS:-5}"
 FOLD_SEED="${FOLD_SEED:-${SEED}}"
@@ -61,12 +60,9 @@ FOLD_OVERWRITE="${FOLD_OVERWRITE:-0}"
 
 for USER_GROUP_SIZE in ${USER_GROUP_SIZES}; do
   for MODEL_NAME in ${MODELS}; do
-    for SEED_VAL in ${SEEDS}; do
+    for SEED_VAL in ${SEED}; do
       AGG_SEED_EFF="${AGG_SEED:-${SEED_VAL}}"
-      FOLDER_NAME="${MODEL_NAME}_bs${BATCH_SIZE}_seed${SEED_VAL}_nll${LOSS_WEIGHT_NLL}_mse${LOSS_WEIGHT_MSE}_mae${LOSS_WEIGHT_MAE}_spread${LOSS_WEIGHT_SPREAD}_ug${USER_GROUP_SIZE}"
-      if [[ -n "${RUN_SUFFIX}" ]]; then
-        FOLDER_NAME="${FOLDER_NAME}_${RUN_SUFFIX}"
-      fi
+      FOLDER_NAME="${RUN_NAME}"
       FOLD_FILE="${OUTPUT_ROOT}/${FOLDER_NAME}/folds_k${KFOLDS}.json"
 
       if [[ "${KFOLDS}" -gt 1 ]]; then

@@ -345,15 +345,16 @@ def main() -> None:
     rank, world_size, local_rank, device = init_distributed(args)
     is_main = rank == 0
     model_builder, default_size, model_desc, model_key = resolve_model_builder(args.model)
+    img_size = args.img_size if args.img_size is not None else default_size
     if args.img_size is not None and args.img_size != default_size and is_main:
         print(
-            f"[train] Ignoring requested --img-size {args.img_size}; "
-            f"{model_desc} uses {default_size}."
+            f"[train] Using requested --img-size {args.img_size} "
+            f"(default for {model_desc} is {default_size})."
         )
 
     set_random_seed(args.seed + rank)
     train_dataset, val_dataset, active_root, train_len, val_len, fold_info = build_datasets(
-        args, args.seed, default_size
+        args, args.seed, img_size
     )
     train_loader, val_loader, train_sampler = build_dataloaders(
         train_dataset,
@@ -375,7 +376,7 @@ def main() -> None:
             f"Saving artifacts to: {output_dir}\n"
             f"Train images: {train_len}\n"
             f"Val images:   {val_len}\n"
-            f"Model: {model_desc} | Image size: {default_size} | "
+            f"Model: {model_desc} | Image size: {img_size} | "
             f"Per-rank batch size: {args.batch_size} | User group size: {args.user_group_size}\n"
             f"Epochs: {args.epochs} | Learning rate: {args.lr:.2e} | Seed: {args.seed} | World size: {world_size}"
         )

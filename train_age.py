@@ -212,12 +212,12 @@ def main() -> None:
     model_builder, default_size, model_desc, model_key = resolve_model_builder(
         args.model
     )
+    img_size = args.img_size if args.img_size is not None else default_size
     if args.img_size is not None and args.img_size != default_size:
         print(
-            f"[train] Ignoring requested --img-size {args.img_size}; "
-            f"{model_desc} uses {default_size}."
+            f"[train] Using requested --img-size {args.img_size} "
+            f"(default for {model_desc} is {default_size})."
         )
-    img_size = default_size
     if args.data_root:
         set_dataset_root(args.data_root)
     active_root = get_dataset_root()

@@ -21,6 +21,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--model", type=str, default="b2", help="Model name for training runs.")
     parser.add_argument("--seed", type=int, default=32, help="Seed for training and folds.")
     parser.add_argument("--batch-size", type=int, default=32, help="Batch size for training.")
+    parser.add_argument("--img-size", type=int, default=None, help="Override image size for training runs.")
+    parser.add_argument("--tune-img-size", action="store_true", help="Tune image size.")
+    parser.add_argument("--img-size-min", type=int, default=224, help="Min image size when tuning.")
+    parser.add_argument("--img-size-max", type=int, default=600, help="Max image size when tuning.")
+    parser.add_argument("--img-size-step", type=int, default=1, help="Step for image size when tuning.")
     parser.add_argument("--user-group-size", type=int, default=2, help="User group size for training.")
     parser.add_argument("--epochs", type=int, default=240, help="Training epochs.")
     parser.add_argument("--num-workers", type=int, default=8, help="DataLoader workers.")
@@ -157,6 +162,20 @@ def main() -> None:
         config_root = output_root / folder
         metrics_path = config_root / f"kfold_summary_n{args.agg_size}.csv"
 
+        if args.tune_img_size:
+            if args.img_size_step < 1:
+                raise ValueError("img-size-step must be >= 1.")
+            img_size = int(
+                trial.suggest_int(
+                    "img_size",
+                    args.img_size_min,
+                    args.img_size_max,
+                    step=args.img_size_step,
+                )
+            )
+        else:
+            img_size = args.img_size
+
         env = os.environ.copy()
         env.update(
             {
@@ -166,6 +185,7 @@ def main() -> None:
                 "SEEDS": str(args.seed),
                 "SEED": str(args.seed),
                 "BATCH_SIZE": str(args.batch_size),
+                **({"IMG_SIZE": str(img_size)} if img_size is not None else {}),
                 "USER_GROUP_SIZES": str(args.user_group_size),
                 "LOSS_WEIGHT_NLL": nll,
                 "LOSS_WEIGHT_MSE": mse,

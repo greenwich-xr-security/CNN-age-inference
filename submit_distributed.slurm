@@ -39,6 +39,7 @@ BATCH_SIZE="${BATCH_SIZE:-32}"
 SEED="${SEED:-42}"
 LR="${LR:-3e-4}"
 WEIGHT_DECAY="${WEIGHT_DECAY:-0.01}"
+IMG_SIZE="${IMG_SIZE:-}"
 EPOCHS="${EPOCHS:-240}"
 LOSS_WEIGHT_NLL="${LOSS_WEIGHT_NLL:-0.6}"
 LOSS_WEIGHT_MSE="${LOSS_WEIGHT_MSE:-0.9}"
@@ -93,6 +94,7 @@ for USER_GROUP_SIZE in ${USER_GROUP_SIZES}; do
             --epochs "${EPOCHS}" \
             --lr "${LR}" \
             --weight-decay "${WEIGHT_DECAY}" \
+            $( [[ -n "${IMG_SIZE}" ]] && echo "--img-size ${IMG_SIZE}" ) \
             --num-workers "${NUM_WORKERS}" \
             --seed "${SEED_VAL}" \
             --patience "${PATIENCE}" \
@@ -132,6 +134,7 @@ for USER_GROUP_SIZE in ${USER_GROUP_SIZES}; do
           --epochs "${EPOCHS}" \
           --lr "${LR}" \
           --weight-decay "${WEIGHT_DECAY}" \
+          $( [[ -n "${IMG_SIZE}" ]] && echo "--img-size ${IMG_SIZE}" ) \
           --num-workers "${NUM_WORKERS}" \
           --seed "${SEED_VAL}" \
           --patience "${PATIENCE}" \

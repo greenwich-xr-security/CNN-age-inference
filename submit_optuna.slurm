@@ -22,6 +22,11 @@ STORAGE="${STORAGE:-sqlite:///${BASE_OUTPUT}/optuna.db}"
 MODEL="${MODEL:-b2}"
 SEED="${SEED:-32}"
 BATCH_SIZE="${BATCH_SIZE:-32}"
+IMG_SIZE="${IMG_SIZE:-}"
+TUNE_IMG_SIZE="${TUNE_IMG_SIZE:-0}"
+IMG_SIZE_MIN="${IMG_SIZE_MIN:-224}"
+IMG_SIZE_MAX="${IMG_SIZE_MAX:-600}"
+IMG_SIZE_STEP="${IMG_SIZE_STEP:-1}"
 USER_GROUP_SIZE="${USER_GROUP_SIZE:-2}"
 EPOCHS="${EPOCHS:-240}"
 NUM_WORKERS="${NUM_WORKERS:-8}"
@@ -77,6 +82,9 @@ CMD=(
   --weight-decay "${WEIGHT_DECAY}"
   --weight-decay-min "${WEIGHT_DECAY_MIN}"
   --weight-decay-max "${WEIGHT_DECAY_MAX}"
+  --img-size-min "${IMG_SIZE_MIN}"
+  --img-size-max "${IMG_SIZE_MAX}"
+  --img-size-step "${IMG_SIZE_STEP}"
   --nll-min "${NLL_MIN}"
   --nll-max "${NLL_MAX}"
   --mse-min "${MSE_MIN}"
@@ -87,6 +95,12 @@ CMD=(
   --spread-max "${SPREAD_MAX}"
 )
 
+if [[ -n "${IMG_SIZE}" ]]; then
+  CMD+=(--img-size "${IMG_SIZE}")
+fi
+if [[ "${TUNE_IMG_SIZE}" -gt 0 ]]; then
+  CMD+=(--tune-img-size)
+fi
 if [[ "${TUNE_LR}" -gt 0 ]]; then
   CMD+=(--tune-lr)
 fi

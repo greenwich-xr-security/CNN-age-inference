@@ -17,7 +17,7 @@ from dataset.hand_metadata import (
 )
 from dataset.samplers import GroupedBatchSampler
 from dataset.transforms import build_transforms
-from dataset.utils import filter_metadata, load_kfold_splits
+from dataset.utils import dataset_composition_stats, filter_metadata, load_kfold_splits
 from displayUtils import DisplayUtils
 from metrics import (
     CHALLENGE_BINS,
@@ -64,6 +64,13 @@ def set_random_seed(seed: int) -> None:
     torch.manual_seed(seed)
     if DEVICE.type == "cuda":
         torch.cuda.manual_seed_all(seed)
+
+
+def _append_dataset_stats(config_path: Path, label: str, df: pd.DataFrame) -> None:
+    stats = dataset_composition_stats(df)
+    with config_path.open("a", encoding="utf-8") as fp:
+        for key in sorted(stats):
+            fp.write(f"{label}_{key}={stats[key]}\n")
 
 
 def main() -> None:
@@ -249,6 +256,7 @@ def main() -> None:
         load_combined_metadata(root=active_root),
         max_samples_per_user=args.max_samples_per_user,
     )
+    _append_dataset_stats(config_path, "dataset", metadata)
     fold_info = None
     if args.fold_file:
         if args.fold_index is None:

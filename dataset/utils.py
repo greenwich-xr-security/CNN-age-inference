@@ -8,6 +8,30 @@ import pandas as pd
 from sklearn.model_selection import KFold
 
 
+def dataset_composition_stats(df: pd.DataFrame) -> dict[str, int]:
+    """Return dataset composition stats (samples/users per source)."""
+    stats: dict[str, int] = {
+        "total_samples": int(len(df)),
+    }
+    if "user_id" in df.columns:
+        stats["total_users"] = int(df["user_id"].nunique())
+    else:
+        stats["total_users"] = 0
+
+    if "source" in df.columns and not df.empty:
+        sample_counts = df["source"].value_counts()
+        if "user_id" in df.columns:
+            user_counts = df.groupby("source")["user_id"].nunique()
+        else:
+            user_counts = pd.Series(dtype=int)
+        sources = sorted(set(sample_counts.index) | set(user_counts.index), key=lambda x: str(x))
+        for source in sources:
+            key = str(source).strip().lower().replace(" ", "_")
+            stats[f"source_{key}_samples"] = int(sample_counts.get(source, 0))
+            stats[f"source_{key}_users"] = int(user_counts.get(source, 0))
+    return stats
+
+
 def _limit_samples_per_user(
     df: pd.DataFrame,
     max_samples_per_user: int | None,

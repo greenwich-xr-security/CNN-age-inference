@@ -5,6 +5,7 @@ from datetime import timedelta
 from pathlib import Path
 
 import numpy as np
+import pandas as pd
 import torch
 import torch.distributed as dist
 from torch.nn.parallel import DistributedDataParallel
@@ -16,7 +17,7 @@ from dataset.age import AgeDataset
 from dataset.hand_metadata import get_dataset_root, load_combined_metadata, set_dataset_root
 from dataset.samplers import DistributedGroupedBatchSampler
 from dataset.transforms import build_transforms
-from dataset.utils import filter_metadata, load_kfold_splits
+from dataset.utils import dataset_composition_stats, filter_metadata, load_kfold_splits
 from displayUtils import DisplayUtils
 from metrics import (
     CHALLENGE_BINS,
@@ -333,6 +334,13 @@ def gather_all_lists(local_list, world_size: int):
     return merged
 
 
+def _append_dataset_stats(config_path: Path, label: str, df: pd.DataFrame) -> None:
+    stats = dataset_composition_stats(df)
+    with config_path.open("a", encoding="utf-8") as fp:
+        for key in sorted(stats):
+            fp.write(f"{label}_{key}={stats[key]}\n")
+
+
 def main() -> None:
     args = parse_args()
     loss_weights = LossWeights(
@@ -378,6 +386,11 @@ def main() -> None:
     )
 
     output_dir = Path(args.output_dir).expanduser()
+    combined_records = None
+    if is_main:
+        combined_records = pd.concat(
+            [train_dataset.records, val_dataset.records], ignore_index=True
+        )
     if is_main:
         output_dir.mkdir(parents=True, exist_ok=True)
         config_path = output_dir / "config.txt"
@@ -395,6 +408,8 @@ def main() -> None:
             fp.write(f"resolved_loss_weights_nll={loss_weights.nll}\n")
             fp.write(f"resolved_loss_weights_mse={loss_weights.mse}\n")
             fp.write(f"resolved_loss_weights_mae={loss_weights.mae}\n")
+        if combined_records is not None:
+            _append_dataset_stats(config_path, "dataset", combined_records)
         print(
             f"Using dataset root: {active_root}\n"
             f"Saving artifacts to: {output_dir}\n"

@@ -418,7 +418,7 @@ def load_handrgbd_metadata(
 ) -> pd.DataFrame:
     dataset_root = _resolve_root(root)
     hand_root = dataset_root / "handRGBD"
-    rgb_root = hand_root / "rgb_jpg"
+    rgb_root = hand_root / "rgb_xyz_jpg"
     if not rgb_root.exists():
         alt_root = hand_root / "rgb"
         if alt_root.exists():

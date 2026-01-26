@@ -8,12 +8,44 @@ import pandas as pd
 from sklearn.model_selection import KFold
 
 
-def filter_metadata(df: pd.DataFrame) -> pd.DataFrame:
-    """Keep dorsal images with known ages and cast ages to float."""
+def _limit_samples_per_user(
+    df: pd.DataFrame,
+    max_samples_per_user: int | None,
+) -> pd.DataFrame:
+    if max_samples_per_user is None:
+        return df
+    try:
+        max_samples = int(max_samples_per_user)
+    except (TypeError, ValueError):
+        return df
+    if max_samples <= 0:
+        return df
+    if "user_id" not in df.columns:
+        return df
+
+    grouped = df.groupby("user_id", sort=False)
+    limited = grouped.head(max_samples)
+    dropped = len(df) - len(limited)
+    if dropped > 0:
+        over_count = int((grouped.size() > max_samples).sum())
+        print(
+            f"Per-user sample cap applied ({max_samples} samples/user): "
+            f"dropped {dropped} samples from {over_count} users."
+        )
+    return limited
+
+
+def filter_metadata(
+    df: pd.DataFrame,
+    *,
+    max_samples_per_user: int | None = 16,
+) -> pd.DataFrame:
+    """Keep dorsal images with known ages, cast ages to float, and cap samples per user."""
     df = df[df["aspect"].str.contains("dorsal", case=False, na=False)]
     df = df[df["age"].notna()]
     df = df.copy()
     df["age"] = df["age"].astype(float)
+    df = _limit_samples_per_user(df, max_samples_per_user)
     return df.reset_index(drop=True)
 
 

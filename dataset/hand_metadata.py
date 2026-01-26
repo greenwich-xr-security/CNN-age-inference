@@ -23,6 +23,7 @@ from handLandmarks.handLandmarksDetection import (
     MediaPipeTaskHandLandmarkDetector,
     SentisHandLandmarkDetector,
 )
+from dataset.utils import filter_metadata
 
 # Base directory (can be overridden via env var or function argument)
 _DEFAULT_ROOT = Path(r"C:\Users\Staff\OneDrive - University of Greenwich\HandsDatasets")
@@ -584,13 +585,13 @@ def load_combined_metadata(
     *,
     handrgbd_include_wall3: bool = False,
 ) -> pd.DataFrame:
-    #primary_df = load_primary_metadata(root=root)
-    #archive_df = load_archive_metadata(root=root)
+    primary_df = load_primary_metadata(root=root)
+    archive_df = load_archive_metadata(root=root)
     handrgbd_df = load_handrgbd_metadata(root=root, include_wall3=handrgbd_include_wall3)
-    #combined = pd.concat([primary_df, archive_df, handrgbd_df], ignore_index=True)
-    combined = handrgbd_df
+    combined = pd.concat([primary_df, archive_df, handrgbd_df], ignore_index=True)
+    #combined = handrgbd_df
     combined = combined.drop_duplicates(subset="image_path")
-    combined = _limit_users_per_age(combined, max_users_per_year=15)
+    combined = _limit_users_per_age(combined, max_users_per_year=25)
     return combined.reset_index(drop=True)
 
 
@@ -639,13 +640,23 @@ def _cli_main() -> None:
         default=None,
         help=f"Path to the dataset root (overrides env var {_ENV_VAR_NAME}).",
     )
+    parser.add_argument(
+        "--max-samples-per-user",
+        type=int,
+        default=16,
+        help="Maximum samples per user after dorsal filtering (default: 16; set 0 to disable).",
+    )
     args = parser.parse_args()
 
     combined = load_combined_metadata(root=args.root)
+    filtered = filter_metadata(
+        combined,
+        max_samples_per_user=args.max_samples_per_user,
+    )
     active_root = _resolve_root(args.root)
     print(f"Using dataset root: {active_root}")
-    print(f"Combined samples: {len(combined)}")
-    print(combined.groupby(["source", "aspect"]).size())
+    print(f"Filtered samples: {len(filtered)}")
+    print(filtered.groupby(["source", "aspect"]).size())
 
     # Plot age histogram for a quick sanity check.
     try:
@@ -653,26 +664,21 @@ def _cli_main() -> None:
     except ImportError:
         print("matplotlib not installed; skipping age histogram.")
     else:
-        per_user_age = (
-            combined.dropna(subset=["age"])
-                .groupby("user_id")["age"]
-                .first()
-                .astype(float)
-        )
-        if per_user_age.empty:
-            print("No age values available; histogram skipped.")
-        else:
-            # Build stacked bar chart by dataset source.
-            source_for_user = (
-                combined.dropna(subset=["age"])
-                    .groupby("user_id")["source"]
-                    .first()
-            )
+        def _plot_histogram(
+            age_series: pd.Series,
+            source_series: pd.Series,
+            *,
+            title: str,
+            ylabel: str,
+            output_path: Path,
+        ) -> bool:
+            if age_series.empty:
+                return False
             colour_map = {"primary": "#4c72b0", "archive": "#dd8452", "handrgbd": "#55a868"}
-            unique_sources = source_for_user.unique()
+            unique_sources = source_series.unique()
 
-            min_age = float(np.floor(per_user_age.min()))
-            max_age = float(np.ceil(per_user_age.max()))
+            min_age = float(np.floor(age_series.min()))
+            max_age = float(np.ceil(age_series.max()))
             if min_age == max_age:
                 bin_edges = np.array([min_age - 0.5, max_age + 0.5])
             else:
@@ -683,8 +689,8 @@ def _cli_main() -> None:
             plt.figure(figsize=(9, 5))
             cumulative = np.zeros_like(bin_centers, dtype=float)
             for src in unique_sources:
-                mask = source_for_user[source_for_user == src].index
-                ages = per_user_age.loc[per_user_age.index.isin(mask)]
+                mask = source_series[source_series == src].index
+                ages = age_series.loc[mask]
                 if ages.empty:
                     continue
                 counts, _ = np.histogram(ages, bins=bin_edges)
@@ -703,13 +709,43 @@ def _cli_main() -> None:
                 plt.legend(title="Source")
 
             plt.xlabel("Age")
-            plt.ylabel("User count")
-            plt.title("Hand datasets age distribution (per user)")
+            plt.ylabel(ylabel)
+            plt.title(title)
             plt.tight_layout()
-            output_path = Path("age_histogram_users.png")
             plt.savefig(output_path)
             print(f"Saved age histogram to {output_path}")
-            plt.show()
+            return True
+
+        per_user_age = (
+            filtered.groupby("user_id")["age"]
+                .first()
+                .astype(float)
+        )
+        if per_user_age.empty:
+            print("No age values available; histogram skipped.")
+        else:
+            source_for_user = filtered.groupby("user_id")["source"].first()
+            any_plot = False
+            any_plot |= _plot_histogram(
+                per_user_age,
+                source_for_user,
+                title="Hand datasets age distribution (per user)",
+                ylabel="User count",
+                output_path=Path("age_histogram_users.png"),
+            )
+
+            per_sample_age = filtered["age"].astype(float)
+            per_sample_source = filtered["source"]
+            any_plot |= _plot_histogram(
+                per_sample_age,
+                per_sample_source,
+                title="Hand datasets age distribution (per sample)",
+                ylabel="Sample count",
+                output_path=Path("age_histogram_samples.png"),
+            )
+
+            if any_plot:
+                plt.show()
 
 
 if __name__ == "__main__":

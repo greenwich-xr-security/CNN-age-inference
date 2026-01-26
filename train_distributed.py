@@ -97,6 +97,12 @@ def parse_args() -> argparse.Namespace:
         help="Samples per user in each training batch (default: 2).",
     )
     parser.add_argument(
+        "--max-samples-per-user",
+        type=int,
+        default=16,
+        help="Maximum samples per user after dorsal filtering (default: 16; set 0 to disable).",
+    )
+    parser.add_argument(
         "--epochs",
         type=int,
         default=DEFAULT_EPOCHS,
@@ -222,7 +228,10 @@ def build_datasets(args: argparse.Namespace, seed: int, img_size: int):
 
     train_transform, test_transform = build_transforms(img_size)
 
-    metadata = filter_metadata(load_combined_metadata(root=active_root))
+    metadata = filter_metadata(
+        load_combined_metadata(root=active_root),
+        max_samples_per_user=args.max_samples_per_user,
+    )
     fold_info = None
     if args.fold_file:
         if args.fold_index is None:

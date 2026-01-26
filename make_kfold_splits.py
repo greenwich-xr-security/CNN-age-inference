@@ -36,6 +36,12 @@ def parse_args() -> argparse.Namespace:
         help="Path to save the fold JSON file.",
     )
     parser.add_argument(
+        "--max-samples-per-user",
+        type=int,
+        default=16,
+        help="Maximum samples per user after dorsal filtering (default: 16; set 0 to disable).",
+    )
+    parser.add_argument(
         "--overwrite",
         action="store_true",
         help="Allow overwriting an existing fold file.",
@@ -52,7 +58,10 @@ def main() -> None:
     if out_path.exists() and not args.overwrite:
         raise FileExistsError(f"Fold file already exists: {out_path}")
 
-    metadata = filter_metadata(load_combined_metadata(root=get_dataset_root()))
+    metadata = filter_metadata(
+        load_combined_metadata(root=get_dataset_root()),
+        max_samples_per_user=args.max_samples_per_user,
+    )
     folds = build_kfold_user_splits(
         metadata,
         k=args.k,

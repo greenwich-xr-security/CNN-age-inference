@@ -110,6 +110,12 @@ def main() -> None:
         help="Samples per user in each training batch (default: 2).",
     )
     parser.add_argument(
+        "--max-samples-per-user",
+        type=int,
+        default=16,
+        help="Maximum samples per user after dorsal filtering (default: 16; set 0 to disable).",
+    )
+    parser.add_argument(
         "--epochs",
         type=int,
         default=DEFAULT_EPOCHS,
@@ -239,7 +245,10 @@ def main() -> None:
         fp.write(f"resolved_loss_weights_mse={loss_weights.mse}\n")
         fp.write(f"resolved_loss_weights_mae={loss_weights.mae}\n")
     train_transform, test_transform = build_transforms(img_size)
-    metadata = filter_metadata(load_combined_metadata(root=active_root))
+    metadata = filter_metadata(
+        load_combined_metadata(root=active_root),
+        max_samples_per_user=args.max_samples_per_user,
+    )
     fold_info = None
     if args.fold_file:
         if args.fold_index is None:

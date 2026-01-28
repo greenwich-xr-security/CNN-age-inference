@@ -591,7 +591,7 @@ def load_combined_metadata(
     #combined = pd.concat([primary_df, archive_df, handrgbd_df], ignore_index=True)
     combined = handrgbd_df
     combined = combined.drop_duplicates(subset="image_path")
-    combined = _limit_users_per_age(combined, max_users_per_year=15)
+    combined = _limit_users_per_age(combined, max_users_per_year=10)
     return combined.reset_index(drop=True)
 
 

@@ -38,7 +38,7 @@ BATCH_SIZE="${BATCH_SIZE:-32}"
 SEED="${SEED:-42}"
 LR="${LR:-2e-4}"
 WEIGHT_DECAY="${WEIGHT_DECAY:-0.1}"
-IMG_SIZE="${IMG_SIZE:-260}"
+IMG_SIZE="${IMG_SIZE:-384}"
 EPOCHS="${EPOCHS:-240}"
 
 # Losses
@@ -51,11 +51,11 @@ LOSS_WEIGHT_EMBED_CONTRAST="${LOSS_WEIGHT_EMBED_CONTRAST:-0.5}"
 
 USER_GROUP_SIZES="${USER_GROUP_SIZES:-4}"
 PATIENCE="${PATIENCE:-10}"
-MODELS="${MODELS:-${MODEL:-b2}}" # choices: b0-b7, v2_{s,m,l}, convnext_{tiny,small,base,large,xlarge}, aliases: cnt,cns,cnb,cnl,cnx
+MODELS="${MODELS:-${MODEL:-v2_s}}" # choices: b0-b7, v2_{s,m,l}, convnext_{tiny,small,base,large,xlarge}, aliases: cnt,cns,cnb,cnl,cnx
 AGG_SIZES="${AGG_SIZES:-${EVAL_AGG_SIZES:-1 2 3 4}}"   # space-separated list, e.g., "1 2 3"
 AGG_SEED="${AGG_SEED:-${EVAL_AGG_SEED:-${SEED}}}"
 NUM_WORKERS="${NUM_WORKERS:-8}"
-RUN_NAME="${RUN_NAME:-alldata_ug4_embed}"
+RUN_NAME="${RUN_NAME:-v2_small_alldata_ug4_embed}"
 # Age imbalance controls
 AGE_REWEIGHT="${AGE_REWEIGHT:-0}"                     # set >0 to enable inverse-frequency loss weighting
 AGE_WEIGHT_EPS="${AGE_WEIGHT_EPS:-1.0}"

@@ -107,6 +107,28 @@ def compute_intra_user_variability(user_ids: np.ndarray, preds: np.ndarray) -> t
     return float(np.mean(stds)), float(np.median(stds)), len(stds)
 
 
+def collect_per_user_std_by_age(user_ids: np.ndarray, preds: np.ndarray, targets: np.ndarray) -> list[tuple[int, float]]:
+    buckets: dict[str, list[float]] = {}
+    age_buckets: dict[str, list[float]] = {}
+    for uid, pred, tgt in zip(user_ids, preds, targets):
+        key = str(uid)
+        buckets.setdefault(key, []).append(float(pred))
+        age_buckets.setdefault(key, []).append(float(tgt))
+
+    rows: list[tuple[int, float]] = []
+    for key in buckets:
+        vals = buckets[key]
+        if len(vals) < 2:
+            continue
+        age_vals = age_buckets.get(key, [])
+        if not age_vals:
+            continue
+        user_age = int(round(float(np.mean(age_vals))))
+        user_std = float(np.std(vals))
+        rows.append((user_age, user_std))
+    return rows
+
+
 def compute_age_errors(targets: np.ndarray, preds: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     ages_int = targets.astype(int)
     unique_ages = np.unique(ages_int)
@@ -157,23 +179,6 @@ def plot_age_error(
     title: str,
     output_path: Path,
 ) -> None:
-    def rolling_mean(values: np.ndarray, window: int) -> np.ndarray:
-        if window <= 1:
-            return values.copy()
-        arr = np.asarray(values, dtype=float)
-        n = arr.size
-        half = window // 2
-        out = np.empty_like(arr)
-        for i in range(n):
-            start = max(0, i - half)
-            end = min(n, i + half + 1)
-            window_vals = arr[start:end]
-            if np.all(np.isnan(window_vals)):
-                out[i] = np.nan
-            else:
-                out[i] = float(np.nanmean(window_vals))
-        return out
-
     smooth_window = 10
     mae_smooth = rolling_mean(mae_mean, smooth_window)
     rmse_smooth = rolling_mean(rmse_mean, smooth_window)
@@ -190,6 +195,62 @@ def plot_age_error(
     ax.set_title(title)
     ax.grid(True, linestyle="--", linewidth=0.5, alpha=0.4)
     ax.legend()
+    fig.tight_layout()
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(output_path)
+    plt.close(fig)
+
+
+def rolling_mean(values: np.ndarray, window: int) -> np.ndarray:
+    if window <= 1:
+        return np.asarray(values, dtype=float).copy()
+    arr = np.asarray(values, dtype=float)
+    n = arr.size
+    half = window // 2
+    out = np.empty_like(arr)
+    for i in range(n):
+        start = max(0, i - half)
+        end = min(n, i + half + 1)
+        window_vals = arr[start:end]
+        if np.all(np.isnan(window_vals)):
+            out[i] = np.nan
+        else:
+            out[i] = float(np.nanmean(window_vals))
+    return out
+
+
+def plot_intra_user_per_age(
+    ages: np.ndarray,
+    stds: np.ndarray,
+    per_age_stats: dict[int, dict[str, float]],
+    *,
+    folds: int,
+    output_path: Path,
+    smooth_window: int = 5,
+) -> None:
+    if ages.size == 0:
+        return
+    age_sorted = sorted(per_age_stats.keys())
+    mean_vals = np.asarray([per_age_stats[a]["mean"] for a in age_sorted], dtype=float)
+    median_vals = np.asarray([per_age_stats[a]["median"] for a in age_sorted], dtype=float)
+    iqr_low = np.asarray([per_age_stats[a]["iqr_low"] for a in age_sorted], dtype=float)
+    iqr_high = np.asarray([per_age_stats[a]["iqr_high"] for a in age_sorted], dtype=float)
+    mean_smooth = rolling_mean(mean_vals, smooth_window)
+    median_smooth = rolling_mean(median_vals, smooth_window)
+
+    fig, ax = plt.subplots(figsize=(8, 5))
+    ax.scatter(ages, stds, s=10, alpha=0.15, color="#1f77b4", label="users")
+    ax.plot(age_sorted, mean_vals, color="#ff7f0e", linewidth=1.6, label="mean")
+    ax.plot(age_sorted, median_vals, color="#2ca02c", linewidth=1.6, label="median")
+    ax.plot(age_sorted, mean_smooth, color="#d62728", linestyle="--", linewidth=1.8, label=f"mean (smooth {smooth_window})")
+    ax.plot(age_sorted, median_smooth, color="#9467bd", linestyle="--", linewidth=1.8, label=f"median (smooth {smooth_window})")
+    ax.fill_between(age_sorted, iqr_low, iqr_high, color="#ff7f0e", alpha=0.12, label="IQR (25–75)")
+    ax.set_xlabel("Age")
+    ax.set_ylabel("Std of predicted mean per user")
+    title = f"Intra-user variability by age (k-fold, n={len(stds)}, folds={folds})"
+    ax.set_title(title)
+    ax.grid(True, linestyle="--", linewidth=0.5, alpha=0.4)
+    ax.legend(loc="upper left", fontsize=8)
     fig.tight_layout()
     output_path.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(output_path)
@@ -227,6 +288,7 @@ def main() -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
 
     intra_user_stats = []
+    per_user_rows: list[tuple[int, float]] = []
     for fold_dir, run_dir in zip(fold_dirs, run_dirs):
         raw_preds = load_raw_predictions(run_dir)
         if raw_preds is None:
@@ -241,6 +303,11 @@ def main() -> None:
             continue
         mean_std, median_std, count = compute_intra_user_variability(
             raw_preds["user_ids"], raw_preds["pred_mean"]
+        )
+        per_user_rows.extend(
+            collect_per_user_std_by_age(
+                raw_preds["user_ids"], raw_preds["pred_mean"], raw_preds["targets"]
+            )
         )
         intra_user_stats.append(
             {
@@ -258,6 +325,42 @@ def main() -> None:
             fp.write(
                 f"{row['fold']},{row['count']},{row['mean']:.6f},{row['median']:.6f}\n"
             )
+
+    if per_user_rows:
+        ages_all = np.asarray([r[0] for r in per_user_rows], dtype=int)
+        stds_all = np.asarray([r[1] for r in per_user_rows], dtype=float)
+        per_age_stats: dict[int, dict[str, float]] = {}
+        unique_ages = sorted(set(ages_all.tolist()))
+        for age in unique_ages:
+            mask = ages_all == age
+            vals = stds_all[mask]
+            per_age_stats[age] = {
+                "count": int(vals.size),
+                "mean": float(np.mean(vals)),
+                "median": float(np.median(vals)),
+                "std": float(np.std(vals)),
+                "iqr_low": float(np.percentile(vals, 25)),
+                "iqr_high": float(np.percentile(vals, 75)),
+            }
+        per_age_csv = output_dir / "intra_user_std_per_age.csv"
+        with per_age_csv.open("w", encoding="utf-8") as fp:
+            fp.write("age,count,mean,median,std,iqr_low,iqr_high\n")
+            for age in unique_ages:
+                stats = per_age_stats[age]
+                fp.write(
+                    f"{age},{stats['count']},{stats['mean']:.6f},{stats['median']:.6f},"
+                    f"{stats['std']:.6f},{stats['iqr_low']:.6f},{stats['iqr_high']:.6f}\n"
+                )
+        plot_intra_user_per_age(
+            ages_all,
+            stds_all,
+            per_age_stats,
+            folds=len(fold_dirs),
+            output_path=output_dir / "intra_user_std_per_age.png",
+            smooth_window=5,
+        )
+    else:
+        print("Warning: No per-user variability data found; skipping intra-user-per-age plot.")
 
     for group_size in group_sizes:
         fold_rows = []

@@ -13,7 +13,7 @@ def build_transforms(img_size: int):
             transforms.RandomRotation(degrees=(-360, 360)),
             transforms.RandomHorizontalFlip(),
             transforms.RandomVerticalFlip(),
-            transforms.ColorJitter(brightness=0.01, contrast=0.01),
+            transforms.ColorJitter(brightness=0.1, contrast=0.1),
             transforms.ToTensor(),
             transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
         ]

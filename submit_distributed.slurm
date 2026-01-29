@@ -37,7 +37,7 @@ export MASTER_ADDR MASTER_PORT
 BATCH_SIZE="${BATCH_SIZE:-32}"
 SEED="${SEED:-42}"
 LR="${LR:-2e-4}"
-WEIGHT_DECAY="${WEIGHT_DECAY:-0.1}"
+WEIGHT_DECAY="${WEIGHT_DECAY:-0.2}"
 IMG_SIZE="${IMG_SIZE:-384}"
 EPOCHS="${EPOCHS:-240}"
 
@@ -55,7 +55,7 @@ MODELS="${MODELS:-${MODEL:-v2_s}}" # choices: b0-b7, v2_{s,m,l}, convnext_{tiny,
 AGG_SIZES="${AGG_SIZES:-${EVAL_AGG_SIZES:-1 2 3 4}}"   # space-separated list, e.g., "1 2 3"
 AGG_SEED="${AGG_SEED:-${EVAL_AGG_SEED:-${SEED}}}"
 NUM_WORKERS="${NUM_WORKERS:-8}"
-RUN_NAME="${RUN_NAME:-v2_small_alldata_ug4_dark_64}"
+RUN_NAME="${RUN_NAME:-v2_small_alldata_ug4_dark_128_wd02}"
 # Age imbalance controls
 AGE_REWEIGHT="${AGE_REWEIGHT:-0}"                     # set >0 to enable inverse-frequency loss weighting
 AGE_WEIGHT_EPS="${AGE_WEIGHT_EPS:-1.0}"

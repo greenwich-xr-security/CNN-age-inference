@@ -61,6 +61,13 @@ AGE_WEIGHT_MAX="${AGE_WEIGHT_MAX:-4.0}"
 AGE_OVERSAMPLE="${AGE_OVERSAMPLE:-0}"                 # set >0 to oversample rare ages in train split
 AGE_OVERSAMPLE_TARGET="${AGE_OVERSAMPLE_TARGET:-}"    # optional explicit target per age (int)
 AGE_OVERSAMPLE_MAX_MULT="${AGE_OVERSAMPLE_MAX_MULT:-3.0}"
+# Embedding head / losses (default disabled)
+EMBED_DIM="${EMBED_DIM:-0}"
+LOSS_WEIGHT_EMBED_VAR="${LOSS_WEIGHT_EMBED_VAR:-0}"
+LOSS_WEIGHT_EMBED_CONTRAST="${LOSS_WEIGHT_EMBED_CONTRAST:-0}"
+EMBED_AGE_SLACK="${EMBED_AGE_SLACK:-5.0}"
+EMBED_CONTRAST_MARGIN="${EMBED_CONTRAST_MARGIN:-1.0}"
+EMBED_CONTRAST_AGE_THRESH="${EMBED_CONTRAST_AGE_THRESH:-5.0}"
 # K-fold settings (set KFOLDS > 1 to enable).
 KFOLDS="${KFOLDS:-5}"
 FOLD_SEED="${FOLD_SEED:-${SEED}}"
@@ -110,6 +117,12 @@ for USER_GROUP_SIZE in ${USER_GROUP_SIZES}; do
             --user-group-size "${USER_GROUP_SIZE}" \
             --eval-aggregation-sizes ${AGG_SIZES} \
             --eval-aggregation-seed "${AGG_SEED_EFF}" \
+            --embed-dim "${EMBED_DIM}" \
+            --loss-weight-embed-var "${LOSS_WEIGHT_EMBED_VAR}" \
+            --loss-weight-embed-contrast "${LOSS_WEIGHT_EMBED_CONTRAST}" \
+            --embed-age-slack "${EMBED_AGE_SLACK}" \
+            --embed-contrast-margin "${EMBED_CONTRAST_MARGIN}" \
+            --embed-contrast-age-thresh "${EMBED_CONTRAST_AGE_THRESH}" \
             $( [[ "${AGE_REWEIGHT}" -gt 0 ]] && echo "--age-reweight-loss --age-weight-eps ${AGE_WEIGHT_EPS} --age-weight-power ${AGE_WEIGHT_POWER} --age-weight-min ${AGE_WEIGHT_MIN} --age-weight-max ${AGE_WEIGHT_MAX}" ) \
             $( [[ "${AGE_OVERSAMPLE}" -gt 0 ]] && echo "--age-oversample --age-oversample-max-multiplier ${AGE_OVERSAMPLE_MAX_MULT}" ) \
             $( [[ -n "${AGE_OVERSAMPLE_TARGET}" ]] && echo "--age-oversample-target ${AGE_OVERSAMPLE_TARGET}" ) \
@@ -153,6 +166,12 @@ for USER_GROUP_SIZE in ${USER_GROUP_SIZES}; do
           --user-group-size "${USER_GROUP_SIZE}" \
           --eval-aggregation-sizes ${AGG_SIZES} \
           --eval-aggregation-seed "${AGG_SEED_EFF}" \
+          --embed-dim "${EMBED_DIM}" \
+          --loss-weight-embed-var "${LOSS_WEIGHT_EMBED_VAR}" \
+          --loss-weight-embed-contrast "${LOSS_WEIGHT_EMBED_CONTRAST}" \
+          --embed-age-slack "${EMBED_AGE_SLACK}" \
+          --embed-contrast-margin "${EMBED_CONTRAST_MARGIN}" \
+          --embed-contrast-age-thresh "${EMBED_CONTRAST_AGE_THRESH}" \
           $( [[ "${AGE_REWEIGHT}" -gt 0 ]] && echo "--age-reweight-loss --age-weight-eps ${AGE_WEIGHT_EPS} --age-weight-power ${AGE_WEIGHT_POWER} --age-weight-min ${AGE_WEIGHT_MIN} --age-weight-max ${AGE_WEIGHT_MAX}" ) \
           $( [[ "${AGE_OVERSAMPLE}" -gt 0 ]] && echo "--age-oversample --age-oversample-max-multiplier ${AGE_OVERSAMPLE_MAX_MULT}" ) \
           $( [[ -n "${AGE_OVERSAMPLE_TARGET}" ]] && echo "--age-oversample-target ${AGE_OVERSAMPLE_TARGET}" ) \

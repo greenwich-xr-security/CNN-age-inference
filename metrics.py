@@ -7,6 +7,7 @@ from typing import Iterable, Sequence, Tuple
 
 import numpy as np
 import torch
+import torch.nn.functional as F
 
 LOG_VAR_MIN = -10.0
 LOG_VAR_MAX = 10.0
@@ -139,6 +140,86 @@ def weighted_regression_loss(
     if total_loss is None:
         raise ValueError("weighted_regression_loss requires at least one positive weight.")
     return total_loss
+
+
+def embedding_variance_loss(
+    z: torch.Tensor,
+    user_ids: Sequence[object],
+    ages: torch.Tensor,
+    *,
+    age_slack: float = 1.0,
+) -> torch.Tensor:
+    """
+    Encourage embedding consistency within a user, down-weighted by age gaps.
+    weight = 1 / (1 + |age_i - age_j| / age_slack)
+    """
+    if z.ndim == 1:
+        z = z.unsqueeze(1)
+    age_slack = max(float(age_slack), 1e-6)
+    device = z.device
+    ages = ages.to(device, dtype=z.dtype).view(-1)
+    grouped: dict[str, list[int]] = {}
+    for idx, uid in enumerate(user_ids):
+        grouped.setdefault(str(uid), []).append(idx)
+
+    total = z.new_tensor(0.0)
+    weight_sum = z.new_tensor(0.0)
+    for indices in grouped.values():
+        if len(indices) < 2:
+            continue
+        idx_tensor = torch.tensor(indices, device=device, dtype=torch.long)
+        z_grp = z.index_select(0, idx_tensor)
+        age_grp = ages.index_select(0, idx_tensor)
+        # pairwise weights and distances
+        for i in range(len(indices)):
+            for j in range(i + 1, len(indices)):
+                delta_age = torch.abs(age_grp[i] - age_grp[j])
+                weight = 1.0 / (1.0 + delta_age / age_slack)
+                dist_sq = torch.sum((z_grp[i] - z_grp[j]) ** 2)
+                total = total + weight * dist_sq
+                weight_sum = weight_sum + weight
+    if weight_sum <= 0:
+        return z.new_tensor(0.0)
+    return total / weight_sum
+
+
+def embedding_contrastive_loss(
+    z: torch.Tensor,
+    user_ids: Sequence[object],
+    ages: torch.Tensor,
+    *,
+    margin: float = 1.0,
+    age_thresh: float = 5.0,
+) -> torch.Tensor:
+    """
+    Push embeddings from different users apart when their ages differ by more than age_thresh.
+    Uses hinge: max(0, margin - ||z_i - z_j||).
+    """
+    if z.ndim == 1:
+        z = z.unsqueeze(1)
+    device = z.device
+    ages = ages.to(device, dtype=z.dtype).view(-1)
+    user_ids = [str(u) for u in user_ids]
+    n = z.size(0)
+    if n < 2:
+        return z.new_tensor(0.0)
+    margin = float(margin)
+    age_thresh = float(age_thresh)
+    total = z.new_tensor(0.0)
+    count = 0
+    for i in range(n):
+        for j in range(i + 1, n):
+            if user_ids[i] == user_ids[j]:
+                continue
+            if torch.abs(ages[i] - ages[j]) < age_thresh:
+                continue
+            dist = torch.norm(z[i] - z[j], p=2)
+            loss_ij = F.relu(margin - dist)
+            total = total + loss_ij
+            count += 1
+    if count == 0:
+        return z.new_tensor(0.0)
+    return total / count
 
 
 def aggregate_predictions_by_user(

@@ -38,13 +38,15 @@ def get_default_efficientnet_weights(variant: str):
 
 
 class EfficientNetAgeRegressor(nn.Module):
-    """EfficientNet backbone that predicts age mean/log-variance pairs."""
+    """EfficientNet backbone that predicts age mean/log-variance pairs, optionally with an embedding head."""
 
-    def __init__(self, variant: str):
+    def __init__(self, variant: str, embed_dim: int = 0):
         super().__init__()
         variant = variant.lower()
         if variant not in EFFICIENTNET_IMG_SIZES:
             raise ValueError(f"Unsupported EfficientNet variant '{variant}'.")
+        if embed_dim < 0:
+            raise ValueError("embed_dim must be non-negative.")
 
         if variant.startswith("v2_"):
             model_name = f"efficientnet_{variant}"
@@ -66,20 +68,27 @@ class EfficientNetAgeRegressor(nn.Module):
 
         self.backbone = backbone
         self.variant = variant
-        # Replace the classifier to output mean and log-variance (2 values)
+        self.embed_dim = int(embed_dim)
+        total_outputs = 2 + self.embed_dim
+        # Replace the classifier to output mean/log-variance (+ optional embedding)
         if isinstance(self.backbone.classifier, nn.Sequential) and len(self.backbone.classifier) >= 2:
             in_feats = self.backbone.classifier[-1].in_features
-            self.backbone.classifier[-1] = nn.Linear(in_feats, 2)
+            self.backbone.classifier[-1] = nn.Linear(in_feats, total_outputs)
         else:
             # Fallback: handle unexpected classifier structure
             in_feats = getattr(self.backbone.classifier, "in_features", None)
             if in_feats is None:
                 raise RuntimeError(f"Unexpected EfficientNet-{variant.upper()} classifier structure")
-            self.backbone.classifier = nn.Linear(in_feats, 2)
+            self.backbone.classifier = nn.Linear(in_feats, total_outputs)
 
     def forward(self, x):
         preds = self.backbone(x)
         if preds.dim() == 1:
             preds = preds.unsqueeze(1)
+        if self.embed_dim > 0:
+            mean = preds[:, 0]
+            log_var = preds[:, 1]
+            z = preds[:, 2:]
+            return mean, log_var, z
         mean, log_var = preds.chunk(2, dim=1)
         return mean.squeeze(1), log_var.squeeze(1)

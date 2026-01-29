@@ -29,6 +29,8 @@ from metrics import (
     CHALLENGE_BINS,
     CHALLENGE_FNR_BINS,
     CHALLENGE_PROB_TAU,
+    embedding_contrastive_loss,
+    embedding_variance_loss,
     LossWeights,
     aggregate_predictions_by_user,
     compute_age_gate_curves,
@@ -251,6 +253,42 @@ def main() -> None:
         help="Weight for intra-user prediction spread penalty (default: 0.0).",
     )
     parser.add_argument(
+        "--embed-dim",
+        type=int,
+        default=0,
+        help="Embedding head dimension (0 disables embedding head/losses).",
+    )
+    parser.add_argument(
+        "--loss-weight-embed-var",
+        type=float,
+        default=0.0,
+        help="Weight for embedding variance loss (same-user consistency).",
+    )
+    parser.add_argument(
+        "--loss-weight-embed-contrast",
+        type=float,
+        default=0.0,
+        help="Weight for embedding contrastive loss across users.",
+    )
+    parser.add_argument(
+        "--embed-age-slack",
+        type=float,
+        default=5.0,
+        help="Age slack for weighting same-user embedding variance (default: 5 years).",
+    )
+    parser.add_argument(
+        "--embed-contrast-margin",
+        type=float,
+        default=1.0,
+        help="Margin for embedding contrastive loss (default: 1.0).",
+    )
+    parser.add_argument(
+        "--embed-contrast-age-thresh",
+        type=float,
+        default=5.0,
+        help="Minimum age gap between different users to apply contrastive separation (default: 5 years).",
+    )
+    parser.add_argument(
         "--patience",
         type=int,
         default=DEFAULT_PATIENCE,
@@ -275,7 +313,7 @@ def main() -> None:
     )
     set_random_seed(args.seed)
     model_builder, default_size, model_desc, model_key = resolve_model_builder(
-        args.model
+        args.model, embed_dim=args.embed_dim
     )
     img_size = args.img_size if args.img_size is not None else default_size
     if args.img_size is not None and args.img_size != default_size:
@@ -303,6 +341,13 @@ def main() -> None:
         fp.write(f"resolved_loss_weights_nll={loss_weights.nll}\n")
         fp.write(f"resolved_loss_weights_mse={loss_weights.mse}\n")
         fp.write(f"resolved_loss_weights_mae={loss_weights.mae}\n")
+        fp.write(f"resolved_loss_weight_spread={args.loss_weight_spread}\n")
+        fp.write(f"resolved_embed_dim={args.embed_dim}\n")
+        fp.write(f"resolved_loss_weight_embed_var={args.loss_weight_embed_var}\n")
+        fp.write(f"resolved_loss_weight_embed_contrast={args.loss_weight_embed_contrast}\n")
+        fp.write(f"resolved_embed_age_slack={args.embed_age_slack}\n")
+        fp.write(f"resolved_embed_contrast_margin={args.embed_contrast_margin}\n")
+        fp.write(f"resolved_embed_contrast_age_thresh={args.embed_contrast_age_thresh}\n")
     train_transform, test_transform = build_transforms(img_size)
     metadata = filter_metadata(
         load_combined_metadata(root=active_root),
@@ -441,12 +486,22 @@ def main() -> None:
         running_mse = 0.0
         running_std = 0.0
         running_spread = 0.0
+        running_embed_var = 0.0
+        running_embed_contrast = 0.0
         for images, ages, batch_user_ids in tqdm(
             train_loader, desc=f"Epoch {epoch}/{args.epochs}"
         ):
             images, ages = images.to(DEVICE), ages.to(DEVICE)
             optimizer.zero_grad()
-            pred_mean, pred_log_var = model(images)
+            outputs = model(images)
+            z = None
+            if isinstance(outputs, (tuple, list)):
+                if len(outputs) == 3:
+                    pred_mean, pred_log_var, z = outputs
+                else:
+                    pred_mean, pred_log_var = outputs
+            else:
+                pred_mean, pred_log_var = outputs
             sample_weights = _build_age_weight_tensor(ages)
             base_loss = weighted_regression_loss(
                 pred_mean,
@@ -455,12 +510,29 @@ def main() -> None:
                 loss_weights,
                 sample_weights=sample_weights,
             )
+            embed_var_loss = pred_mean.new_tensor(0.0)
+            embed_contrast_loss = pred_mean.new_tensor(0.0)
             if args.loss_weight_spread > 0:
                 spread_loss = intra_user_spread_loss(pred_mean, batch_user_ids)
                 loss = base_loss + args.loss_weight_spread * spread_loss
                 running_spread += spread_loss.item()
             else:
                 loss = base_loss
+            if z is not None:
+                if args.loss_weight_embed_var > 0:
+                    embed_var_loss = embedding_variance_loss(
+                        z, batch_user_ids, ages, age_slack=args.embed_age_slack
+                    )
+                    loss = loss + args.loss_weight_embed_var * embed_var_loss
+                if args.loss_weight_embed_contrast > 0:
+                    embed_contrast_loss = embedding_contrastive_loss(
+                        z,
+                        batch_user_ids,
+                        ages,
+                        margin=args.embed_contrast_margin,
+                        age_thresh=args.embed_contrast_age_thresh,
+                    )
+                    loss = loss + args.loss_weight_embed_contrast * embed_contrast_loss
             loss.backward()
             optimizer.step()
             running_loss += loss.item()
@@ -472,18 +544,28 @@ def main() -> None:
             running_mae += mae
             running_mse += mse
             running_std += avg_std
+            running_embed_var += embed_var_loss.item() if isinstance(embed_var_loss, torch.Tensor) else 0.0
+            running_embed_contrast += (
+                embed_contrast_loss.item() if isinstance(embed_contrast_loss, torch.Tensor) else 0.0
+            )
         denom = max(1, len(train_loader))
         train_loss = running_loss / denom
         train_mae = running_mae / denom
         train_mse = running_mse / denom
         train_std = running_std / denom
         train_spread = running_spread / denom if args.loss_weight_spread > 0 else 0.0
+        train_emb_var = running_embed_var / denom if args.loss_weight_embed_var > 0 else 0.0
+        train_emb_contrast = (
+            running_embed_contrast / denom if args.loss_weight_embed_contrast > 0 else 0.0
+        )
         model.eval()
         val_loss = 0.0
         val_mae = 0.0
         val_mse = 0.0
         val_std = 0.0
         val_spread = 0.0
+        val_emb_var = 0.0
+        val_emb_contrast = 0.0
         val_targets = []
         val_predictions = []
         val_log_vars = []
@@ -491,7 +573,15 @@ def main() -> None:
         with torch.no_grad():
             for images, ages, batch_user_ids in test_loader:
                 images, ages = images.to(DEVICE), ages.to(DEVICE)
-                pred_mean, pred_log_var = model(images)
+                outputs = model(images)
+                z = None
+                if isinstance(outputs, (tuple, list)):
+                    if len(outputs) == 3:
+                        pred_mean, pred_log_var, z = outputs
+                    else:
+                        pred_mean, pred_log_var = outputs
+                else:
+                    pred_mean, pred_log_var = outputs
                 batch_loss = weighted_regression_loss(
                     pred_mean, pred_log_var, ages, loss_weights
                 ).item()
@@ -505,6 +595,18 @@ def main() -> None:
                 ).item()
                 if args.loss_weight_spread > 0:
                     val_spread += intra_user_spread_loss(pred_mean, batch_user_ids).item()
+                if z is not None and args.loss_weight_embed_var > 0:
+                    val_emb_var += embedding_variance_loss(
+                        z, batch_user_ids, ages, age_slack=args.embed_age_slack
+                    ).item()
+                if z is not None and args.loss_weight_embed_contrast > 0:
+                    val_emb_contrast += embedding_contrastive_loss(
+                        z,
+                        batch_user_ids,
+                        ages,
+                        margin=args.embed_contrast_margin,
+                        age_thresh=args.embed_contrast_age_thresh,
+                    ).item()
                 val_targets.extend(ages.detach().cpu().tolist())
                 val_predictions.extend(pred_mean.detach().cpu().tolist())
                 val_log_vars.extend(pred_log_var.detach().cpu().tolist())
@@ -515,19 +617,27 @@ def main() -> None:
         val_mse /= denom
         val_std /= denom
         val_spread = val_spread / denom if args.loss_weight_spread > 0 else 0.0
+        val_emb_var = val_emb_var / denom if args.loss_weight_embed_var > 0 else 0.0
+        val_emb_contrast = (
+            val_emb_contrast / denom if args.loss_weight_embed_contrast > 0 else 0.0
+        )
         print(
             f"Epoch {epoch}: "
             f"train_loss={train_loss:.4f}, train_mae={train_mae:.4f}, "
-            f"train_mse={train_mse:.4f}, train_std={train_std:.4f}, train_spread={train_spread:.4f} | "
+            f"train_mse={train_mse:.4f}, train_std={train_std:.4f}, train_spread={train_spread:.4f}, "
+            f"train_emb_var={train_emb_var:.4f}, train_emb_contrast={train_emb_contrast:.4f} | "
             f"val_loss={val_loss:.4f}, val_mae={val_mae:.4f}, val_mse={val_mse:.4f}, "
-            f"val_std={val_std:.4f}, val_spread={val_spread:.4f}"
+            f"val_std={val_std:.4f}, val_spread={val_spread:.4f}, "
+            f"val_emb_var={val_emb_var:.4f}, val_emb_contrast={val_emb_contrast:.4f}"
         )
         with history_log_path.open("a", encoding="utf-8") as log_fp:
             log_fp.write(
                 f"Epoch {epoch},train_loss={train_loss:.6f},train_mae={train_mae:.6f},train_mse={train_mse:.6f},"
                 f"train_std={train_std:.6f},train_spread={train_spread:.6f},"
+                f"train_emb_var={train_emb_var:.6f},train_emb_contrast={train_emb_contrast:.6f},"
                 f"val_loss={val_loss:.6f},val_mae={val_mae:.6f},val_mse={val_mse:.6f},"
-                f"val_std={val_std:.6f},val_spread={val_spread:.6f}\n"
+                f"val_std={val_std:.6f},val_spread={val_spread:.6f},"
+                f"val_emb_var={val_emb_var:.6f},val_emb_contrast={val_emb_contrast:.6f}\n"
             )
         history_entries.append(
             {
@@ -761,7 +871,14 @@ def main() -> None:
             for images, ages, batch_user_ids in test_loader:
                 images = images.to(DEVICE)
                 ages = ages.to(DEVICE)
-                mean, log_var = eval_model(images)
+                outputs = eval_model(images)
+                if isinstance(outputs, (tuple, list)):
+                    if len(outputs) == 3:
+                        mean, log_var, _ = outputs
+                    else:
+                        mean, log_var = outputs
+                else:
+                    mean, log_var = outputs
                 all_targets.extend(ages.cpu().tolist())
                 all_means.extend(mean.cpu().tolist())
                 all_log_vars.extend(log_var.cpu().tolist())

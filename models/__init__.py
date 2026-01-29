@@ -18,7 +18,7 @@ MODEL_ALIASES = {
 }
 
 
-def resolve_model_builder(model_name: str):
+def resolve_model_builder(model_name: str, *, embed_dim: int = 0):
     """
     Resolve a model name (including aliases) to a builder, default image size, display label, and normalized key.
     """
@@ -28,7 +28,7 @@ def resolve_model_builder(model_name: str):
     if name in EFFICIENTNET_IMG_SIZES:
         size = EFFICIENTNET_IMG_SIZES[name]
         return (
-            lambda: EfficientNetAgeRegressor(name),
+            lambda: EfficientNetAgeRegressor(name, embed_dim=embed_dim),
             size,
             f"EfficientNet-{name.upper()}",
             name,
@@ -40,7 +40,7 @@ def resolve_model_builder(model_name: str):
             raise ValueError(f"Unsupported ConvNeXt variant '{variant}'.")
         size = CONVNEXT_IMG_SIZES[variant]
         return (
-            lambda: ConvNeXtAgeRegressor(variant),
+            lambda: ConvNeXtAgeRegressor(variant, embed_dim=embed_dim),
             size,
             f"ConvNeXt-{variant}",
             name,

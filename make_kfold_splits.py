@@ -46,6 +46,11 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Allow overwriting an existing fold file.",
     )
+    parser.add_argument(
+        "--stratify-adult",
+        action="store_true",
+        help="Stratify folds by adult/minor (>=18 vs <18) based on user mean age.",
+    )
     return parser.parse_args()
 
 
@@ -62,10 +67,17 @@ def main() -> None:
         load_combined_metadata(root=get_dataset_root()),
         max_samples_per_user=args.max_samples_per_user,
     )
+    stratify_col = None
+    if args.stratify_adult:
+        user_age = metadata.groupby("user_id")["age"].mean()
+        user_class = (user_age >= 18.0).map(lambda x: "adult" if x else "minor")
+        metadata = metadata.merge(user_class.rename("adult_flag"), on="user_id", how="left")
+        stratify_col = "adult_flag"
     folds = build_kfold_user_splits(
         metadata,
         k=args.k,
         random_state=args.seed,
+        stratify_on=stratify_col,
     )
     saved_path = save_kfold_splits(
         folds,
@@ -77,6 +89,21 @@ def main() -> None:
     fold_sizes = [len(fold) for fold in folds]
     print(f"Saved k-fold splits to: {saved_path}")
     print(f"Total users: {total_users} | Folds: {len(folds)} | Sizes: {fold_sizes}")
+    if args.stratify_adult:
+        # compute adult/minor counts per fold
+        user_to_class = metadata.drop_duplicates(subset="user_id").set_index("user_id")["adult_flag"]
+        rows = ["fold,adults,adults_frac,miners,miners_frac,total"]
+        for idx, fold in enumerate(folds):
+            labels = user_to_class.reindex(fold)
+            adults = int((labels == "adult").sum())
+            minors = int((labels == "minor").sum())
+            total = len(fold)
+            adults_frac = adults / total if total else 0
+            minors_frac = minors / total if total else 0
+            rows.append(f"{idx},{adults},{adults_frac:.4f},{minors},{minors_frac:.4f},{total}")
+        stats_path = saved_path.with_name(saved_path.stem + "_strat_stats.csv")
+        stats_path.write_text("\n".join(rows), encoding="utf-8")
+        print(f"Adult/minor stratification stats written to: {stats_path}")
 
 
 if __name__ == "__main__":

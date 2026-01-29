@@ -7,6 +7,7 @@ from typing import Iterable
 
 import pandas as pd
 from sklearn.model_selection import KFold
+from sklearn.model_selection import StratifiedKFold
 
 
 def dataset_composition_stats(df: pd.DataFrame) -> dict[str, int]:
@@ -163,6 +164,7 @@ def build_kfold_user_splits(
     *,
     k: int,
     random_state: int = 42,
+    stratify_on: str | None = None,
 ) -> list[list[str]]:
     """Return k disjoint validation folds of user_ids."""
     if k < 2:
@@ -174,8 +176,19 @@ def build_kfold_user_splits(
     if user_ids.size < k:
         raise ValueError(f"Not enough users ({user_ids.size}) to build {k} folds.")
 
-    splitter = KFold(n_splits=k, shuffle=True, random_state=random_state)
-    splits = splitter.split(user_ids)
+    if stratify_on:
+        if stratify_on not in df.columns:
+            raise ValueError(f"stratify_on column '{stratify_on}' not found in DataFrame.")
+        labels = (
+            df.drop_duplicates(subset="user_id")
+            .set_index("user_id")[stratify_on]
+            .reindex(user_ids)
+        )
+        splitter = StratifiedKFold(n_splits=k, shuffle=True, random_state=random_state)
+        splits = splitter.split(user_ids, labels)
+    else:
+        splitter = KFold(n_splits=k, shuffle=True, random_state=random_state)
+        splits = splitter.split(user_ids)
 
     folds: list[list[str]] = []
     for _, val_idx in splits:

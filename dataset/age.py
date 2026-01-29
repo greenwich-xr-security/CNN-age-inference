@@ -55,15 +55,19 @@ class AgeDataset(Dataset):
         # Optional: apply binary mask to zero-out background
         mask_img = None
         if self.use_masks:
-            explicit = row.get("mask_path") if isinstance(row, pd.Series) else None
-            if explicit is not None and isinstance(explicit, (str, Path)) and str(explicit):
-                cand = Path(explicit)
-                if cand.is_file():
-                    mask_img = cand
-            if mask_img is None:
-                mask_path = self._resolve_mask_path(image_path)
-                if mask_path is not None:
-                    mask_img = mask_path
+            # Skip masking for handRGBD (already masked in source)
+            if any("handrgbd" in str(p).lower() for p in image_path.parents):
+                mask_img = None
+            else:
+                explicit = row.get("mask_path") if isinstance(row, pd.Series) else None
+                if explicit is not None and isinstance(explicit, (str, Path)) and str(explicit):
+                    cand = Path(explicit)
+                    if cand.is_file():
+                        mask_img = cand
+                if mask_img is None:
+                    mask_path = self._resolve_mask_path(image_path)
+                    if mask_path is not None:
+                        mask_img = mask_path
             if mask_img is not None:
                 try:
                     mask = Image.open(mask_img).convert("L")

@@ -219,6 +219,38 @@ def rolling_mean(values: np.ndarray, window: int) -> np.ndarray:
     return out
 
 
+def plot_scatter(
+    targets: np.ndarray,
+    preds: np.ndarray,
+    *,
+    title: str,
+    output_path: Path,
+) -> None:
+    if targets.size == 0:
+        return
+    min_val = float(np.min([targets.min(), preds.min()]))
+    max_val = float(np.max([targets.max(), preds.max()]))
+    pad = max(1.0, 0.05 * (max_val - min_val))
+    axis_min = min_val - pad
+    axis_max = max_val + pad
+    fig, ax = plt.subplots(figsize=(6, 6))
+    ax.scatter(targets, preds, s=18, alpha=0.45, edgecolors="none", color="#1f77b4")
+    ax.plot([axis_min, axis_max], [axis_min, axis_max], "r--", linewidth=1)
+    ax.axvline(18.0, color="black", linestyle=":", linewidth=1)
+    ax.axhline(18.0, color="black", linestyle=":", linewidth=1)
+    ax.set_xlabel("True Age")
+    ax.set_ylabel("Predicted Age")
+    ax.set_xlim(axis_min, axis_max)
+    ax.set_ylim(axis_min, axis_max)
+    ax.set_aspect("equal", adjustable="box")
+    ax.grid(True, linestyle="--", linewidth=0.5, alpha=0.3)
+    ax.set_title(title)
+    fig.tight_layout()
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(output_path)
+    plt.close(fig)
+
+
 def plot_intra_user_per_age(
     ages: np.ndarray,
     stds: np.ndarray,
@@ -367,12 +399,16 @@ def main() -> None:
         roc_case1 = []
         roc_case2 = []
         age_tables = []
+        all_targets_concat: list[float] = []
+        all_preds_concat: list[float] = []
 
         for fold_dir, run_dir in zip(fold_dirs, run_dirs):
             preds = load_predictions(run_dir, group_size)
             targets = preds["targets"]
             pred_mean = preds["pred_mean"]
             pred_log_var = preds["pred_log_var"]
+            all_targets_concat.extend(targets.tolist())
+            all_preds_concat.extend(pred_mean.tolist())
             mae = float(np.mean(np.abs(pred_mean - targets)))
             rmse = float(np.sqrt(np.mean((pred_mean - targets) ** 2)))
 
@@ -505,6 +541,15 @@ def main() -> None:
             title=f"MAE/RMSE per Age (k-fold mean, n={group_size})",
             output_path=output_dir / f"age_error_kfold_n{group_size}.png",
         )
+
+        # Aggregate scatter across folds for this group size
+        if all_targets_concat:
+            plot_scatter(
+                np.asarray(all_targets_concat, dtype=float),
+                np.asarray(all_preds_concat, dtype=float),
+                title=f"Validation scatter (all folds, n={group_size})",
+                output_path=output_dir / f"age_val_scatter_kfold_n{group_size}.png",
+            )
 
     print(f"Saved k-fold aggregates to: {output_dir}")
 

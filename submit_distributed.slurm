@@ -49,7 +49,7 @@ LOSS_WEIGHT_SPREAD="${LOSS_WEIGHT_SPREAD:-0.5}"
 LOSS_WEIGHT_EMBED_VAR="${LOSS_WEIGHT_EMBED_VAR:-0.5}"
 LOSS_WEIGHT_EMBED_CONTRAST="${LOSS_WEIGHT_EMBED_CONTRAST:-0.5}"
 
-USER_GROUP_SIZES="${USER_GROUP_SIZES:-2}"
+USER_GROUP_SIZES="${USER_GROUP_SIZES:-4}"
 PATIENCE="${PATIENCE:-10}"
 MODELS="${MODELS:-${MODEL:-b2}}" # choices: b0-b7, v2_{s,m,l}, convnext_{tiny,small,base,large,xlarge}, aliases: cnt,cns,cnb,cnl,cnx
 AGG_SIZES="${AGG_SIZES:-${EVAL_AGG_SIZES:-1 2 3 4}}"   # space-separated list, e.g., "1 2 3"

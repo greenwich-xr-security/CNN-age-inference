@@ -585,13 +585,13 @@ def load_combined_metadata(
     *,
     handrgbd_include_wall3: bool = False,
 ) -> pd.DataFrame:
-    #primary_df = load_primary_metadata(root=root)
-    #archive_df = load_archive_metadata(root=root)
+    primary_df = load_primary_metadata(root=root)
+    archive_df = load_archive_metadata(root=root)
     handrgbd_df = load_handrgbd_metadata(root=root, include_wall3=handrgbd_include_wall3)
-    #combined = pd.concat([primary_df, archive_df, handrgbd_df], ignore_index=True)
-    combined = handrgbd_df
+    combined = pd.concat([primary_df, archive_df, handrgbd_df], ignore_index=True)
+    #combined = handrgbd_df
     combined = combined.drop_duplicates(subset="image_path")
-    combined = _limit_users_per_age(combined, max_users_per_year=10)
+    combined = _limit_users_per_age(combined, max_users_per_year=20)
     return combined.reset_index(drop=True)
 
 

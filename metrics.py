@@ -44,22 +44,47 @@ class LossWeights:
             raise ValueError("At least one loss weight must be greater than zero.")
 
 
-def gaussian_nll_loss(pred_mean: torch.Tensor, pred_log_var: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
-    """Negative log-likelihood under a Gaussian with predicted mean/log-variance."""
+def _reduce_mean(values: torch.Tensor, sample_weights: torch.Tensor | None) -> torch.Tensor:
+    if sample_weights is None:
+        return torch.mean(values)
+    weights = sample_weights.to(values.device, dtype=values.dtype)
+    values = values.reshape(-1)
+    weights = weights.reshape(-1)
+    weight_sum = torch.sum(weights)
+    if weight_sum <= 0:
+        return torch.mean(values)
+    return torch.sum(values * weights) / weight_sum
+
+
+def gaussian_nll_loss(
+    pred_mean: torch.Tensor,
+    pred_log_var: torch.Tensor,
+    target: torch.Tensor,
+    sample_weights: torch.Tensor | None = None,
+) -> torch.Tensor:
+    """Negative log-likelihood under a Gaussian with optional per-sample weights."""
     log_var = torch.clamp(pred_log_var, min=LOG_VAR_MIN, max=LOG_VAR_MAX)
     inv_var = torch.exp(-log_var)
     loss = 0.5 * (log_var + (target - pred_mean) ** 2 * inv_var)
-    return torch.mean(loss)
+    return _reduce_mean(loss, sample_weights)
 
 
-def mse_loss(pred_mean: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
-    """Mean squared error."""
-    return torch.mean((pred_mean - target) ** 2)
+def mse_loss(
+    pred_mean: torch.Tensor,
+    target: torch.Tensor,
+    sample_weights: torch.Tensor | None = None,
+) -> torch.Tensor:
+    """Mean squared error with optional per-sample weights."""
+    return _reduce_mean((pred_mean - target) ** 2, sample_weights)
 
 
-def mae_loss(pred_mean: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
-    """Mean absolute error."""
-    return torch.mean(torch.abs(pred_mean - target))
+def mae_loss(
+    pred_mean: torch.Tensor,
+    target: torch.Tensor,
+    sample_weights: torch.Tensor | None = None,
+) -> torch.Tensor:
+    """Mean absolute error with optional per-sample weights."""
+    return _reduce_mean(torch.abs(pred_mean - target), sample_weights)
 
 
 def intra_user_spread_loss(
@@ -97,17 +122,18 @@ def weighted_regression_loss(
     pred_log_var: torch.Tensor,
     target: torch.Tensor,
     weights: LossWeights,
+    sample_weights: torch.Tensor | None = None,
 ) -> torch.Tensor:
     """Return weighted combination of Gaussian NLL, MSE, and MAE components."""
     total_loss: torch.Tensor | None = None
     if weights.nll > 0:
-        nll = gaussian_nll_loss(pred_mean, pred_log_var, target)
+        nll = gaussian_nll_loss(pred_mean, pred_log_var, target, sample_weights)
         total_loss = weights.nll * nll
     if weights.mse > 0:
-        mse = mse_loss(pred_mean, target)
+        mse = mse_loss(pred_mean, target, sample_weights)
         total_loss = mse * weights.mse if total_loss is None else total_loss + weights.mse * mse
     if weights.mae > 0:
-        mae = mae_loss(pred_mean, target)
+        mae = mae_loss(pred_mean, target, sample_weights)
         total_loss = mae * weights.mae if total_loss is None else total_loss + weights.mae * mae
 
     if total_loss is None:

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Iterable
 
 import pandas as pd
 from sklearn.model_selection import KFold
@@ -71,6 +72,90 @@ def filter_metadata(
     df["age"] = df["age"].astype(float)
     df = _limit_samples_per_user(df, max_samples_per_user)
     return df.reset_index(drop=True)
+
+
+def compute_age_weight_map(
+    ages: Iterable[float] | pd.Series,
+    *,
+    eps: float = 1.0,
+    power: float = 1.0,
+    min_w: float = 0.25,
+    max_w: float = 5.0,
+    normalise: bool = True,
+) -> dict[int, float]:
+    """
+    Build an inverse-frequency weight map keyed by rounded integer age.
+
+    weight(age) = ((count(age) + eps) ** -power), optionally normalised to mean 1 and clipped.
+    """
+    if eps < 0:
+        raise ValueError("eps must be non-negative.")
+    if power < 0:
+        raise ValueError("power must be non-negative.")
+    weights: dict[int, float] = {}
+    age_series = pd.Series(list(ages), dtype=float).dropna()
+    if age_series.empty:
+        return weights
+
+    age_int = age_series.round().astype(int)
+    counts = age_int.value_counts()
+    raw_weights = (counts + eps) ** (-power)
+    if normalise and not raw_weights.empty:
+        raw_weights = raw_weights / raw_weights.mean()
+
+    clipped = raw_weights.clip(lower=min_w, upper=max_w)
+    for age_value, weight in clipped.items():
+        weights[int(age_value)] = float(weight)
+    return weights
+
+
+def oversample_by_age(
+    df: pd.DataFrame,
+    *,
+    target_per_age: int | None = None,
+    max_multiplier: float = 3.0,
+    seed: int = 42,
+) -> pd.DataFrame:
+    """
+    Oversample under-represented integer ages by duplicating rows with replacement.
+
+    - target_per_age: desired samples per age (defaults to the max age count).
+    - max_multiplier: cap growth per age (e.g., 3.0 means an age can grow to 3x its original size).
+    """
+    if df.empty or "age" not in df.columns:
+        return df
+
+    max_multiplier = max(1.0, float(max_multiplier))
+    work = df.reset_index(drop=True)
+    age_series = work["age"].astype(float)
+    age_int = age_series.round().astype(int)
+    counts = age_int.value_counts()
+    if counts.empty:
+        return work
+
+    target = target_per_age if target_per_age is not None else int(counts.max())
+    target = max(int(target), 1)
+
+    parts = [work]
+    for age_value, count in counts.items():
+        desired = min(target, int(round(count * max_multiplier)))
+        if desired <= count:
+            continue
+        need = desired - count
+        mask = age_int == age_value
+        subset = work[mask]
+        if subset.empty:
+            continue
+        sampled = subset.sample(n=need, replace=True, random_state=seed)
+        parts.append(sampled)
+
+    if len(parts) == 1:
+        return work
+    return (
+        pd.concat(parts, ignore_index=True)
+        .sample(frac=1.0, random_state=seed)
+        .reset_index(drop=True)
+    )
 
 
 def build_kfold_user_splits(

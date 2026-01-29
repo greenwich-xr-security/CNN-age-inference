@@ -17,7 +17,13 @@ from dataset.hand_metadata import (
 )
 from dataset.samplers import GroupedBatchSampler
 from dataset.transforms import build_transforms
-from dataset.utils import dataset_composition_stats, filter_metadata, load_kfold_splits
+from dataset.utils import (
+    compute_age_weight_map,
+    dataset_composition_stats,
+    filter_metadata,
+    load_kfold_splits,
+    oversample_by_age,
+)
 from displayUtils import DisplayUtils
 from metrics import (
     CHALLENGE_BINS,
@@ -121,6 +127,52 @@ def main() -> None:
         type=int,
         default=16,
         help="Maximum samples per user after dorsal filtering (default: 16; set 0 to disable).",
+    )
+    parser.add_argument(
+        "--age-reweight-loss",
+        action="store_true",
+        help="Apply inverse-frequency age weights to the training loss.",
+    )
+    parser.add_argument(
+        "--age-weight-eps",
+        type=float,
+        default=1.0,
+        help="Smoothing term added to age counts when building loss weights (default: 1.0).",
+    )
+    parser.add_argument(
+        "--age-weight-power",
+        type=float,
+        default=1.0,
+        help="Exponent for inverse-frequency age weights (default: 1.0).",
+    )
+    parser.add_argument(
+        "--age-weight-min",
+        type=float,
+        default=0.25,
+        help="Lower clip for age loss weights (default: 0.25).",
+    )
+    parser.add_argument(
+        "--age-weight-max",
+        type=float,
+        default=4.0,
+        help="Upper clip for age loss weights (default: 4.0).",
+    )
+    parser.add_argument(
+        "--age-oversample",
+        action="store_true",
+        help="Oversample under-represented integer ages in the training set.",
+    )
+    parser.add_argument(
+        "--age-oversample-target",
+        type=int,
+        default=None,
+        help="Target samples per age when oversampling (default: max age count).",
+    )
+    parser.add_argument(
+        "--age-oversample-max-multiplier",
+        type=float,
+        default=3.0,
+        help="Cap on per-age growth factor during oversampling (default: 3.0).",
     )
     parser.add_argument(
         "--epochs",
@@ -287,6 +339,40 @@ def main() -> None:
         )
     train_meta = metadata[metadata["user_id"].isin(train_ids)]
     test_meta = metadata[metadata["user_id"].isin(test_ids)]
+
+    if args.age_oversample:
+        before = len(train_meta)
+        train_meta = oversample_by_age(
+            train_meta,
+            target_per_age=args.age_oversample_target,
+            max_multiplier=args.age_oversample_max_multiplier,
+            seed=args.seed,
+        )
+        print(f"[data] Oversampled train set from {before} to {len(train_meta)} samples.")
+
+    age_weight_map: dict[int, float] | None = None
+    if args.age_reweight_loss:
+        age_weight_map = compute_age_weight_map(
+            train_meta["age"],
+            eps=args.age_weight_eps,
+            power=args.age_weight_power,
+            min_w=args.age_weight_min,
+            max_w=args.age_weight_max,
+            normalise=True,
+        )
+        if age_weight_map:
+            values = list(age_weight_map.values())
+            print(f"[loss] Age reweighting enabled (min={min(values):.3f}, max={max(values):.3f}).")
+        else:
+            print("[loss] Age reweighting requested but no weights were computed.")
+
+    def _build_age_weight_tensor(batch_ages: torch.Tensor) -> torch.Tensor | None:
+        if not age_weight_map:
+            return None
+        age_ints = torch.round(batch_ages).to(torch.int64).cpu().tolist()
+        weights = [age_weight_map.get(int(a), 1.0) for a in age_ints]
+        return batch_ages.new_tensor(weights)
+
     print(
         f"Using dataset root: {active_root}\n"
         f"Saving artifacts to: {output_dir}\n"
@@ -361,7 +447,14 @@ def main() -> None:
             images, ages = images.to(DEVICE), ages.to(DEVICE)
             optimizer.zero_grad()
             pred_mean, pred_log_var = model(images)
-            base_loss = weighted_regression_loss(pred_mean, pred_log_var, ages, loss_weights)
+            sample_weights = _build_age_weight_tensor(ages)
+            base_loss = weighted_regression_loss(
+                pred_mean,
+                pred_log_var,
+                ages,
+                loss_weights,
+                sample_weights=sample_weights,
+            )
             if args.loss_weight_spread > 0:
                 spread_loss = intra_user_spread_loss(pred_mean, batch_user_ids)
                 loss = base_loss + args.loss_weight_spread * spread_loss

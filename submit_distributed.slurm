@@ -41,8 +41,8 @@ WEIGHT_DECAY="${WEIGHT_DECAY:-0.1}"
 IMG_SIZE="${IMG_SIZE:-260}"
 EPOCHS="${EPOCHS:-240}"
 LOSS_WEIGHT_NLL="${LOSS_WEIGHT_NLL:-0.6}"
-LOSS_WEIGHT_MSE="${LOSS_WEIGHT_MSE:-0.25}"
-LOSS_WEIGHT_MAE="${LOSS_WEIGHT_MAE:-0.25}"
+LOSS_WEIGHT_MSE="${LOSS_WEIGHT_MSE:-0.4}"
+LOSS_WEIGHT_MAE="${LOSS_WEIGHT_MAE:-0.9}"
 LOSS_WEIGHT_SPREAD="${LOSS_WEIGHT_SPREAD:-0.3}"
 
 USER_GROUP_SIZES="${USER_GROUP_SIZES:-2}"
@@ -52,6 +52,15 @@ AGG_SIZES="${AGG_SIZES:-${EVAL_AGG_SIZES:-1 2 3 4}}"   # space-separated list, e
 AGG_SEED="${AGG_SEED:-${EVAL_AGG_SEED:-${SEED}}}"
 NUM_WORKERS="${NUM_WORKERS:-8}"
 RUN_NAME="${RUN_NAME:-image_size_260_0dot2_regularization}"
+# Age imbalance controls
+AGE_REWEIGHT="${AGE_REWEIGHT:-0}"                     # set >0 to enable inverse-frequency loss weighting
+AGE_WEIGHT_EPS="${AGE_WEIGHT_EPS:-1.0}"
+AGE_WEIGHT_POWER="${AGE_WEIGHT_POWER:-1.0}"
+AGE_WEIGHT_MIN="${AGE_WEIGHT_MIN:-0.25}"
+AGE_WEIGHT_MAX="${AGE_WEIGHT_MAX:-4.0}"
+AGE_OVERSAMPLE="${AGE_OVERSAMPLE:-0}"                 # set >0 to oversample rare ages in train split
+AGE_OVERSAMPLE_TARGET="${AGE_OVERSAMPLE_TARGET:-}"    # optional explicit target per age (int)
+AGE_OVERSAMPLE_MAX_MULT="${AGE_OVERSAMPLE_MAX_MULT:-3.0}"
 # K-fold settings (set KFOLDS > 1 to enable).
 KFOLDS="${KFOLDS:-5}"
 FOLD_SEED="${FOLD_SEED:-${SEED}}"
@@ -101,6 +110,9 @@ for USER_GROUP_SIZE in ${USER_GROUP_SIZES}; do
             --user-group-size "${USER_GROUP_SIZE}" \
             --eval-aggregation-sizes ${AGG_SIZES} \
             --eval-aggregation-seed "${AGG_SEED_EFF}" \
+            $( [[ "${AGE_REWEIGHT}" -gt 0 ]] && echo "--age-reweight-loss --age-weight-eps ${AGE_WEIGHT_EPS} --age-weight-power ${AGE_WEIGHT_POWER} --age-weight-min ${AGE_WEIGHT_MIN} --age-weight-max ${AGE_WEIGHT_MAX}" ) \
+            $( [[ "${AGE_OVERSAMPLE}" -gt 0 ]] && echo "--age-oversample --age-oversample-max-multiplier ${AGE_OVERSAMPLE_MAX_MULT}" ) \
+            $( [[ -n "${AGE_OVERSAMPLE_TARGET}" ]] && echo "--age-oversample-target ${AGE_OVERSAMPLE_TARGET}" ) \
             --fold-file "${FOLD_FILE}" \
             --fold-index "${FOLD_IDX}" \
             --dist-backend nccl
@@ -141,6 +153,9 @@ for USER_GROUP_SIZE in ${USER_GROUP_SIZES}; do
           --user-group-size "${USER_GROUP_SIZE}" \
           --eval-aggregation-sizes ${AGG_SIZES} \
           --eval-aggregation-seed "${AGG_SEED_EFF}" \
+          $( [[ "${AGE_REWEIGHT}" -gt 0 ]] && echo "--age-reweight-loss --age-weight-eps ${AGE_WEIGHT_EPS} --age-weight-power ${AGE_WEIGHT_POWER} --age-weight-min ${AGE_WEIGHT_MIN} --age-weight-max ${AGE_WEIGHT_MAX}" ) \
+          $( [[ "${AGE_OVERSAMPLE}" -gt 0 ]] && echo "--age-oversample --age-oversample-max-multiplier ${AGE_OVERSAMPLE_MAX_MULT}" ) \
+          $( [[ -n "${AGE_OVERSAMPLE_TARGET}" ]] && echo "--age-oversample-target ${AGE_OVERSAMPLE_TARGET}" ) \
           --dist-backend nccl
         echo ">>> Training for ${MODEL_NAME} seed=${SEED_VAL} complete. Artifacts in ${RUN_OUT}"
       fi

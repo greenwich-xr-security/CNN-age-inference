@@ -1056,6 +1056,16 @@ def main() -> None:
         )
         if saved_hist:
             print(f"[Rank 0] Saved per-user age histograms to {saved_hist}")
+        hist_samples_path = output_dir / "age_distribution_samples_ddp.png"
+        saved_hist_samples = DisplayUtils.plot_age_histograms(
+            train_dataset.records["age"].to_numpy(),
+            val_dataset.records["age"].to_numpy(),
+            save_path=hist_samples_path,
+            show=False,
+            title="Per-sample age distribution (train vs val, DDP)",
+        )
+        if saved_hist_samples:
+            print(f"[Rank 0] Saved per-sample age histograms to {saved_hist_samples}")
 
         # Final challenge-threshold table using best checkpoint on rank 0
         if best_model_path.exists():

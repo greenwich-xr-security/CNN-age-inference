@@ -863,6 +863,17 @@ def main() -> None:
     )
     if saved_hist:
         print(f"Saved per-user age histograms to {saved_hist}")
+    # Save per-sample age distribution histograms for train/test splits
+    hist_samples_path = output_dir / "age_distribution_samples.png"
+    saved_hist_samples = DisplayUtils.plot_age_histograms(
+        train_meta["age"].to_numpy(),
+        test_meta["age"].to_numpy(),
+        save_path=hist_samples_path,
+        show=False,
+        title="Per-sample age distribution (train vs test)",
+    )
+    if saved_hist_samples:
+        print(f"Saved per-sample age histograms to {saved_hist_samples}")
     # Final challenge-threshold table (single evaluation pass using best model)
     if best_model_path.exists():
         print("Computing challenge-threshold FPR table on test set using best model...")

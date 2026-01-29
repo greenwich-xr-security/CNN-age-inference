@@ -158,6 +158,11 @@ def parse_args() -> argparse.Namespace:
         help="Cap on per-age growth factor during oversampling (default: 3.0).",
     )
     parser.add_argument(
+        "--use-masks",
+        action="store_true",
+        help="Apply dataset masks (if available) to black out backgrounds during loading.",
+    )
+    parser.add_argument(
         "--epochs",
         type=int,
         default=DEFAULT_EPOCHS,
@@ -364,7 +369,7 @@ def build_datasets(args: argparse.Namespace, seed: int, img_size: int):
             print(f"[data] Oversampled train set from {before} to {len(train_meta)} samples.")
 
     train_ds = AgeDataset(train_meta, transform=train_transform)
-    val_ds = AgeDataset(val_meta, transform=test_transform)
+    val_ds = AgeDataset(val_meta, transform=test_transform, use_masks=args.use_masks)
     return train_ds, val_ds, active_root, len(train_meta), len(val_meta), fold_info
 
 
@@ -550,6 +555,7 @@ def main() -> None:
             fp.write(f"resolved_age_oversample={int(args.age_oversample)}\n")
             fp.write(f"resolved_age_oversample_target={args.age_oversample_target}\n")
             fp.write(f"resolved_age_oversample_max_multiplier={args.age_oversample_max_multiplier}\n")
+            fp.write(f"resolved_use_masks={int(args.use_masks)}\n")
         if combined_records is not None:
             _append_dataset_stats(config_path, "dataset", combined_records)
         print(

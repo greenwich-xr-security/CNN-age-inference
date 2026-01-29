@@ -177,6 +177,11 @@ def main() -> None:
         help="Cap on per-age growth factor during oversampling (default: 3.0).",
     )
     parser.add_argument(
+        "--use-masks",
+        action="store_true",
+        help="Apply dataset masks (if available) to black out backgrounds during loading.",
+    )
+    parser.add_argument(
         "--epochs",
         type=int,
         default=DEFAULT_EPOCHS,
@@ -356,6 +361,7 @@ def main() -> None:
         fp.write(f"resolved_age_oversample={int(args.age_oversample)}\n")
         fp.write(f"resolved_age_oversample_target={args.age_oversample_target}\n")
         fp.write(f"resolved_age_oversample_max_multiplier={args.age_oversample_max_multiplier}\n")
+        fp.write(f"resolved_use_masks={int(args.use_masks)}\n")
     train_transform, test_transform = build_transforms(img_size)
     metadata = filter_metadata(
         load_combined_metadata(root=active_root),
@@ -451,8 +457,8 @@ def main() -> None:
         )
     else:
         print("Split mode: Unstratified per-user split (random).")
-    train_ds = AgeDataset(train_meta, transform=train_transform)
-    test_ds = AgeDataset(test_meta, transform=test_transform)
+    train_ds = AgeDataset(train_meta, transform=train_transform, use_masks=args.use_masks)
+    test_ds = AgeDataset(test_meta, transform=test_transform, use_masks=args.use_masks)
     train_sampler = GroupedBatchSampler(
         train_ds.records["user_id"].tolist(),
         batch_size=args.batch_size,

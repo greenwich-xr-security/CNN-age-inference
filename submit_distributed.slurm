@@ -70,6 +70,7 @@ EMBED_DIM="${EMBED_DIM:-16}"
 EMBED_AGE_SLACK="${EMBED_AGE_SLACK:-5.0}"
 EMBED_CONTRAST_MARGIN="${EMBED_CONTRAST_MARGIN:-1.0}"
 EMBED_CONTRAST_AGE_THRESH="${EMBED_CONTRAST_AGE_THRESH:-5.0}"
+USE_MASKS="${USE_MASKS:-0}"                        # set >0 to apply dataset masks (black background)
 # K-fold settings (set KFOLDS > 1 to enable).
 KFOLDS="${KFOLDS:-5}"
 FOLD_SEED="${FOLD_SEED:-${SEED}}"
@@ -125,6 +126,7 @@ for USER_GROUP_SIZE in ${USER_GROUP_SIZES}; do
             --embed-age-slack "${EMBED_AGE_SLACK}" \
             --embed-contrast-margin "${EMBED_CONTRAST_MARGIN}" \
             --embed-contrast-age-thresh "${EMBED_CONTRAST_AGE_THRESH}" \
+            $( [[ "${USE_MASKS}" -gt 0 ]] && echo "--use-masks" ) \
             $( [[ "${AGE_REWEIGHT}" -gt 0 ]] && echo "--age-reweight-loss --age-weight-eps ${AGE_WEIGHT_EPS} --age-weight-power ${AGE_WEIGHT_POWER} --age-weight-min ${AGE_WEIGHT_MIN} --age-weight-max ${AGE_WEIGHT_MAX}" ) \
             $( [[ "${AGE_OVERSAMPLE}" -gt 0 ]] && echo "--age-oversample --age-oversample-max-multiplier ${AGE_OVERSAMPLE_MAX_MULT}" ) \
             $( [[ -n "${AGE_OVERSAMPLE_TARGET}" ]] && echo "--age-oversample-target ${AGE_OVERSAMPLE_TARGET}" ) \
@@ -174,6 +176,7 @@ for USER_GROUP_SIZE in ${USER_GROUP_SIZES}; do
           --embed-age-slack "${EMBED_AGE_SLACK}" \
           --embed-contrast-margin "${EMBED_CONTRAST_MARGIN}" \
           --embed-contrast-age-thresh "${EMBED_CONTRAST_AGE_THRESH}" \
+          $( [[ "${USE_MASKS}" -gt 0 ]] && echo "--use-masks" ) \
           $( [[ "${AGE_REWEIGHT}" -gt 0 ]] && echo "--age-reweight-loss --age-weight-eps ${AGE_WEIGHT_EPS} --age-weight-power ${AGE_WEIGHT_POWER} --age-weight-min ${AGE_WEIGHT_MIN} --age-weight-max ${AGE_WEIGHT_MAX}" ) \
           $( [[ "${AGE_OVERSAMPLE}" -gt 0 ]] && echo "--age-oversample --age-oversample-max-multiplier ${AGE_OVERSAMPLE_MAX_MULT}" ) \
           $( [[ -n "${AGE_OVERSAMPLE_TARGET}" ]] && echo "--age-oversample-target ${AGE_OVERSAMPLE_TARGET}" ) \

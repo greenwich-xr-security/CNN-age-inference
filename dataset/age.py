@@ -15,18 +15,66 @@ from displayUtils import DisplayUtils
 class AgeDataset(Dataset):
     """Simple age regression dataset that supports optional bbox cropping."""
 
-    def __init__(self, records: pd.DataFrame, transform=None):
+    def __init__(self, records: pd.DataFrame, transform=None, use_masks: bool = False):
         self.records = records.reset_index(drop=True)
         self.transform = transform
+        self.use_masks = bool(use_masks)
 
     def __len__(self):
         return len(self.records)
+
+    @staticmethod
+    def _resolve_mask_path(image_path: Path) -> Optional[Path]:
+        """Infer a mask path from the image path based on known dataset layouts."""
+        parent = image_path.parent
+        name = image_path.name
+
+        # If explicit mask_path column exists in records, caller should pass it; this is heuristic fallback.
+        candidates = []
+        # handRGBD: rgb / rgb_jpg -> rgb_mask
+        if parent.name in ("rgb", "rgb_jpg"):
+            candidates.append(parent.with_name(f"{parent.name}_mask") / name)
+        # 11kHands: Hands -> Masks
+        if parent.name.lower() == "hands":
+            candidates.append(parent.with_name("Masks") / name)
+        # archive: Photos -> Masks
+        if parent.name.lower() == "photos":
+            candidates.append(parent.with_name("Masks") / name)
+
+        for cand in candidates:
+            if cand.is_file():
+                return cand
+        return None
 
     def __getitem__(self, idx):
         row = self.records.iloc[idx]
         image_path: Path = row["image_path"]
         age = float(row["age"])
         image = Image.open(image_path).convert("RGB")
+
+        # Optional: apply binary mask to zero-out background
+        mask_img = None
+        if self.use_masks:
+            explicit = row.get("mask_path") if isinstance(row, pd.Series) else None
+            if explicit is not None and isinstance(explicit, (str, Path)) and str(explicit):
+                cand = Path(explicit)
+                if cand.is_file():
+                    mask_img = cand
+            if mask_img is None:
+                mask_path = self._resolve_mask_path(image_path)
+                if mask_path is not None:
+                    mask_img = mask_path
+            if mask_img is not None:
+                try:
+                    mask = Image.open(mask_img).convert("L")
+                    # binarize
+                    mask = mask.point(lambda p: 255 if p >= 128 else 0)
+                    # apply
+                    mask_rgb = Image.merge("RGB", (mask, mask, mask))
+                    image = Image.composite(image, Image.new("RGB", image.size, (0, 0, 0)), mask_rgb)
+                except Exception:
+                    # if masking fails, fall back to original image
+                    pass
 
         # Optional: crop to square bbox with padding if available
         bbox: Optional[list | tuple] = row.get("bbox")

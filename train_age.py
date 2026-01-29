@@ -348,6 +348,14 @@ def main() -> None:
         fp.write(f"resolved_embed_age_slack={args.embed_age_slack}\n")
         fp.write(f"resolved_embed_contrast_margin={args.embed_contrast_margin}\n")
         fp.write(f"resolved_embed_contrast_age_thresh={args.embed_contrast_age_thresh}\n")
+        fp.write(f"resolved_age_reweight_loss={int(args.age_reweight_loss)}\n")
+        fp.write(f"resolved_age_weight_eps={args.age_weight_eps}\n")
+        fp.write(f"resolved_age_weight_power={args.age_weight_power}\n")
+        fp.write(f"resolved_age_weight_min={args.age_weight_min}\n")
+        fp.write(f"resolved_age_weight_max={args.age_weight_max}\n")
+        fp.write(f"resolved_age_oversample={int(args.age_oversample)}\n")
+        fp.write(f"resolved_age_oversample_target={args.age_oversample_target}\n")
+        fp.write(f"resolved_age_oversample_max_multiplier={args.age_oversample_max_multiplier}\n")
     train_transform, test_transform = build_transforms(img_size)
     metadata = filter_metadata(
         load_combined_metadata(root=active_root),

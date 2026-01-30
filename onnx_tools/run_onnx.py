@@ -41,7 +41,10 @@ def main() -> None:
     img_size = args.size or _infer_img_size(session) or 224
     input_name = session.get_inputs()[0].name
     inputs = {input_name: _prepare_image(Path(args.image), img_size)}
-    mean, log_var = session.run(None, inputs)
+    outputs = session.run(None, inputs)
+    if len(outputs) < 2:
+        raise RuntimeError("ONNX model did not return mean/log_var outputs.")
+    mean, log_var = outputs[0], outputs[1]
 
     mean_val = float(np.asarray(mean).reshape(-1)[0])
     log_var_val = float(np.asarray(log_var).reshape(-1)[0])

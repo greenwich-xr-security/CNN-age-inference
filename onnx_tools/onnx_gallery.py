@@ -490,7 +490,10 @@ def _pixmap_from_pil(img: Image.Image) -> QtGui.QPixmap:
 
 def _run_inference(session: ort.InferenceSession, input_name: str, arr: np.ndarray) -> tuple[float, float]:
     inputs = {input_name: arr}
-    mean, log_var = session.run(None, inputs)
+    outputs = session.run(None, inputs)
+    if len(outputs) < 2:
+        raise RuntimeError("ONNX model did not return mean/log_var outputs.")
+    mean, log_var = outputs[0], outputs[1]
 
     mean_val = float(np.asarray(mean).reshape(-1)[0])
     log_var_val = float(np.asarray(log_var).reshape(-1)[0])

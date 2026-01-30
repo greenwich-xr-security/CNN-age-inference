@@ -139,6 +139,20 @@ def _load_checkpoint(model: torch.nn.Module, checkpoint_path: Path) -> None:
         )
 
 
+def _infer_output_names(model: torch.nn.Module, dummy_input: torch.Tensor) -> list[str]:
+    with torch.no_grad():
+        outputs = model(dummy_input)
+    if isinstance(outputs, (tuple, list)):
+        count = len(outputs)
+    else:
+        count = 1
+    if count == 2:
+        return ["mean", "log_var"]
+    if count == 3:
+        return ["mean", "log_var", "embedding"]
+    return [f"output_{idx}" for idx in range(count)]
+
+
 def _export_onnx(
     model: torch.nn.Module,
     dummy_input: torch.Tensor,
@@ -147,14 +161,12 @@ def _export_onnx(
     dynamic_batch: bool,
 ) -> None:
     input_names = ["input"]
-    output_names = ["mean", "log_var"]
+    output_names = _infer_output_names(model, dummy_input)
     dynamic_axes = None
     if dynamic_batch:
-        dynamic_axes = {
-            "input": {0: "batch"},
-            "mean": {0: "batch"},
-            "log_var": {0: "batch"},
-        }
+        dynamic_axes = {"input": {0: "batch"}}
+        for name in output_names:
+            dynamic_axes[name] = {0: "batch"}
     torch.onnx.export(
         model,
         dummy_input,

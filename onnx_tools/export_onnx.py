@@ -27,6 +27,12 @@ def _parse_args() -> argparse.Namespace:
         help="EfficientNet variant: b0-b7, v2_s, v2_m, v2_l.",
     )
     parser.add_argument(
+        "--embed-dim",
+        type=int,
+        default=0,
+        help="Embedding head dimension used during training (default: 0).",
+    )
+    parser.add_argument(
         "--checkpoint",
         type=str,
         default=None,
@@ -211,7 +217,7 @@ def main() -> int:
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     device = torch.device(args.device)
-    model = EfficientNetAgeRegressor(model_key)
+    model = EfficientNetAgeRegressor(model_key, embed_dim=args.embed_dim)
     if args.checkpoint:
         _load_checkpoint(model, Path(args.checkpoint))
     model.eval()

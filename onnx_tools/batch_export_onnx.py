@@ -52,6 +52,12 @@ def parse_args() -> argparse.Namespace:
         help="EfficientNet variant override (b0-b7, v2_s/m/l). If omitted, inferred from path.",
     )
     parser.add_argument(
+        "--embed-dim",
+        type=int,
+        default=0,
+        help="Embedding head dimension used during training (default: 0).",
+    )
+    parser.add_argument(
         "--opset",
         type=int,
         default=15,
@@ -157,7 +163,7 @@ def export_checkpoint(
 ) -> None:
     img_size = _resolve_img_size(model_key, args.img_size)
     device = torch.device(args.device)
-    model = EfficientNetAgeRegressor(model_key)
+    model = EfficientNetAgeRegressor(model_key, embed_dim=args.embed_dim)
     _load_checkpoint(model, checkpoint)
     model.eval()
 

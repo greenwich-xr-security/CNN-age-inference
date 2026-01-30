@@ -236,6 +236,14 @@ def compute_mae_by_bin(
     return np.asarray(maes, dtype=float), np.asarray(counts, dtype=int)
 
 
+def compute_overall_metrics(targets: np.ndarray, preds: np.ndarray) -> tuple[float, float]:
+    abs_err = np.abs(preds - targets)
+    sq_err = (preds - targets) ** 2
+    mae = float(np.mean(abs_err)) if abs_err.size else float("nan")
+    rmse = float(np.sqrt(np.mean(sq_err))) if sq_err.size else float("nan")
+    return mae, rmse
+
+
 def collect_intra_user_variability(
     targets: np.ndarray, preds: np.ndarray, user_ids: np.ndarray
 ) -> tuple[np.ndarray, np.ndarray]:
@@ -399,6 +407,82 @@ def main() -> None:
     ]
     bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2.0
 
+    overall_rows = []
+    for run_name, payload in run_data.items():
+        mae, rmse = compute_overall_metrics(payload["targets"], payload["preds"])
+        run_data[run_name]["overall_mae"] = mae
+        run_data[run_name]["overall_rmse"] = rmse
+        overall_rows.append({"run": run_name, "mae": mae, "rmse": rmse})
+
+    overall_intra_rows = []
+    for run_name, payload in variability_data.items():
+        user_ages, user_stds = collect_intra_user_variability(
+            payload["targets"], payload["preds"], payload["user_ids"]
+        )
+        if user_stds.size:
+            overall_std = float(np.mean(user_stds))
+        else:
+            overall_std = float("nan")
+        variability_data[run_name]["overall_std"] = overall_std
+        overall_intra_rows.append({"run": run_name, "intra_std": overall_std})
+
+    overall_csv = output_dir / "overall_metrics_compare.csv"
+    with overall_csv.open("w", encoding="utf-8") as fp:
+        fp.write("run,mae,rmse,intra_user_std\n")
+        for run_name in run_data.keys():
+            mae = run_data[run_name]["overall_mae"]
+            rmse = run_data[run_name]["overall_rmse"]
+            intra = (
+                variability_data.get(run_name, {}).get("overall_std", float("nan"))
+                if not args.skip_variability
+                else float("nan")
+            )
+            mae_val = f"{mae:.6f}" if np.isfinite(mae) else ""
+            rmse_val = f"{rmse:.6f}" if np.isfinite(rmse) else ""
+            intra_val = f"{intra:.6f}" if np.isfinite(intra) else ""
+            fp.write(f"{run_name},{mae_val},{rmse_val},{intra_val}\n")
+
+    run_names = list(run_data.keys())
+    x = np.arange(len(run_names))
+    bar_width = 0.25
+    fig, ax = plt.subplots(figsize=(10, 5))
+    ax.bar(
+        x - bar_width,
+        [run_data[name]["overall_mae"] for name in run_names],
+        width=bar_width,
+        label="MAE",
+        color="#1f77b4",
+    )
+    ax.bar(
+        x,
+        [run_data[name]["overall_rmse"] for name in run_names],
+        width=bar_width,
+        label="RMSE",
+        color="#ff7f0e",
+    )
+    if not args.skip_variability:
+        intra_vals = [
+            variability_data.get(name, {}).get("overall_std", float("nan"))
+            for name in run_names
+        ]
+        ax.bar(
+            x + bar_width,
+            intra_vals,
+            width=bar_width,
+            label="Intra-user STD",
+            color="#2ca02c",
+        )
+    ax.set_xticks(x)
+    ax.set_xticklabels(run_names, rotation=20, ha="right")
+    ax.set_ylabel("Error (years)")
+    ax.set_title("Overall MAE/RMSE/Intra-user STD (aggregated across folds)")
+    ax.grid(True, axis="y", linestyle="--", linewidth=0.5, alpha=0.4)
+    ax.legend()
+    fig.tight_layout()
+    overall_plot = output_dir / "overall_metrics_compare.png"
+    fig.savefig(overall_plot, dpi=150)
+    plt.close(fig)
+
     rows = []
     for run_name, payload in run_data.items():
         targets = payload["targets"]
@@ -451,6 +535,8 @@ def main() -> None:
     fig.savefig(plot_path, dpi=150)
     plt.close(fig)
 
+    print(f"Saved: {overall_plot}")
+    print(f"Saved: {overall_csv}")
     print(f"Saved: {plot_path}")
     print(f"Saved: {csv_path}")
 

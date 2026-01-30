@@ -226,6 +226,8 @@ def _build_items(
     cam_checkpoint: Path | None = None,
     cam_layer_name: str | None = None,
     cam_method: str = "gradcam",
+    noise_std: float = 0.0,
+    noise_runs: int = 1,
 ) -> tuple[list[tuple], int, int, str, list[float], float | None]:
     shown_limit = len(records) if max_items is None else max(0, max_items)
     total_count = len(records)
@@ -235,6 +237,10 @@ def _build_items(
 
     items = []
     predictions: list[float] = []
+    noise_std = float(noise_std)
+    noise_runs = int(noise_runs)
+    use_noise = noise_std > 0 and noise_runs >= 1
+    rng = np.random.default_rng() if use_noise else None
     for idx, row in records.iterrows():
         image_path = Path(row["image_path"])
         mask_path = None
@@ -249,14 +255,27 @@ def _build_items(
             continue
         try:
             if idx < shown_limit:
-                arr, preview, metrics, hist = _prepare_variant(image_path, mask_path, img_size)
+                arr, preview, metrics, hist, base_arr = _prepare_variant(
+                    image_path, mask_path, img_size
+                )
             else:
                 base_arr, _ = _load_masked_base(image_path, mask_path)
                 arr = _prepare_inference_input(base_arr, img_size)
                 preview = None
                 metrics = None
                 hist = None
-            age_pred, std_val = _run_inference(session, input_name, arr)
+            if use_noise:
+                age_pred, std_val = _run_noisy_inference(
+                    session,
+                    input_name,
+                    base_arr,
+                    img_size,
+                    noise_std,
+                    noise_runs,
+                    rng,
+                )
+            else:
+                age_pred, std_val = _run_inference(session, input_name, arr)
         except Exception as exc:
             print(f"[gallery] Skipping {image_path}: {exc}", file=sys.stderr)
             continue
@@ -364,13 +383,31 @@ def _load_masked_base(
     return base_arr, mask_arr
 
 
-def _prepare_inference_input(base_arr: np.ndarray, size: int) -> np.ndarray:
+def _resize_to_float(base_arr: np.ndarray, size: int) -> np.ndarray:
     preview = Image.fromarray(base_arr, mode="RGB")
     resized = preview.resize((size, size), Image.BILINEAR)
-    arr = np.asarray(resized, dtype=np.float32) / 255.0
+    return np.asarray(resized, dtype=np.float32) / 255.0
+
+
+def _normalize_to_input(arr: np.ndarray) -> np.ndarray:
     arr = (arr - IMAGENET_MEAN) / IMAGENET_STD
     arr = np.transpose(arr, (2, 0, 1))[None, ...]
     return np.ascontiguousarray(arr)
+
+
+def _prepare_inference_input(base_arr: np.ndarray, size: int) -> np.ndarray:
+    arr = _resize_to_float(base_arr, size)
+    return _normalize_to_input(arr)
+
+
+def _prepare_inference_input_with_noise(
+    base_arr: np.ndarray, size: int, noise_std: float, rng: np.random.Generator
+) -> np.ndarray:
+    arr = _resize_to_float(base_arr, size)
+    if noise_std > 0:
+        noise = rng.normal(0.0, noise_std, size=arr.shape).astype(np.float32)
+        arr = np.clip(arr + noise, 0.0, 1.0)
+    return _normalize_to_input(arr)
 
 
 def _find_matching_file(root: Path, name: str) -> Path | None:
@@ -465,7 +502,7 @@ def _histogram_pixmap(hist: np.ndarray, width: int, height: int) -> QtGui.QPixma
 
 def _prepare_variant(
     image_path: Path, mask_path: Path | None, size: int, mask_threshold: int = MASK_THRESHOLD
-) -> tuple[np.ndarray, Image.Image, dict[str, float], np.ndarray]:
+) -> tuple[np.ndarray, Image.Image, dict[str, float], np.ndarray, np.ndarray]:
     base_arr, mask_arr = _load_masked_base(image_path, mask_path, mask_threshold)
     preview = Image.fromarray(base_arr, mode="RGB")
     metrics = compute_exposure_metrics(
@@ -477,7 +514,7 @@ def _prepare_variant(
     hist = _compute_luma_histogram(base_arr, mask_arr, mask_threshold)
 
     arr = _prepare_inference_input(base_arr, size)
-    return arr, preview, metrics, hist
+    return arr, preview, metrics, hist, base_arr
 
 
 def _pixmap_from_pil(img: Image.Image) -> QtGui.QPixmap:
@@ -499,6 +536,38 @@ def _run_inference(session: ort.InferenceSession, input_name: str, arr: np.ndarr
     log_var_val = float(np.asarray(log_var).reshape(-1)[0])
     std_val = float(np.exp(0.5 * log_var_val))
     return mean_val, std_val
+
+
+def _run_noisy_inference(
+    session: ort.InferenceSession,
+    input_name: str,
+    base_arr: np.ndarray,
+    size: int,
+    noise_std: float,
+    runs: int,
+    rng: np.random.Generator | None = None,
+) -> tuple[float, float]:
+    if runs <= 1:
+        if noise_std > 0:
+            rng = rng or np.random.default_rng()
+            arr = _prepare_inference_input_with_noise(base_arr, size, noise_std, rng)
+        else:
+            arr = _prepare_inference_input(base_arr, size)
+        return _run_inference(session, input_name, arr)
+
+    if noise_std <= 0:
+        arr = _prepare_inference_input(base_arr, size)
+        return _run_inference(session, input_name, arr)
+
+    rng = rng or np.random.default_rng()
+    means: list[float] = []
+    stds: list[float] = []
+    for _ in range(runs):
+        arr = _prepare_inference_input_with_noise(base_arr, size, noise_std, rng)
+        mean_val, std_val = _run_inference(session, input_name, arr)
+        means.append(mean_val)
+        stds.append(std_val)
+    return float(np.mean(means)), float(np.mean(stds))
 
 
 class ClickableLabel(QtWidgets.QLabel):
@@ -1029,6 +1098,27 @@ class Gallery(QtWidgets.QWidget):
         top_row.addWidget(stats_host)
         gallery_layout.addLayout(top_row)
 
+        noise_row = QtWidgets.QHBoxLayout()
+        noise_row.addWidget(QtWidgets.QLabel("Noise σ:"))
+        self.noise_std_spin = QtWidgets.QDoubleSpinBox()
+        self.noise_std_spin.setRange(0.0, 0.5)
+        self.noise_std_spin.setDecimals(3)
+        self.noise_std_spin.setSingleStep(0.01)
+        self.noise_std_spin.setValue(0.0)
+        self.noise_std_spin.setToolTip("Gaussian noise std in [0, 1] pixel space.")
+        noise_row.addWidget(self.noise_std_spin)
+        noise_row.addWidget(QtWidgets.QLabel("Runs:"))
+        self.noise_runs_spin = QtWidgets.QSpinBox()
+        self.noise_runs_spin.setRange(1, 50)
+        self.noise_runs_spin.setValue(1)
+        self.noise_runs_spin.setToolTip("Number of noisy inference attempts per image.")
+        noise_row.addWidget(self.noise_runs_spin)
+        self.noise_button = QtWidgets.QPushButton("Re-run noisy")
+        self.noise_button.clicked.connect(self._run_noisy_current)
+        noise_row.addWidget(self.noise_button)
+        noise_row.addStretch(1)
+        gallery_layout.addLayout(noise_row)
+
         self.scroll = QtWidgets.QScrollArea()
         self.scroll.setWidgetResizable(True)
         gallery_layout.addWidget(self.scroll)
@@ -1297,7 +1387,14 @@ class Gallery(QtWidgets.QWidget):
             cell_layout.addWidget(text_label)
             self.grid.addWidget(cell, row, col)
 
-    def _load_index(self, index: int) -> None:
+    def _run_noisy_current(self) -> None:
+        if self.session is None or not self.user_groups:
+            return
+        noise_std = float(self.noise_std_spin.value())
+        noise_runs = int(self.noise_runs_spin.value())
+        self._load_index(self.index, noise_std=noise_std, noise_runs=noise_runs)
+
+    def _load_index(self, index: int, *, noise_std: float = 0.0, noise_runs: int = 1) -> None:
         if not self.user_groups:
             self._render_items([])
             self.header.setText("No samples for current filters.")
@@ -1325,6 +1422,8 @@ class Gallery(QtWidgets.QWidget):
             cam_checkpoint=self.explain_checkpoint,
             cam_layer_name=getattr(self.grad_cam_runner, "layer_name", None),
             cam_method=self.explain_method,
+            noise_std=noise_std,
+            noise_runs=noise_runs,
         )
         fold_label = f"{self.fold_index}" if self.fold_index is not None else "n/a"
         explain_status = ""
@@ -1335,11 +1434,14 @@ class Gallery(QtWidgets.QWidget):
                 explain_status = " | explain=off"
             else:
                 explain_status = " | explain=on"
+        noise_status = ""
+        if noise_std and noise_std > 0:
+            noise_status = f" | noise=gauss(σ={noise_std:.3f})x{max(1, int(noise_runs))}"
         self._render_items(items)
         self.header.setText(
             f"user={user_id} | dataset={self.dataset_choice} | split={self.split_choice} "
             f"| fold={fold_label} | model={self.model_name} | input_size={self.img_size} "
-            f"| showing {shown_count}/{total_count} | true_age={true_age}{explain_status}"
+            f"| showing {shown_count}/{total_count} | true_age={true_age}{explain_status}{noise_status}"
         )
         if self.explain_error:
             self.header.setToolTip(self.explain_error)

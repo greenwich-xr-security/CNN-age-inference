@@ -55,7 +55,7 @@ MODELS="${MODELS:-${MODEL:-v2_l}}" # choices: b0-b7, v2_{s,m,l}, convnext_{tiny,
 AGG_SIZES="${AGG_SIZES:-${EVAL_AGG_SIZES:-1 2 3 4}}"   # space-separated list, e.g., "1 2 3"
 AGG_SEED="${AGG_SEED:-${EVAL_AGG_SEED:-${SEED}}}"
 NUM_WORKERS="${NUM_WORKERS:-8}"
-RUN_NAME="${RUN_NAME:-v2_small_alldata_ug4_dark_128_wd02_embed08}"
+RUN_NAME="${RUN_NAME:-v2_medium_newdata_ug4_dark_128_wd02_embed08}"
 # Age imbalance controls
 AGE_REWEIGHT="${AGE_REWEIGHT:-0}"                     # set >0 to enable inverse-frequency loss weighting
 AGE_WEIGHT_EPS="${AGE_WEIGHT_EPS:-1.0}"

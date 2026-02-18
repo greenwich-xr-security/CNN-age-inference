@@ -52,6 +52,11 @@ def parse_args() -> argparse.Namespace:
         help="EfficientNet variant override (b0-b7, v2_s/m/l). If omitted, inferred from path.",
     )
     parser.add_argument(
+        "--force-model",
+        action="store_true",
+        help="Force --model even if the checkpoint filename/path suggests a different variant.",
+    )
+    parser.add_argument(
         "--embed-dim",
         type=int,
         default=0,
@@ -235,11 +240,22 @@ def main() -> int:
     count = 0
     skipped = 0
     for checkpoint in checkpoints:
-        model_key = args.model or infer_model_key(checkpoint)
-        if model_key is None:
-            print(f"[export] Skipping {checkpoint}: unable to infer model key.")
-            skipped += 1
-            continue
+        inferred_key = infer_model_key(checkpoint)
+        if args.model:
+            if inferred_key and inferred_key != args.model and not args.force_model:
+                print(
+                    f"[export] Skipping {checkpoint}: inferred model '{inferred_key}' "
+                    f"does not match --model '{args.model}'."
+                )
+                skipped += 1
+                continue
+            model_key = args.model
+        else:
+            model_key = inferred_key
+            if model_key is None:
+                print(f"[export] Skipping {checkpoint}: unable to infer model key.")
+                skipped += 1
+                continue
         output_path = resolve_output_path(checkpoint, root, output_root)
         if output_path.exists() and not args.overwrite:
             print(f"[export] Skipping {checkpoint}: {output_path} already exists.")

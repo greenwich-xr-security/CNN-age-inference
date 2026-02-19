@@ -130,8 +130,8 @@ def generate_docs_artifacts(
     resolved_batch_size = cfg.get("resolved_batch_size") or cfg.get("batch_size") or batch_size
     resolved_embed_dim = cfg.get("resolved_embed_dim") or cfg.get("embed_dim") or embed_dim
     run_started_at = cfg.get("run_started_at", "unknown")
-    resolved_use_masks = _to_bool(cfg.get("resolved_use_masks") or cfg.get("use_masks"), default=False)
     requires_landmarks = _to_bool(cfg.get("requires_hand_landmarks"), default=True)
+    requires_masking = _to_bool(cfg.get("requires_hand_masking"), default=True)
 
     deployment = {
         "schema_version": "1.0",
@@ -172,7 +172,7 @@ def generate_docs_artifacts(
         },
         "preprocessing": {
             "requires_hand_landmarks": requires_landmarks,
-            "requires_hand_masking": resolved_use_masks,
+            "requires_hand_masking": requires_masking,
             "crop_strategy": "center_square",
             "resize": int(resolved_img_size) if str(resolved_img_size).isdigit() else resolved_img_size,
             "color_space": "rgb",

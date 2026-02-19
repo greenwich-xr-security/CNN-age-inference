@@ -88,6 +88,16 @@ def _sha256_file(path: Path) -> str:
     return h.hexdigest()
 
 
+def _to_bool(value: str | int | bool | None, default: bool = False) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, int):
+        return value != 0
+    if value is None:
+        return default
+    return str(value).strip().lower() in {"1", "true", "yes", "y", "on"}
+
+
 def generate_docs_artifacts(
     *,
     onnx_path: Path,
@@ -120,6 +130,8 @@ def generate_docs_artifacts(
     resolved_batch_size = cfg.get("resolved_batch_size") or cfg.get("batch_size") or batch_size
     resolved_embed_dim = cfg.get("resolved_embed_dim") or cfg.get("embed_dim") or embed_dim
     run_started_at = cfg.get("run_started_at", "unknown")
+    resolved_use_masks = _to_bool(cfg.get("resolved_use_masks") or cfg.get("use_masks"), default=False)
+    requires_landmarks = _to_bool(cfg.get("requires_hand_landmarks"), default=True)
 
     deployment = {
         "schema_version": "1.0",
@@ -152,6 +164,31 @@ def generate_docs_artifacts(
                 }
             ],
             "outputs": ["mean", "log_var"] + (["embedding"] if str(resolved_embed_dim) not in ("0", "", "None") else []),
+        },
+        "serving": {
+            "task": "age_regression",
+            "default": False,
+            "enabled": True,
+        },
+        "preprocessing": {
+            "requires_hand_landmarks": requires_landmarks,
+            "requires_hand_masking": resolved_use_masks,
+            "crop_strategy": "center_square",
+            "resize": int(resolved_img_size) if str(resolved_img_size).isdigit() else resolved_img_size,
+            "color_space": "rgb",
+            "normalize": {
+                "mean": [0.485, 0.456, 0.406],
+                "std": [0.229, 0.224, 0.225],
+            },
+        },
+        "postprocessing": {
+            "mean_output_name": "mean",
+            "log_var_output_name": "log_var",
+            "std_formula": "exp(0.5 * log_var)",
+        },
+        "runtime_constraints": {
+            "min_onnxruntime": "1.16.0",
+            "providers": ["CUDAExecutionProvider", "CPUExecutionProvider"],
         },
         "training": {
             "run_started_at": run_started_at,

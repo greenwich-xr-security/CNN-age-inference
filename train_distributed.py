@@ -1,7 +1,7 @@
 import argparse
 import os
 import random
-from datetime import timedelta
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import numpy as np
@@ -526,8 +526,10 @@ def main() -> None:
     if is_main:
         output_dir.mkdir(parents=True, exist_ok=True)
         config_path = output_dir / "config.txt"
+        run_started_at = datetime.now().astimezone().replace(microsecond=0).isoformat()
         with config_path.open("w", encoding="utf-8") as fp:
             fp.write("# Training configuration\n")
+            fp.write(f"run_started_at={run_started_at}\n")
             for key, value in sorted(vars(args).items()):
                 fp.write(f"{key}={value}\n")
             fp.write(f"resolved_model={model_desc}\n")

@@ -9,6 +9,7 @@ if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
 from models.efficientnet_age import EFFICIENTNET_IMG_SIZES, EfficientNetAgeRegressor
+from onnx_tools.generate_model_docs import generate_docs_artifacts
 
 # Example commands:
 #   python onnx_tools/export_onnx.py --model b2 --checkpoint runs\b2_bs32_seed204_nll0.5_mse0.25_mae0.25_ug2\b2_age_regressor_ddp.pth --output runs\b2_bs32_seed204_nll0.5_mse0.25_mae0.25_ug2\b2_age_regressor_ddp.onnx
@@ -98,6 +99,29 @@ def _parse_args() -> argparse.Namespace:
         "--keep-intermediate",
         action="store_true",
         help="Keep intermediate fp32 ONNX when producing fp16/int8 outputs.",
+    )
+    parser.add_argument(
+        "--generate-docs",
+        action="store_true",
+        help="Generate model_card.md and deployment_sheet.json next to the exported ONNX.",
+    )
+    parser.add_argument(
+        "--docs-output-dir",
+        type=str,
+        default=None,
+        help="Directory where model_card.md and deployment_sheet.json are written (default: ONNX parent).",
+    )
+    parser.add_argument(
+        "--config-path",
+        type=str,
+        default=None,
+        help="Path to run config.txt used for docs and parameter inference (default: <checkpoint parent>/config.txt, then <ONNX parent>/config.txt).",
+    )
+    parser.add_argument(
+        "--history-path",
+        type=str,
+        default=None,
+        help="Path to training history log used to populate docs (default: auto-detect in ONNX folder).",
     )
     return parser.parse_args()
 
@@ -221,18 +245,136 @@ def _quantize_int8(
     )
 
 
+def _resolve_default_history_path(folder: Path) -> Path | None:
+    candidates = [
+        folder / "history_distributed.log",
+        folder / "history.log",
+    ]
+    for cand in candidates:
+        if cand.is_file():
+            return cand
+    return None
+
+
+def _parse_run_config(path: Path | None) -> dict[str, str]:
+    if path is None or not path.is_file():
+        return {}
+    parsed: dict[str, str] = {}
+    for raw in path.read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        parsed[key.strip()] = value.strip()
+    return parsed
+
+
+def _resolve_default_config_path(checkpoint_path: Path | None, output_path: Path) -> Path:
+    if checkpoint_path is not None:
+        candidate = checkpoint_path.parent / "config.txt"
+        if candidate.is_file():
+            return candidate
+    return output_path.parent / "config.txt"
+
+
+def _arg_supplied(flag: str) -> bool:
+    return flag in sys.argv
+
+
+def _parse_int(value: str | None) -> int | None:
+    if value is None:
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _generate_docs(
+    args: argparse.Namespace,
+    output_path: Path,
+    img_size: int,
+    *,
+    effective_model: str,
+    effective_embed_dim: int,
+) -> None:
+    docs_output_dir = (
+        Path(args.docs_output_dir).expanduser().resolve()
+        if args.docs_output_dir
+        else output_path.parent
+    )
+    config_path = (
+        Path(args.config_path).expanduser().resolve()
+        if args.config_path
+        else (output_path.parent / "config.txt")
+    )
+    history_path = (
+        Path(args.history_path).expanduser().resolve()
+        if args.history_path
+        else _resolve_default_history_path(output_path.parent)
+    )
+    checkpoint_path = Path(args.checkpoint).expanduser().resolve() if args.checkpoint else None
+
+    model_card_path, deployment_path = generate_docs_artifacts(
+        onnx_path=output_path.resolve(),
+        output_dir=docs_output_dir,
+        config_path=config_path if config_path.is_file() else None,
+        history_path=history_path if history_path and history_path.is_file() else None,
+        model_name=effective_model,
+        checkpoint_path=checkpoint_path,
+        precision=args.precision,
+        opset=args.opset,
+        img_size=img_size,
+        batch_size=args.batch_size,
+        embed_dim=effective_embed_dim,
+        dynamic_batch=args.dynamic_batch,
+    )
+    print(f"[docs] Saved model card: {model_card_path}")
+    print(f"[docs] Saved deployment sheet: {deployment_path}")
+
+
 def main() -> int:
     args = _parse_args()
-    model_key = args.model.lower()
-    img_size = _resolve_img_size(model_key, args.img_size)
     output_path = Path(args.output).expanduser()
     output_path.parent.mkdir(parents=True, exist_ok=True)
+    checkpoint_path = Path(args.checkpoint).expanduser() if args.checkpoint else None
+    config_path = (
+        Path(args.config_path).expanduser()
+        if args.config_path
+        else _resolve_default_config_path(checkpoint_path, output_path)
+    )
+    run_cfg = _parse_run_config(config_path if config_path.is_file() else None)
+
+    model_key = args.model.lower()
+    if not _arg_supplied("--model"):
+        cfg_model = run_cfg.get("model")
+        if cfg_model:
+            model_key = cfg_model.lower()
+
+    embed_dim = args.embed_dim
+    if not _arg_supplied("--embed-dim"):
+        cfg_embed = _parse_int(run_cfg.get("resolved_embed_dim")) or _parse_int(run_cfg.get("embed_dim"))
+        if cfg_embed is not None:
+            embed_dim = cfg_embed
+
+    img_override = args.img_size
+    if not _arg_supplied("--img-size") and img_override is None:
+        cfg_img = _parse_int(run_cfg.get("resolved_img_size")) or _parse_int(run_cfg.get("img_size"))
+        if cfg_img is not None:
+            img_override = cfg_img
+
+    img_size = _resolve_img_size(model_key, img_override)
 
     device = torch.device(args.device)
-    model = EfficientNetAgeRegressor(model_key, embed_dim=args.embed_dim)
-    if args.checkpoint:
-        _load_checkpoint(model, Path(args.checkpoint))
+    model = EfficientNetAgeRegressor(model_key, embed_dim=embed_dim)
+    if checkpoint_path:
+        _load_checkpoint(model, checkpoint_path)
     model.eval()
+    if run_cfg:
+        print(
+            f"[export] Resolved from config {config_path}: "
+            f"model={model_key}, embed_dim={embed_dim}, img_size={img_size}"
+        )
 
     dummy_input = torch.randn(
         args.batch_size, 3, img_size, img_size, device=device
@@ -243,6 +385,14 @@ def main() -> int:
         with torch.no_grad():
             _export_onnx(model, dummy_input, output_path, args.opset, args.dynamic_batch)
         print(f"[export] Saved fp32 ONNX to {output_path}")
+        if args.generate_docs:
+            _generate_docs(
+                args,
+                output_path,
+                img_size,
+                effective_model=model_key,
+                effective_embed_dim=embed_dim,
+            )
         return 0
 
     if args.precision == "fp16":
@@ -264,6 +414,14 @@ def main() -> int:
             print(f"[export] Saved fp16 ONNX to {output_path}")
         if not args.keep_intermediate and fp32_path.exists():
             fp32_path.unlink()
+        if args.generate_docs:
+            _generate_docs(
+                args,
+                output_path,
+                img_size,
+                effective_model=model_key,
+                effective_embed_dim=embed_dim,
+            )
         return 0
 
     if args.precision == "int8":
@@ -280,6 +438,14 @@ def main() -> int:
         print(f"[export] Saved int8 ONNX to {output_path} (dynamic quantization)")
         if not args.keep_intermediate and fp32_path.exists():
             fp32_path.unlink()
+        if args.generate_docs:
+            _generate_docs(
+                args,
+                output_path,
+                img_size,
+                effective_model=model_key,
+                effective_embed_dim=embed_dim,
+            )
         return 0
 
     raise ValueError(f"Unsupported precision '{args.precision}'.")

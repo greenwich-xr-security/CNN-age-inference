@@ -100,13 +100,13 @@ def _get_or_create_release(
     target: str | None = None,
     draft: bool = False,
     prerelease: bool = False,
-) -> dict:
+) -> tuple[dict, bool]:
     get_url = f"{API_BASE}/repos/{repo}/releases/tags/{urllib.parse.quote(tag)}"
     try:
         _, data = _api_request("GET", get_url, token)
         if not isinstance(data, dict):
             raise RuntimeError("Unexpected response while fetching release.")
-        return data
+        return data, False
     except RuntimeError as exc:
         if " 404 " not in str(exc):
             raise
@@ -124,7 +124,30 @@ def _get_or_create_release(
     _, created = _api_request("POST", create_url, token, json_payload=payload)
     if not isinstance(created, dict):
         raise RuntimeError("Unexpected response while creating release.")
-    return created
+    return created, True
+
+
+def _update_release(
+    repo: str,
+    release_id: int,
+    token: str,
+    *,
+    release_name: str | None = None,
+    release_body: str | None = None,
+) -> dict:
+    payload: dict[str, object] = {}
+    if release_name is not None:
+        payload["name"] = release_name
+    if release_body is not None:
+        payload["body"] = release_body
+    if not payload:
+        raise ValueError("Nothing to update.")
+
+    url = f"{API_BASE}/repos/{repo}/releases/{release_id}"
+    _, updated = _api_request("PATCH", url, token, json_payload=payload)
+    if not isinstance(updated, dict):
+        raise RuntimeError("Unexpected response while updating release.")
+    return updated
 
 
 def _delete_asset(repo: str, asset_id: int, token: str) -> None:
@@ -165,7 +188,18 @@ def _parse_args() -> argparse.Namespace:
     p.add_argument("--repo", type=str, default=None, help="GitHub repo as owner/name. Defaults to origin remote.")
     p.add_argument("--tag", type=str, required=True, help="Release tag (created if missing).")
     p.add_argument("--release-name", type=str, default=None, help="Release title (default: tag).")
-    p.add_argument("--notes", type=str, default=None, help="Release body text when creating a release.")
+    p.add_argument(
+        "--notes",
+        type=str,
+        default=None,
+        help="Legacy alias for release body text (applied on create/update when provided).",
+    )
+    p.add_argument(
+        "--release-body",
+        type=str,
+        default=None,
+        help="Custom release body text (applied on create/update).",
+    )
     p.add_argument("--target", type=str, default=None, help="Target commitish/branch when creating a release.")
     p.add_argument("--draft", action="store_true", help="Create release as draft when new.")
     p.add_argument("--prerelease", action="store_true", help="Create release as prerelease when new.")
@@ -229,16 +263,28 @@ def main() -> int:
     elif not sha256_path.is_file():
         raise FileNotFoundError(f"SHA256 file not found (and generation disabled): {sha256_path}")
 
-    release = _get_or_create_release(
+    release_body = args.release_body if args.release_body is not None else args.notes
+
+    release, created = _get_or_create_release(
         repo=repo,
         tag=args.tag,
         token=token,
         release_name=args.release_name,
-        notes=args.notes,
+        notes=release_body,
         target=args.target,
         draft=args.draft,
         prerelease=args.prerelease,
     )
+    if not created and (args.release_name is not None or release_body is not None):
+        release_id = int(release.get("id"))
+        release = _update_release(
+            repo,
+            release_id,
+            token,
+            release_name=args.release_name,
+            release_body=release_body,
+        )
+        print("[release] Updated existing release metadata (name/body).")
     print(f"[release] Using release: {release.get('html_url')}")
 
     existing_assets = {asset.get("name"): asset for asset in release.get("assets", [])}

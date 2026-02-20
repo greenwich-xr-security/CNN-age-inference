@@ -1,11 +1,14 @@
 from .efficientnet_age import EFFICIENTNET_IMG_SIZES, EfficientNetAgeRegressor
 from .convnext_age import CONVNEXT_IMG_SIZES, ConvNeXtAgeRegressor
+from .vit_age import VIT_IMG_SIZES, ViTAgeRegressor
 
 __all__ = [
     "EFFICIENTNET_IMG_SIZES",
     "EfficientNetAgeRegressor",
     "CONVNEXT_IMG_SIZES",
     "ConvNeXtAgeRegressor",
+    "VIT_IMG_SIZES",
+    "ViTAgeRegressor",
     "resolve_model_builder",
 ]
 
@@ -15,6 +18,8 @@ MODEL_ALIASES = {
     "cnb": "convnext_base",
     "cnl": "convnext_large",
     "cnx": "convnext_xlarge",
+    "vtt": "vit_tiny_384",
+    "age_vit": "vit_tiny_384",
 }
 
 
@@ -46,8 +51,20 @@ def resolve_model_builder(model_name: str, *, embed_dim: int = 0):
             name,
         )
 
+    if name.startswith("vit_"):
+        variant = name.split("_", 1)[1]
+        if variant not in VIT_IMG_SIZES:
+            raise ValueError(f"Unsupported ViT variant '{variant}'.")
+        size = VIT_IMG_SIZES[variant]
+        return (
+            lambda: ViTAgeRegressor(variant, embed_dim=embed_dim),
+            size,
+            f"ViT-{variant}",
+            name,
+        )
+
     raise ValueError(
         f"Unsupported model '{model_name}'. "
         f"Expected one of {sorted(EFFICIENTNET_IMG_SIZES)} or convnext_{{tiny,small,base,large,xlarge}} "
-        f"or aliases {sorted(MODEL_ALIASES)}."
+        f"or vit_{{tiny_384}} or aliases {sorted(MODEL_ALIASES)}."
     )

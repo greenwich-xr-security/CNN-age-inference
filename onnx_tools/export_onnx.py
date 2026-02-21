@@ -8,7 +8,7 @@ _REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-from models.efficientnet_age import EFFICIENTNET_IMG_SIZES, EfficientNetAgeRegressor
+from models import resolve_model_builder
 from onnx_tools.generate_model_docs import generate_docs_artifacts
 
 # Example commands:
@@ -19,13 +19,17 @@ from onnx_tools.generate_model_docs import generate_docs_artifacts
 
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Export EfficientNet age regressor to ONNX (Sentis-friendly)."
+        description="Export age regressor models (EfficientNet/ConvNeXt/ViT) to ONNX."
     )
     parser.add_argument(
         "--model",
         type=str,
         default="b0",
-        help="EfficientNet variant: b0-b7, v2_s, v2_m, v2_l.",
+        help=(
+            "Backbone to export. EfficientNet: b0-b7, v2_s, v2_m, v2_l. "
+            "ConvNeXt: convnext_{tiny,small,base,large,xlarge}. "
+            "ViT: vit_tiny_384. Aliases: cnt,cns,cnb,cnl,cnx,vtt,age_vit."
+        ),
     )
     parser.add_argument(
         "--embed-dim",
@@ -55,7 +59,7 @@ def _parse_args() -> argparse.Namespace:
         "--img-size",
         type=int,
         default=None,
-        help="Override input size. Defaults to the canonical EfficientNet size.",
+        help="Override input size. Defaults to the canonical size for the selected model.",
     )
     parser.add_argument(
         "--batch-size",
@@ -126,15 +130,10 @@ def _parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def _resolve_img_size(model_key: str, override: int | None) -> int:
+def _resolve_img_size(default_size: int, override: int | None) -> int:
     if override is not None:
         return override
-    if model_key not in EFFICIENTNET_IMG_SIZES:
-        raise ValueError(
-            f"Unsupported EfficientNet variant '{model_key}'. "
-            f"Expected one of {sorted(EFFICIENTNET_IMG_SIZES)}."
-        )
-    return EFFICIENTNET_IMG_SIZES[model_key]
+    return default_size
 
 
 def _strip_module_prefix(state: dict) -> dict:
@@ -363,17 +362,20 @@ def main() -> int:
         if cfg_img is not None:
             img_override = cfg_img
 
-    img_size = _resolve_img_size(model_key, img_override)
+    model_builder, default_img_size, _model_desc, resolved_model_key = resolve_model_builder(
+        model_key, embed_dim=embed_dim
+    )
+    img_size = _resolve_img_size(default_img_size, img_override)
 
     device = torch.device(args.device)
-    model = EfficientNetAgeRegressor(model_key, embed_dim=embed_dim)
+    model = model_builder()
     if checkpoint_path:
         _load_checkpoint(model, checkpoint_path)
     model.eval()
     if run_cfg:
         print(
             f"[export] Resolved from config {config_path}: "
-            f"model={model_key}, embed_dim={embed_dim}, img_size={img_size}"
+            f"model={resolved_model_key}, embed_dim={embed_dim}, img_size={img_size}"
         )
 
     dummy_input = torch.randn(
@@ -390,7 +392,7 @@ def main() -> int:
                 args,
                 output_path,
                 img_size,
-                effective_model=model_key,
+                effective_model=resolved_model_key,
                 effective_embed_dim=embed_dim,
             )
         return 0
@@ -419,7 +421,7 @@ def main() -> int:
                 args,
                 output_path,
                 img_size,
-                effective_model=model_key,
+                effective_model=resolved_model_key,
                 effective_embed_dim=embed_dim,
             )
         return 0
@@ -443,7 +445,7 @@ def main() -> int:
                 args,
                 output_path,
                 img_size,
-                effective_model=model_key,
+                effective_model=resolved_model_key,
                 effective_embed_dim=embed_dim,
             )
         return 0

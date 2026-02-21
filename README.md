@@ -33,6 +33,18 @@ The default model is `EfficientNetAgeRegressor` (`models/efficientnet_age.py`), 
 - Loss: `train_age.py` optimizes the negative log-likelihood under that Gaussian (`gaussian_nll_loss`) so the network learns both central tendency and epistemic spread.
 - Outputs: the forward pass returns `(mu, log_var)`, which downstream utilities convert into adult probabilities via Gaussian tail integration.
 
+### 3.1 Probabilistic age regression objective
+
+The network is trained as a probabilistic regressor, not a point-estimate regressor.
+
+- Predicted distribution: for each sample, the model outputs a Gaussian posterior over age with parameters `(mu, sigma^2)`.
+- Network outputs: the head predicts `(mu, log_var)`, where `log_var = log(sigma^2)` for numerical stability.
+- Training loss: age regression is optimized with Gaussian negative log-likelihood (NLL), so the model learns both:
+  - accurate age center (`mu`)
+  - calibrated uncertainty (`sigma^2`)
+
+This is the age-specific training objective used by the regression head before binary age-gate thresholding.
+
 ---
 
 ### 4. Binary age-gate evaluation

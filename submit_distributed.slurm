@@ -51,11 +51,11 @@ LOSS_WEIGHT_EMBED_CONTRAST="${LOSS_WEIGHT_EMBED_CONTRAST:-0.8}"
 
 USER_GROUP_SIZES="${USER_GROUP_SIZES:-4}"
 PATIENCE="${PATIENCE:-10}"
-MODELS="${MODELS:-${MODEL:-b7}}" # choices: b0-b7, v2_{s,m,l}, convnext_{tiny,small,base,large,xlarge}, vit_tiny_384; aliases: cnt,cns,cnb,cnl,cnx,vtt,age_vit
+MODELS="${MODELS:-${MODEL:-v2_m}}" # choices: b0-b7, v2_{s,m,l}, convnext_{tiny,small,base,large,xlarge}, vit_tiny_384; aliases: cnt,cns,cnb,cnl,cnx,vtt,age_vit
 AGG_SIZES="${AGG_SIZES:-${EVAL_AGG_SIZES:-1 2 3 4}}"   # space-separated list, e.g., "1 2 3"
 AGG_SEED="${AGG_SEED:-${EVAL_AGG_SEED:-${SEED}}}"
 NUM_WORKERS="${NUM_WORKERS:-8}"
-RUN_NAME="${RUN_NAME:-efficientnet_b7_600_ddp}"
+RUN_NAME="${RUN_NAME:-efficientnet_v2_m_600_ddp}"
 # Age imbalance controls
 AGE_REWEIGHT="${AGE_REWEIGHT:-0}"                     # set >0 to enable inverse-frequency loss weighting
 AGE_WEIGHT_EPS="${AGE_WEIGHT_EPS:-1.0}"

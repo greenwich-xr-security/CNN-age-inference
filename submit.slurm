@@ -12,7 +12,8 @@ set -euo pipefail
 module load www-proxy    # Load www-proxy for internet access (seemed required)
 module load CUDA         # Load CUDA module
 
-MODELS="${MODELS:-${MODEL:-b0 b1 b2 b3 b4 b5 b6}}" # choices: b0-b7, v2_{s,m,l}, convnext_{tiny,small,base,large,xlarge}, aliases: cnt,cns,cnb,cnl,cnx
+MODELS="${MODELS:-${MODEL:-dinov2_vits14}}" # choices: b0-b7, v2_{s,m,l}, convnext_{tiny,small,base,large,xlarge}, DINOv2: dinov2_vit{s,b,l,g}14 (+ _reg), aliases: cnt,cns,cnb,cnl,cnx,d2s,d2b,d2l,d2g
+IMG_SIZE="${IMG_SIZE:-504}"
 BATCH_SIZE="${BATCH_SIZE:-32}"
 SEED="${SEED:-42}"
 LOSS_WEIGHT_NLL="${LOSS_WEIGHT_NLL:-0.9}"
@@ -24,7 +25,7 @@ AGG_SEED="${AGG_SEED:-${EVAL_AGG_SEED:-${SEED}}}"
 AGG_LABEL=${AGG_SIZES// /-}
 
 for MODEL_NAME in ${MODELS}; do
-    FOLDER_NAME="${MODEL_NAME}_bs${BATCH_SIZE}_seed${SEED}_agg${AGG_LABEL}_nll${LOSS_WEIGHT_NLL}_mse${LOSS_WEIGHT_MSE}_mae${LOSS_WEIGHT_MAE}"
+    FOLDER_NAME="${MODEL_NAME}_img${IMG_SIZE}_bs${BATCH_SIZE}_seed${SEED}_agg${AGG_LABEL}_nll${LOSS_WEIGHT_NLL}_mse${LOSS_WEIGHT_MSE}_mae${LOSS_WEIGHT_MAE}"
     OUTPUT_DIR="/home/rb3434w/CNN-age-inference/runs/${FOLDER_NAME}"
 
     echo ">>> Starting training for model ${MODEL_NAME} (output: ${OUTPUT_DIR})"
@@ -32,6 +33,7 @@ for MODEL_NAME in ${MODELS}; do
         --data-root "/home/rb3434w/HandsDatasets" \
         --output-dir "${OUTPUT_DIR}" \
         --model "${MODEL_NAME}" \
+        --img-size "${IMG_SIZE}" \
         --batch-size "${BATCH_SIZE}" \
         --epochs 40 \
         --seed "${SEED}" \

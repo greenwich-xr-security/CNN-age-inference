@@ -84,7 +84,8 @@ def parse_args() -> argparse.Namespace:
         default=DEFAULT_MODEL_VARIANT,
         help=(
             "Backbone to use. EfficientNet: b0-b7. ConvNeXt: convnext_{tiny,small,base,large,xlarge} "
-            "or aliases cnt,cns,cnb,cnl,cnx."
+            "or aliases cnt,cns,cnb,cnl,cnx. DINOv2: dinov2_vit{s,b,l,g}14 "
+            "(or _reg) or aliases d2s,d2b,d2l,d2g."
         ),
     )
     parser.add_argument(

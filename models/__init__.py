@@ -1,11 +1,14 @@
 from .efficientnet_age import EFFICIENTNET_IMG_SIZES, EfficientNetAgeRegressor
 from .convnext_age import CONVNEXT_IMG_SIZES, ConvNeXtAgeRegressor
+from .dinov2_age import DINOv2_IMG_SIZES, DinoV2AgeRegressor
 
 __all__ = [
     "EFFICIENTNET_IMG_SIZES",
     "EfficientNetAgeRegressor",
     "CONVNEXT_IMG_SIZES",
     "ConvNeXtAgeRegressor",
+    "DINOv2_IMG_SIZES",
+    "DinoV2AgeRegressor",
     "resolve_model_builder",
 ]
 
@@ -15,6 +18,10 @@ MODEL_ALIASES = {
     "cnb": "convnext_base",
     "cnl": "convnext_large",
     "cnx": "convnext_xlarge",
+    "d2s": "dinov2_vits14",
+    "d2b": "dinov2_vitb14",
+    "d2l": "dinov2_vitl14",
+    "d2g": "dinov2_vitg14",
 }
 
 
@@ -46,8 +53,18 @@ def resolve_model_builder(model_name: str, *, embed_dim: int = 0):
             name,
         )
 
+    if name in DINOv2_IMG_SIZES:
+        size = DINOv2_IMG_SIZES[name]
+        label = name.replace("dinov2_", "DINOv2-").replace("_", "-")
+        return (
+            lambda: DinoV2AgeRegressor(name, embed_dim=embed_dim),
+            size,
+            label,
+            name,
+        )
+
     raise ValueError(
         f"Unsupported model '{model_name}'. "
         f"Expected one of {sorted(EFFICIENTNET_IMG_SIZES)} or convnext_{{tiny,small,base,large,xlarge}} "
-        f"or aliases {sorted(MODEL_ALIASES)}."
+        f"or DINOv2 variants {sorted(DINOv2_IMG_SIZES)} or aliases {sorted(MODEL_ALIASES)}."
     )

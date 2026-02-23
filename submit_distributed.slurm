@@ -17,8 +17,10 @@ PROJECT_ROOT="${PROJECT_ROOT:-$HOME/CNN-age-inference}"
 VENV_PATH="${VENV_PATH:-${PROJECT_ROOT}/.venv}"
 DATA_ROOT="${DATA_ROOT:-/home/rb3434w/HandsDatasets}"
 OUTPUT_ROOT="${OUTPUT_ROOT:-${PROJECT_ROOT}/runs}"
+TORCH_HOME="${TORCH_HOME:-${PROJECT_ROOT}/.cache/torch}"
 
-mkdir -p "${OUTPUT_ROOT}" logs
+mkdir -p "${OUTPUT_ROOT}" logs "${TORCH_HOME}"
+export TORCH_HOME
 
 if [[ -f "${VENV_PATH}/bin/activate" ]]; then
   # shellcheck disable=SC1090

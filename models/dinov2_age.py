@@ -1,9 +1,14 @@
 from __future__ import annotations
 
+import os
 from typing import Iterable
 
 import torch
 import torch.nn as nn
+try:
+    from filelock import FileLock
+except ImportError:  # pragma: no cover - best-effort lock
+    FileLock = None
 
 # DINOv2 variants available via torch.hub ("facebookresearch/dinov2").
 DINOv2_IMG_SIZES = {
@@ -18,9 +23,7 @@ DINOv2_IMG_SIZES = {
 }
 
 
-def _load_dinov2_backbone(variant: str) -> nn.Module:
-    """Load a DINOv2 backbone via torch.hub, handling API differences across torch versions."""
-    repo = "facebookresearch/dinov2"
+def _hub_load(repo: str, variant: str) -> nn.Module:
     try:
         return torch.hub.load(repo, variant, pretrained=True, trust_repo=True)
     except TypeError:
@@ -28,6 +31,19 @@ def _load_dinov2_backbone(variant: str) -> nn.Module:
             return torch.hub.load(repo, variant, pretrained=True)
         except TypeError:
             return torch.hub.load(repo, variant)
+
+
+def _load_dinov2_backbone(variant: str) -> nn.Module:
+    """Load a DINOv2 backbone via torch.hub, serializing downloads in multi-process runs."""
+    repo = "facebookresearch/dinov2"
+    cache_dir = torch.hub.get_dir()
+    if cache_dir:
+        os.makedirs(cache_dir, exist_ok=True)
+    if FileLock is not None and cache_dir:
+        lock_path = os.path.join(cache_dir, "dinov2_download.lock")
+        with FileLock(lock_path):
+            return _hub_load(repo, variant)
+    return _hub_load(repo, variant)
 
 
 def _first_tensor(values: Iterable) -> torch.Tensor | None:

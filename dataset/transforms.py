@@ -9,7 +9,7 @@ def build_transforms(img_size: int):
     train_transform = transforms.Compose(
         [
             transforms.Resize((img_size, img_size)),
-            transforms.RandomResizedCrop(img_size, scale=(0.7, 1.0)),
+            #transforms.RandomResizedCrop(img_size, scale=(0.7, 1.0)),
             transforms.RandomRotation(degrees=(-360, 360)),
             transforms.RandomHorizontalFlip(),
             transforms.RandomVerticalFlip(),

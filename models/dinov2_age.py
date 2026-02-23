@@ -65,6 +65,12 @@ class DinoV2AgeRegressor(nn.Module):
             raise ValueError("embed_dim must be non-negative.")
 
         self.backbone = _load_dinov2_backbone(variant)
+        if hasattr(self.backbone, "mask_token"):
+            # Mask token is only used for masked modeling; keep it frozen to avoid DDP unused-parameter errors.
+            try:
+                self.backbone.mask_token.requires_grad_(False)
+            except Exception:
+                pass
         self.variant = variant
         self.embed_dim = int(embed_dim)
         total_outputs = 2 + self.embed_dim

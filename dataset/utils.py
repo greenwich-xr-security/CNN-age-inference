@@ -121,6 +121,170 @@ def filter_metadata(
     return df.reset_index(drop=True)
 
 
+def _format_age_bin_label(lower: int, upper: int) -> str:
+    if lower == upper:
+        return str(int(lower))
+    return f"{int(lower)}-{int(upper)}"
+
+
+def build_user_age_strata(
+    user_ages: pd.Series,
+    *,
+    fine_bin_width: int = 2,
+    coarse_start_age: int = 51,
+    coarse_bin_width: int = 5,
+    min_count: int = 1,
+) -> pd.Series:
+    """
+    Build ordered user-level age-bin labels for split stratification.
+
+    The default strategy uses fine 2-year bins through age 50 and wider bins
+    above that, then merges adjacent sparse bins until every bin reaches
+    ``min_count`` users when possible.
+    """
+    if fine_bin_width < 1:
+        raise ValueError("fine_bin_width must be >= 1.")
+    if coarse_bin_width < 1:
+        raise ValueError("coarse_bin_width must be >= 1.")
+    if min_count < 1:
+        raise ValueError("min_count must be >= 1.")
+
+    ages = pd.Series(user_ages).dropna().astype(float).round().astype(int)
+    ages.index = ages.index.astype(str)
+    if ages.empty:
+        return pd.Series(dtype="category", name="age_stratum")
+
+    min_age = int(ages.min())
+    max_age = int(ages.max())
+    ranges: list[list[int]] = []
+
+    start = min_age
+    fine_end_age = min(max_age, int(coarse_start_age) - 1)
+    while start <= fine_end_age:
+        end = min(start + fine_bin_width - 1, fine_end_age)
+        ranges.append([start, end])
+        start = end + 1
+
+    while start <= max_age:
+        end = min(start + coarse_bin_width - 1, max_age)
+        ranges.append([start, end])
+        start = end + 1
+
+    def range_count(bounds: list[int]) -> int:
+        lower, upper = bounds
+        return int(((ages >= lower) & (ages <= upper)).sum())
+
+    while len(ranges) > 1:
+        counts = [range_count(bounds) for bounds in ranges]
+        small_positions = [idx for idx, count in enumerate(counts) if count < min_count]
+        if not small_positions:
+            break
+
+        # Prefer widening the older tail first; it is the sparsest region.
+        idx = small_positions[-1]
+        if idx == 0:
+            merge_into = 1
+        elif idx == len(ranges) - 1:
+            merge_into = idx - 1
+        else:
+            left_count = counts[idx - 1]
+            right_count = counts[idx + 1]
+            merge_into = idx - 1 if left_count <= right_count else idx + 1
+
+        if merge_into < idx:
+            ranges[merge_into][1] = ranges[idx][1]
+            del ranges[idx]
+        else:
+            ranges[merge_into][0] = ranges[idx][0]
+            del ranges[idx]
+
+    labels = pd.Series(index=ages.index, dtype="object", name="age_stratum")
+    ordered_labels: list[str] = []
+    for lower, upper in ranges:
+        label = _format_age_bin_label(lower, upper)
+        ordered_labels.append(label)
+        labels.loc[(ages >= lower) & (ages <= upper)] = label
+
+    return labels.astype(pd.CategoricalDtype(categories=ordered_labels, ordered=True))
+
+
+def summarise_user_stratification(
+    user_labels: pd.Series,
+    split_to_user_ids: dict[str, Iterable[str]],
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Summarise per-split user label distributions and simple drift metrics."""
+    labels = pd.Series(user_labels).dropna().copy()
+    labels.index = labels.index.astype(str)
+    if labels.empty:
+        empty_stats = pd.DataFrame(
+            columns=[
+                "split",
+                "stratum",
+                "users",
+                "fraction",
+                "overall_users",
+                "overall_fraction",
+                "abs_frac_diff",
+            ]
+        )
+        empty_quality = pd.DataFrame(
+            columns=["split", "total_users", "max_abs_frac_diff", "mean_abs_frac_diff"]
+        )
+        return empty_stats, empty_quality
+
+    if isinstance(labels.dtype, pd.CategoricalDtype):
+        strata = list(labels.cat.categories)
+    else:
+        strata = sorted(str(label) for label in labels.unique())
+
+    overall_counts = labels.value_counts().reindex(strata, fill_value=0)
+    overall_total = int(labels.size)
+    stats_rows: list[dict] = []
+    quality_rows: list[dict] = []
+
+    all_splits = {"overall": labels.index.tolist()}
+    all_splits.update(split_to_user_ids)
+
+    for split_name, user_ids in all_splits.items():
+        split_ids = [str(uid) for uid in user_ids]
+        split_labels = labels.reindex(split_ids).dropna()
+        split_counts = split_labels.value_counts().reindex(strata, fill_value=0)
+        split_total = int(split_labels.size)
+        abs_diffs: list[float] = []
+
+        for stratum in strata:
+            users = int(split_counts[stratum])
+            fraction = users / split_total if split_total else 0.0
+            overall_users = int(overall_counts[stratum])
+            overall_fraction = overall_users / overall_total if overall_total else 0.0
+            abs_frac_diff = abs(fraction - overall_fraction)
+            abs_diffs.append(abs_frac_diff)
+            stats_rows.append(
+                {
+                    "split": split_name,
+                    "stratum": stratum,
+                    "users": users,
+                    "fraction": fraction,
+                    "overall_users": overall_users,
+                    "overall_fraction": overall_fraction,
+                    "abs_frac_diff": abs_frac_diff,
+                }
+            )
+
+        quality_rows.append(
+            {
+                "split": split_name,
+                "total_users": split_total,
+                "max_abs_frac_diff": max(abs_diffs) if abs_diffs else 0.0,
+                "mean_abs_frac_diff": sum(abs_diffs) / len(abs_diffs) if abs_diffs else 0.0,
+            }
+        )
+
+    stats_df = pd.DataFrame(stats_rows)
+    quality_df = pd.DataFrame(quality_rows)
+    return stats_df, quality_df
+
+
 def compute_age_weight_map(
     ages: Iterable[float] | pd.Series,
     *,
@@ -275,8 +439,9 @@ def build_held_out_test_split(
     test_size: float = 0.15,
     random_state: int = 42,
     stratify_adult: bool = True,
+    stratify_labels: pd.Series | dict[str, str] | Iterable[str] | None = None,
 ) -> tuple[list[str], list[str]]:
-    """Split users into (train_dev_ids, test_ids) stratified by adult/minor.
+    """Split users into (train_dev_ids, test_ids) with optional user-level stratification.
 
     Returns (train_dev_ids, test_ids) — both as lists of user_id strings.
     The test set is held out and must never be used during training or tuning.
@@ -284,7 +449,22 @@ def build_held_out_test_split(
     user_ids = df["user_id"].astype(str).unique()
 
     stratify = None
-    if stratify_adult:
+    if stratify_labels is not None:
+        if isinstance(stratify_labels, pd.Series):
+            aligned = stratify_labels.copy()
+            aligned.index = aligned.index.astype(str)
+            stratify = aligned.reindex(user_ids)
+            if stratify.isna().any():
+                missing = user_ids[stratify.isna().to_numpy()]
+                raise ValueError(f"Missing stratify labels for user_ids: {missing[:5].tolist()}")
+            stratify = stratify.astype(str).tolist()
+        elif isinstance(stratify_labels, dict):
+            stratify = [str(stratify_labels[str(uid)]) for uid in user_ids]
+        else:
+            stratify = [str(label) for label in stratify_labels]
+            if len(stratify) != len(user_ids):
+                raise ValueError("stratify_labels length must match the number of unique users.")
+    elif stratify_adult:
         user_age = df.groupby("user_id")["age"].mean()
         user_class = {str(uid): ("adult" if age >= 18.0 else "minor") for uid, age in user_age.items()}
         stratify = [user_class.get(uid, "adult") for uid in user_ids]

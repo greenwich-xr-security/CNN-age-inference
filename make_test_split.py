@@ -9,13 +9,16 @@ and to train_distributed.py (--test-users-file) to enforce the exclusion.
 from __future__ import annotations
 
 import argparse
+import math
 from pathlib import Path
 
 from dataset.hand_metadata import get_dataset_root, load_combined_metadata, set_dataset_root
 from dataset.utils import (
+    build_user_age_strata,
     build_held_out_test_split,
     filter_metadata,
     save_test_split,
+    summarise_user_stratification,
 )
 
 
@@ -56,7 +59,32 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--no-stratify",
         action="store_true",
-        help="Disable adult/minor stratification (not recommended).",
+        help="Disable split stratification entirely.",
+    )
+    parser.add_argument(
+        "--stratify-mode",
+        type=str,
+        default="age_bins",
+        choices=["age_bins", "adult", "none"],
+        help="User-level stratification mode (default: age_bins).",
+    )
+    parser.add_argument(
+        "--age-bin-width",
+        type=int,
+        default=2,
+        help="Width of the fine-grained user-age bins up to the coarse-age threshold (default: 2 years).",
+    )
+    parser.add_argument(
+        "--age-bin-coarse-start",
+        type=int,
+        default=51,
+        help="First age that uses coarser stratification bins (default: 51, so ages <= 50 stay in 2-year bins).",
+    )
+    parser.add_argument(
+        "--age-bin-coarse-width",
+        type=int,
+        default=5,
+        help="Width of the coarser user-age bins from --age-bin-coarse-start onward (default: 5 years).",
     )
     parser.add_argument(
         "--overwrite",
@@ -83,12 +111,27 @@ def main() -> None:
         max_samples_per_user=args.max_samples_per_user,
     )
 
-    stratify_adult = not args.no_stratify
+    stratify_mode = "none" if args.no_stratify else args.stratify_mode
+    user_age = metadata.groupby("user_id")["age"].mean()
+    stratify_labels = None
+    if stratify_mode == "age_bins":
+        min_bin_users = max(2, int(math.ceil(1.0 / min(args.test_size, 1.0 - args.test_size))))
+        stratify_labels = build_user_age_strata(
+            user_age,
+            fine_bin_width=args.age_bin_width,
+            coarse_start_age=args.age_bin_coarse_start,
+            coarse_bin_width=args.age_bin_coarse_width,
+            min_count=min_bin_users,
+        )
+    elif stratify_mode == "adult":
+        stratify_labels = (user_age >= 18.0).map(lambda x: "adult" if x else "minor")
+
     train_dev_ids, test_ids = build_held_out_test_split(
         metadata,
         test_size=args.test_size,
         random_state=args.seed,
-        stratify_adult=stratify_adult,
+        stratify_adult=False,
+        stratify_labels=stratify_labels,
     )
 
     saved_path = save_test_split(
@@ -96,7 +139,7 @@ def main() -> None:
         out_path,
         seed=args.seed,
         test_size=args.test_size,
-        stratified=stratify_adult,
+        stratified=stratify_mode != "none",
     )
 
     total_users = metadata["user_id"].nunique()
@@ -107,21 +150,33 @@ def main() -> None:
         f"Train+dev: {len(train_dev_ids)} ({len(train_dev_ids)/total_users:.1%})"
     )
 
-    if stratify_adult:
-        user_age = metadata.groupby("user_id")["age"].mean()
-        user_class = {str(uid): ("adult" if age >= 18.0 else "minor") for uid, age in user_age.items()}
-        test_adults = sum(1 for uid in test_ids if user_class.get(str(uid)) == "adult")
-        test_minors = len(test_ids) - test_adults
-        dev_adults = sum(1 for uid in train_dev_ids if user_class.get(str(uid)) == "adult")
-        dev_minors = len(train_dev_ids) - dev_adults
-        print(
-            f"Test  set — adults: {test_adults} ({test_adults/len(test_ids):.1%}), "
-            f"minors: {test_minors} ({test_minors/len(test_ids):.1%})"
+    if stratify_labels is not None:
+        stats_df, quality_df = summarise_user_stratification(
+            stratify_labels,
+            {
+                "train_dev": train_dev_ids,
+                "test": test_ids,
+            },
         )
-        print(
-            f"Dev   set — adults: {dev_adults} ({dev_adults/len(train_dev_ids):.1%}), "
-            f"minors: {dev_minors} ({dev_minors/len(train_dev_ids):.1%})"
-        )
+        stats_path = saved_path.with_name(saved_path.stem + "_strat_stats.csv")
+        quality_path = saved_path.with_name(saved_path.stem + "_strat_quality.csv")
+        stats_df.to_csv(stats_path, index=False)
+        quality_df.to_csv(quality_path, index=False)
+        print(f"Stratification mode: {stratify_mode}")
+        print(f"Stratification stats written to: {stats_path}")
+        print(f"Stratification quality written to: {quality_path}")
+        if stratify_mode == "age_bins":
+            bins = ", ".join(str(label) for label in stratify_labels.cat.categories)
+            print(f"User age bins: {bins}")
+        for split_name in ("train_dev", "test"):
+            row = quality_df[quality_df["split"] == split_name]
+            if row.empty:
+                continue
+            row = row.iloc[0]
+            print(
+                f"{split_name} — max abs frac diff: {row['max_abs_frac_diff']:.4f}, "
+                f"mean abs frac diff: {row['mean_abs_frac_diff']:.4f}"
+            )
 
 
 if __name__ == "__main__":

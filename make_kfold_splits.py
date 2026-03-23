@@ -6,7 +6,14 @@ import argparse
 from pathlib import Path
 
 from dataset.hand_metadata import get_dataset_root, load_combined_metadata, set_dataset_root
-from dataset.utils import build_kfold_user_splits, filter_metadata, load_test_split, save_kfold_splits
+from dataset.utils import (
+    build_kfold_user_splits,
+    build_user_age_strata,
+    filter_metadata,
+    load_test_split,
+    save_kfold_splits,
+    summarise_user_stratification,
+)
 
 
 def parse_args() -> argparse.Namespace:
@@ -56,9 +63,39 @@ def parse_args() -> argparse.Namespace:
         help="Allow overwriting an existing fold file.",
     )
     parser.add_argument(
+        "--no-stratify",
+        action="store_true",
+        help="Disable fold stratification entirely.",
+    )
+    parser.add_argument(
+        "--stratify-mode",
+        type=str,
+        default="age_bins",
+        choices=["age_bins", "adult", "none"],
+        help="User-level fold stratification mode (default: age_bins).",
+    )
+    parser.add_argument(
         "--stratify-adult",
         action="store_true",
-        help="Stratify folds by adult/minor (>=18 vs <18) based on user mean age.",
+        help="Deprecated alias for --stratify-mode adult.",
+    )
+    parser.add_argument(
+        "--age-bin-width",
+        type=int,
+        default=2,
+        help="Width of the fine-grained user-age bins up to the coarse-age threshold (default: 2 years).",
+    )
+    parser.add_argument(
+        "--age-bin-coarse-start",
+        type=int,
+        default=51,
+        help="First age that uses coarser stratification bins (default: 51, so ages <= 50 stay in 2-year bins).",
+    )
+    parser.add_argument(
+        "--age-bin-coarse-width",
+        type=int,
+        default=5,
+        help="Width of the coarser user-age bins from --age-bin-coarse-start onward (default: 5 years).",
     )
     return parser.parse_args()
 
@@ -88,12 +125,29 @@ def main() -> None:
             f"(from {args.test_users_file}). Remaining for k-fold: {after}"
         )
 
+    stratify_mode = "none" if args.no_stratify else ("adult" if args.stratify_adult else args.stratify_mode)
+    user_age = metadata.groupby("user_id")["age"].mean()
+    stratify_labels = None
     stratify_col = None
-    if args.stratify_adult:
-        user_age = metadata.groupby("user_id")["age"].mean()
-        user_class = (user_age >= 18.0).map(lambda x: "adult" if x else "minor")
-        metadata = metadata.merge(user_class.rename("adult_flag"), on="user_id", how="left")
-        stratify_col = "adult_flag"
+    if stratify_mode == "adult":
+        stratify_labels = (user_age >= 18.0).map(lambda x: "adult" if x else "minor")
+    elif stratify_mode == "age_bins":
+        stratify_labels = build_user_age_strata(
+            user_age,
+            fine_bin_width=args.age_bin_width,
+            coarse_start_age=args.age_bin_coarse_start,
+            coarse_bin_width=args.age_bin_coarse_width,
+            min_count=args.k,
+        )
+
+    if stratify_labels is not None:
+        metadata = metadata.merge(
+            stratify_labels.rename("stratify_label").reset_index(),
+            on="user_id",
+            how="left",
+        )
+        stratify_col = "stratify_label"
+
     folds = build_kfold_user_splits(
         metadata,
         k=args.k,
@@ -110,21 +164,30 @@ def main() -> None:
     fold_sizes = [len(fold) for fold in folds]
     print(f"Saved k-fold splits to: {saved_path}")
     print(f"Total users: {total_users} | Folds: {len(folds)} | Sizes: {fold_sizes}")
-    if args.stratify_adult:
-        # compute adult/minor counts per fold
-        user_to_class = metadata.drop_duplicates(subset="user_id").set_index("user_id")["adult_flag"]
-        rows = ["fold,adults,adults_frac,miners,miners_frac,total"]
-        for idx, fold in enumerate(folds):
-            labels = user_to_class.reindex(fold)
-            adults = int((labels == "adult").sum())
-            minors = int((labels == "minor").sum())
-            total = len(fold)
-            adults_frac = adults / total if total else 0
-            minors_frac = minors / total if total else 0
-            rows.append(f"{idx},{adults},{adults_frac:.4f},{minors},{minors_frac:.4f},{total}")
+    if stratify_labels is not None:
+        stats_df, quality_df = summarise_user_stratification(
+            stratify_labels,
+            {f"fold_{idx}": fold for idx, fold in enumerate(folds)},
+        )
         stats_path = saved_path.with_name(saved_path.stem + "_strat_stats.csv")
-        stats_path.write_text("\n".join(rows), encoding="utf-8")
-        print(f"Adult/minor stratification stats written to: {stats_path}")
+        quality_path = saved_path.with_name(saved_path.stem + "_strat_quality.csv")
+        stats_df.to_csv(stats_path, index=False)
+        quality_df.to_csv(quality_path, index=False)
+        print(f"Stratification mode: {stratify_mode}")
+        print(f"Stratification stats written to: {stats_path}")
+        print(f"Stratification quality written to: {quality_path}")
+        if stratify_mode == "age_bins":
+            bins = ", ".join(str(label) for label in stratify_labels.cat.categories)
+            print(f"User age bins: {bins}")
+        for idx in range(len(folds)):
+            row = quality_df[quality_df["split"] == f"fold_{idx}"]
+            if row.empty:
+                continue
+            row = row.iloc[0]
+            print(
+                f"fold_{idx} — max abs frac diff: {row['max_abs_frac_diff']:.4f}, "
+                f"mean abs frac diff: {row['mean_abs_frac_diff']:.4f}"
+            )
 
 
 if __name__ == "__main__":

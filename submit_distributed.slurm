@@ -76,6 +76,22 @@ KFOLDS="${KFOLDS:-5}"
 FOLD_SEED="${FOLD_SEED:-${SEED}}"
 RUN_KFOLD_AGG="${RUN_KFOLD_AGG:-1}"
 FOLD_OVERWRITE="${FOLD_OVERWRITE:-0}"
+# Held-out test split (created once before any training).
+TEST_SPLIT_FILE="${TEST_SPLIT_FILE:-${OUTPUT_ROOT}/test_users.json}"
+TEST_SPLIT_SIZE="${TEST_SPLIT_SIZE:-0.15}"
+RUN_TEST_EVAL="${RUN_TEST_EVAL:-1}"
+
+# ── Create held-out test split (once, before any training) ───────────────────
+if [[ ! -f "${TEST_SPLIT_FILE}" ]]; then
+  echo ">>> Creating held-out test split (size=${TEST_SPLIT_SIZE}) → ${TEST_SPLIT_FILE}"
+  python "${PROJECT_ROOT}/make_test_split.py" \
+    --data-root "${DATA_ROOT}" \
+    --test-size "${TEST_SPLIT_SIZE}" \
+    --seed "${SEED}" \
+    --out-file "${TEST_SPLIT_FILE}"
+else
+  echo ">>> Using existing test split: ${TEST_SPLIT_FILE}"
+fi
 
 for USER_GROUP_SIZE in ${USER_GROUP_SIZES}; do
   for MODEL_NAME in ${MODELS}; do
@@ -91,6 +107,7 @@ for USER_GROUP_SIZE in ${USER_GROUP_SIZES}; do
             --k "${KFOLDS}" \
             --seed "${FOLD_SEED}" \
             --out-file "${FOLD_FILE}" \
+            --test-users-file "${TEST_SPLIT_FILE}" \
             $( [[ "${FOLD_OVERWRITE}" -gt 0 ]] && echo "--overwrite" )
         fi
         for ((FOLD_IDX=0; FOLD_IDX<KFOLDS; FOLD_IDX++)); do
@@ -132,6 +149,7 @@ for USER_GROUP_SIZE in ${USER_GROUP_SIZES}; do
             $( [[ -n "${AGE_OVERSAMPLE_TARGET}" ]] && echo "--age-oversample-target ${AGE_OVERSAMPLE_TARGET}" ) \
             --fold-file "${FOLD_FILE}" \
             --fold-index "${FOLD_IDX}" \
+            --test-users-file "${TEST_SPLIT_FILE}" \
             --dist-backend nccl
           echo ">>> Training for ${MODEL_NAME} seed=${SEED_VAL} fold=${FOLD_IDX} complete. Artifacts in ${RUN_OUT}"
         done
@@ -142,6 +160,36 @@ for USER_GROUP_SIZE in ${USER_GROUP_SIZES}; do
             --kfold-root "${AGG_OUT}" \
             --output-dir "${AGG_OUT}" \
             --group-sizes ${AGG_SIZES}
+        fi
+
+        # ── Evaluate best fold on held-out test set ───────────────────────────
+        if [[ "${RUN_TEST_EVAL}" -gt 0 ]]; then
+          # Select the fold with lowest val MAE as the representative checkpoint.
+          BEST_FOLD_IDX=0
+          BEST_VAL_MAE=9999
+          for ((FOLD_IDX=0; FOLD_IDX<KFOLDS; FOLD_IDX++)); do
+            HISTORY="${OUTPUT_ROOT}/${FOLDER_NAME}/fold_${FOLD_IDX}/history_distributed.log"
+            if [[ -f "${HISTORY}" ]]; then
+              FOLD_MAE=$(awk -F'val_mae=' '{print $2}' "${HISTORY}" | cut -d',' -f1 | sort -n | head -1)
+              if awk "BEGIN {exit !( ${FOLD_MAE} < ${BEST_VAL_MAE} )}"; then
+                BEST_VAL_MAE=${FOLD_MAE}
+                BEST_FOLD_IDX=${FOLD_IDX}
+              fi
+            fi
+          done
+          BEST_CKPT="${OUTPUT_ROOT}/${FOLDER_NAME}/fold_${BEST_FOLD_IDX}/${MODEL_NAME}_age_regressor_ddp.pth"
+          TEST_EVAL_OUT="${OUTPUT_ROOT}/${FOLDER_NAME}/test_eval"
+          echo ">>> Evaluating best checkpoint (fold ${BEST_FOLD_IDX}, val_mae=${BEST_VAL_MAE}) on held-out test set"
+          python "${PROJECT_ROOT}/evaluate_test.py" \
+            --checkpoint "${BEST_CKPT}" \
+            --test-users-file "${TEST_SPLIT_FILE}" \
+            --model "${MODEL_NAME}" \
+            --data-root "${DATA_ROOT}" \
+            --output-dir "${TEST_EVAL_OUT}" \
+            --eval-aggregation-sizes ${AGG_SIZES} \
+            --eval-aggregation-seed "${AGG_SEED_EFF}" \
+            $( [[ "${USE_MASKS}" -gt 0 ]] && echo "--use-masks" )
+          echo ">>> Test evaluation complete. Artifacts in ${TEST_EVAL_OUT}"
         fi
       else
         RUN_OUT="${OUTPUT_ROOT}/${FOLDER_NAME}"
@@ -180,6 +228,7 @@ for USER_GROUP_SIZE in ${USER_GROUP_SIZES}; do
           $( [[ "${AGE_REWEIGHT}" -gt 0 ]] && echo "--age-reweight-loss --age-weight-eps ${AGE_WEIGHT_EPS} --age-weight-power ${AGE_WEIGHT_POWER} --age-weight-min ${AGE_WEIGHT_MIN} --age-weight-max ${AGE_WEIGHT_MAX}" ) \
           $( [[ "${AGE_OVERSAMPLE}" -gt 0 ]] && echo "--age-oversample --age-oversample-max-multiplier ${AGE_OVERSAMPLE_MAX_MULT}" ) \
           $( [[ -n "${AGE_OVERSAMPLE_TARGET}" ]] && echo "--age-oversample-target ${AGE_OVERSAMPLE_TARGET}" ) \
+          --test-users-file "${TEST_SPLIT_FILE}" \
           --dist-backend nccl
         echo ">>> Training for ${MODEL_NAME} seed=${SEED_VAL} complete. Artifacts in ${RUN_OUT}"
       fi

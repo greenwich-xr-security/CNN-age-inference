@@ -8,6 +8,7 @@ from typing import Iterable
 import pandas as pd
 from sklearn.model_selection import KFold
 from sklearn.model_selection import StratifiedKFold
+from sklearn.model_selection import train_test_split as _sklearn_train_test_split
 
 
 def dataset_composition_stats(df: pd.DataFrame) -> dict[str, int]:
@@ -220,4 +221,65 @@ def load_kfold_splits(path: str | Path) -> dict:
         payload = json.load(fp)
     if "folds" not in payload:
         raise ValueError("Fold file is missing 'folds'.")
+    return payload
+
+
+def build_held_out_test_split(
+    df: pd.DataFrame,
+    *,
+    test_size: float = 0.15,
+    random_state: int = 42,
+    stratify_adult: bool = True,
+) -> tuple[list[str], list[str]]:
+    """Split users into (train_dev_ids, test_ids) stratified by adult/minor.
+
+    Returns (train_dev_ids, test_ids) — both as lists of user_id strings.
+    The test set is held out and must never be used during training or tuning.
+    """
+    user_ids = df["user_id"].astype(str).unique()
+
+    stratify = None
+    if stratify_adult:
+        user_age = df.groupby("user_id")["age"].mean()
+        user_class = {str(uid): ("adult" if age >= 18.0 else "minor") for uid, age in user_age.items()}
+        stratify = [user_class.get(uid, "adult") for uid in user_ids]
+
+    train_dev_ids, test_ids = _sklearn_train_test_split(
+        user_ids,
+        test_size=test_size,
+        random_state=random_state,
+        stratify=stratify,
+    )
+    return list(train_dev_ids), list(test_ids)
+
+
+def save_test_split(
+    test_ids: list[str],
+    path: str | Path,
+    *,
+    seed: int,
+    test_size: float,
+    stratified: bool,
+) -> Path:
+    """Persist the held-out test user IDs to a JSON file."""
+    path = Path(path)
+    payload = {
+        "test_size": float(test_size),
+        "seed": int(seed),
+        "stratified": bool(stratified),
+        "test_user_ids": [str(uid) for uid in test_ids],
+    }
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8") as fp:
+        json.dump(payload, fp, indent=2)
+    return path
+
+
+def load_test_split(path: str | Path) -> dict:
+    """Load a held-out test split JSON produced by save_test_split()."""
+    path = Path(path)
+    with path.open("r", encoding="utf-8") as fp:
+        payload = json.load(fp)
+    if "test_user_ids" not in payload:
+        raise ValueError("Test split file is missing 'test_user_ids'.")
     return payload

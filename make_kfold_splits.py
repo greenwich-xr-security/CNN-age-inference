@@ -6,7 +6,7 @@ import argparse
 from pathlib import Path
 
 from dataset.hand_metadata import get_dataset_root, load_combined_metadata, set_dataset_root
-from dataset.utils import build_kfold_user_splits, filter_metadata, save_kfold_splits
+from dataset.utils import build_kfold_user_splits, filter_metadata, load_test_split, save_kfold_splits
 
 
 def parse_args() -> argparse.Namespace:
@@ -42,6 +42,15 @@ def parse_args() -> argparse.Namespace:
         help="Maximum samples per user after dorsal filtering (default: 16; set 0 to disable).",
     )
     parser.add_argument(
+        "--test-users-file",
+        type=str,
+        default=None,
+        help=(
+            "Path to a held-out test split JSON (from make_test_split.py). "
+            "Test users will be excluded from all folds."
+        ),
+    )
+    parser.add_argument(
         "--overwrite",
         action="store_true",
         help="Allow overwriting an existing fold file.",
@@ -67,6 +76,18 @@ def main() -> None:
         load_combined_metadata(root=get_dataset_root()),
         max_samples_per_user=args.max_samples_per_user,
     )
+
+    if args.test_users_file:
+        test_data = load_test_split(args.test_users_file)
+        test_ids = {str(uid) for uid in test_data["test_user_ids"]}
+        before = metadata["user_id"].nunique()
+        metadata = metadata[~metadata["user_id"].astype(str).isin(test_ids)]
+        after = metadata["user_id"].nunique()
+        print(
+            f"Excluded {before - after} held-out test users "
+            f"(from {args.test_users_file}). Remaining for k-fold: {after}"
+        )
+
     stratify_col = None
     if args.stratify_adult:
         user_age = metadata.groupby("user_id")["age"].mean()

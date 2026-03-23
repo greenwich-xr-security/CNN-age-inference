@@ -22,6 +22,7 @@ from dataset.utils import (
     dataset_composition_stats,
     filter_metadata,
     load_kfold_splits,
+    load_test_split,
     oversample_by_age,
 )
 from displayUtils import DisplayUtils
@@ -59,6 +60,12 @@ def parse_args() -> argparse.Namespace:
         type=str,
         default=None,
         help="Path to the dataset root directory. Overrides the default or env var.",
+    )
+    parser.add_argument(
+        "--test-users-file",
+        type=str,
+        default=None,
+        help="Path to held-out test split JSON (from make_test_split.py). Test users are excluded from train and val.",
     )
     parser.add_argument(
         "--fold-file",
@@ -328,6 +335,15 @@ def build_datasets(args: argparse.Namespace, seed: int, img_size: int):
         load_combined_metadata(root=active_root),
         max_samples_per_user=args.max_samples_per_user,
     )
+
+    if args.test_users_file:
+        test_data = load_test_split(args.test_users_file)
+        test_ids = {str(uid) for uid in test_data["test_user_ids"]}
+        before = metadata["user_id"].nunique()
+        metadata = metadata[~metadata["user_id"].astype(str).isin(test_ids)]
+        after = metadata["user_id"].nunique()
+        print(f"[data] Excluded {before - after} held-out test users. Remaining: {after}")
+
     fold_info = None
     if args.fold_file:
         if args.fold_index is None:

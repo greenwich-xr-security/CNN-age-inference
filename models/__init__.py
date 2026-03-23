@@ -1,5 +1,6 @@
 from .efficientnet_age import EFFICIENTNET_IMG_SIZES, EfficientNetAgeRegressor
 from .convnext_age import CONVNEXT_IMG_SIZES, ConvNeXtAgeRegressor
+from .mobilenet_age import MOBILENET_IMG_SIZES, MobileNetAgeRegressor
 from .swin_age import SWIN_IMG_SIZES, SwinAgeRegressor
 from .vit_age import VIT_IMG_SIZES, ViTAgeRegressor
 
@@ -8,6 +9,8 @@ __all__ = [
     "EfficientNetAgeRegressor",
     "CONVNEXT_IMG_SIZES",
     "ConvNeXtAgeRegressor",
+    "MOBILENET_IMG_SIZES",
+    "MobileNetAgeRegressor",
     "SWIN_IMG_SIZES",
     "SwinAgeRegressor",
     "VIT_IMG_SIZES",
@@ -33,6 +36,10 @@ MODEL_ALIASES = {
     "sw2s": "swin_v2_small",
     "sw2b": "swin_v2_base",
     "sw2l": "swin_v2_large",
+    # MobileNet
+    "mnv2":  "mobilenet_v2",
+    "mnv3s": "mobilenet_v3_small",
+    "mnv3l": "mobilenet_v3_large",
 }
 
 
@@ -61,6 +68,19 @@ def resolve_model_builder(model_name: str, *, embed_dim: int = 0):
             lambda: ConvNeXtAgeRegressor(variant, embed_dim=embed_dim),
             size,
             f"ConvNeXt-{variant}",
+            name,
+        )
+
+    if name.startswith("mobilenet_"):
+        variant = name[len("mobilenet_"):]
+        if variant not in MOBILENET_IMG_SIZES:
+            raise ValueError(f"Unsupported MobileNet variant '{variant}'.")
+        size = MOBILENET_IMG_SIZES[variant]
+        label = f"MobileNet-{variant.replace('_', '-').upper()}"
+        return (
+            lambda: MobileNetAgeRegressor(variant, embed_dim=embed_dim),
+            size,
+            label,
             name,
         )
 
@@ -94,6 +114,7 @@ def resolve_model_builder(model_name: str, *, embed_dim: int = 0):
         f"Unsupported model '{model_name}'. "
         f"Expected one of {sorted(EFFICIENTNET_IMG_SIZES)} "
         f"or convnext_{{tiny,small,base,large,xlarge}} "
+        f"or mobilenet_{{v2,v3_small,v3_large}} "
         f"or swin_{{tiny,small,base,large,v2_tiny,v2_small,v2_base,v2_large}} "
         f"or vit_{{tiny_384}} "
         f"or aliases {sorted(MODEL_ALIASES)}."

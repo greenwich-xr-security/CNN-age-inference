@@ -1,5 +1,6 @@
 from .efficientnet_age import EFFICIENTNET_IMG_SIZES, EfficientNetAgeRegressor
 from .convnext_age import CONVNEXT_IMG_SIZES, ConvNeXtAgeRegressor
+from .swin_age import SWIN_IMG_SIZES, SwinAgeRegressor
 from .vit_age import VIT_IMG_SIZES, ViTAgeRegressor
 
 __all__ = [
@@ -7,6 +8,8 @@ __all__ = [
     "EfficientNetAgeRegressor",
     "CONVNEXT_IMG_SIZES",
     "ConvNeXtAgeRegressor",
+    "SWIN_IMG_SIZES",
+    "SwinAgeRegressor",
     "VIT_IMG_SIZES",
     "ViTAgeRegressor",
     "resolve_model_builder",
@@ -20,6 +23,16 @@ MODEL_ALIASES = {
     "cnx": "convnext_xlarge",
     "vtt": "vit_tiny_384",
     "age_vit": "vit_tiny_384",
+    # Swin V1
+    "swt": "swin_tiny",
+    "sws": "swin_small",
+    "swb": "swin_base",
+    "swl": "swin_large",
+    # Swin V2
+    "sw2t": "swin_v2_tiny",
+    "sw2s": "swin_v2_small",
+    "sw2b": "swin_v2_base",
+    "sw2l": "swin_v2_large",
 }
 
 
@@ -51,6 +64,20 @@ def resolve_model_builder(model_name: str, *, embed_dim: int = 0):
             name,
         )
 
+    if name.startswith("swin_"):
+        # Strip leading "swin_" prefix to get the variant key used in SWIN_IMG_SIZES
+        variant = name[len("swin_"):]
+        if variant not in SWIN_IMG_SIZES:
+            raise ValueError(f"Unsupported Swin variant '{variant}'.")
+        size = SWIN_IMG_SIZES[variant]
+        label = f"Swin-{variant.replace('_', '-').upper()}"
+        return (
+            lambda: SwinAgeRegressor(variant, embed_dim=embed_dim),
+            size,
+            label,
+            name,
+        )
+
     if name.startswith("vit_"):
         variant = name.split("_", 1)[1]
         if variant not in VIT_IMG_SIZES:
@@ -65,6 +92,9 @@ def resolve_model_builder(model_name: str, *, embed_dim: int = 0):
 
     raise ValueError(
         f"Unsupported model '{model_name}'. "
-        f"Expected one of {sorted(EFFICIENTNET_IMG_SIZES)} or convnext_{{tiny,small,base,large,xlarge}} "
-        f"or vit_{{tiny_384}} or aliases {sorted(MODEL_ALIASES)}."
+        f"Expected one of {sorted(EFFICIENTNET_IMG_SIZES)} "
+        f"or convnext_{{tiny,small,base,large,xlarge}} "
+        f"or swin_{{tiny,small,base,large,v2_tiny,v2_small,v2_base,v2_large}} "
+        f"or vit_{{tiny_384}} "
+        f"or aliases {sorted(MODEL_ALIASES)}."
     )

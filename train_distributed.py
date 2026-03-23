@@ -170,6 +170,12 @@ def parse_args() -> argparse.Namespace:
         help="Apply dataset masks (if available) to black out backgrounds during loading.",
     )
     parser.add_argument(
+        "--no-hagrid",
+        action="store_true",
+        default=False,
+        help="Exclude the HaGRIDv2 stop_inverted dataset from training.",
+    )
+    parser.add_argument(
         "--epochs",
         type=int,
         default=DEFAULT_EPOCHS,
@@ -332,7 +338,10 @@ def build_datasets(args: argparse.Namespace, seed: int, img_size: int):
     train_transform, test_transform = build_transforms(img_size)
 
     metadata = filter_metadata(
-        load_combined_metadata(root=active_root),
+        load_combined_metadata(
+            root=active_root,
+            include_hagrid=not getattr(args, "no_hagrid", False),
+        ),
         max_samples_per_user=args.max_samples_per_user,
     )
 

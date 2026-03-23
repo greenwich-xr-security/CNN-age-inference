@@ -545,6 +545,75 @@ def load_handrgbd_metadata(
     return df_out
 
 
+def load_hagrid_stop_inverted_metadata(root: Optional[PathLike] = None) -> pd.DataFrame:
+    """Load HaGRIDv2 stop_inverted gesture crops as a dorsal-hand source.
+
+    The ``stop_inverted`` gesture (hand raised, back of hand facing camera)
+    is a dorsal view suitable for age inference.  Images are already
+    centre-cropped to 500 × 500 px and stored under ``rgb/<name>.jpg``.
+    Only ``stop_inverted`` rows are included; ``no_gesture`` rows are dropped.
+    """
+    dataset_root = _resolve_root(root)
+    hagrid_root = dataset_root / "HaGRIDv2_stop_inverted"
+    csv_path = hagrid_root / "reference_hagrid_stop_inverted.csv"
+    rgb_root = hagrid_root / "rgb"
+
+    empty_cols = ["source", "user_id", "age", "gender", "aspect", "image_path"]
+    if not csv_path.exists():
+        print(f"[HaGRID] CSV not found: {csv_path}")
+        return pd.DataFrame(columns=empty_cols)
+
+    raw_df = pd.read_csv(csv_path)
+    if raw_df.empty or "name" not in raw_df.columns:
+        return pd.DataFrame(columns=empty_cols)
+
+    # Keep only stop_inverted gesture (dorsal view)
+    working_df = raw_df[raw_df["label"].str.lower() == "stop_inverted"].copy()
+
+    # Drop rows with missing age
+    working_df = working_df[working_df["age"].notna()]
+
+    # Resolve image paths
+    def resolve_path(name_val: object) -> Optional[Path]:
+        if name_val is None or (isinstance(name_val, float) and pd.isna(name_val)):
+            return None
+        name_str = str(name_val).strip()
+        candidate = rgb_root / f"{name_str}.jpg"
+        return candidate if candidate.is_file() else None
+
+    working_df["image_path"] = working_df["name"].apply(resolve_path)
+    working_df = working_df[working_df["image_path"].notna()]
+
+    # Normalise gender: HaGRID uses "F" / "M"
+    gender_map = {"f": "female", "m": "male"}
+    working_df["gender_norm"] = working_df["gender"].apply(
+        lambda g: gender_map.get(str(g).strip().lower()) if pd.notna(g) else None
+    )
+
+    # Age as int
+    working_df["age_norm"] = working_df["age"].apply(
+        lambda a: int(round(float(a))) if pd.notna(a) else pd.NA
+    )
+
+    # The stop_inverted gesture shows the dorsal side; assign "dorsal" so the
+    # standard filter_metadata() dorsal filter accepts these rows.
+    df_out = pd.DataFrame(
+        {
+            "source": "hagrid",
+            "user_id": working_df["user_id"].apply(lambda uid: f"hagrid_{uid}"),
+            "age": working_df["age_norm"],
+            "gender": working_df["gender_norm"],
+            "aspect": "dorsal",
+            "image_path": working_df["image_path"].apply(Path),
+        }
+    )
+    df_out = df_out.reset_index(drop=True)
+    print(
+        f"HaGRID stop_inverted -> users: {df_out['user_id'].nunique()} | images: {len(df_out)}"
+    )
+    return df_out
+
+
 def _limit_users_per_age(df: pd.DataFrame, *, max_users_per_year: int = 15) -> pd.DataFrame:
     """Cap unique users per age, dropping lowest-priority sources first (archive, then primary)."""
     required_cols = {"user_id", "age", "source"}
@@ -556,7 +625,7 @@ def _limit_users_per_age(df: pd.DataFrame, *, max_users_per_year: int = 15) -> p
         return df
 
     age_known["age_year"] = age_known["age"].astype(float).round().astype(int)
-    priority_map = {"handrgbd": 0, "primary": 1, "archive": 2}
+    priority_map = {"handrgbd": 0, "hagrid": 0, "primary": 1, "archive": 2}
     age_known["priority"] = age_known["source"].map(priority_map).fillna(99).astype(int)
 
     keep_users: set[str] = set()
@@ -584,14 +653,21 @@ def load_combined_metadata(
     root: Optional[PathLike] = None,
     *,
     handrgbd_include_wall3: bool = False,
+    include_hagrid: bool = True,
+    max_users_per_year: Optional[int] = 20,
 ) -> pd.DataFrame:
     primary_df = load_primary_metadata(root=root)
     archive_df = load_archive_metadata(root=root)
     handrgbd_df = load_handrgbd_metadata(root=root, include_wall3=handrgbd_include_wall3)
-    combined = pd.concat([primary_df, archive_df, handrgbd_df], ignore_index=True)
+    sources = [primary_df, archive_df, handrgbd_df]
+    if include_hagrid:
+        hagrid_df = load_hagrid_stop_inverted_metadata(root=root)
+        sources.append(hagrid_df)
+    combined = pd.concat(sources, ignore_index=True)
     #combined = handrgbd_df
     combined = combined.drop_duplicates(subset="image_path")
-    combined = _limit_users_per_age(combined, max_users_per_year=20)
+    if max_users_per_year:
+        combined = _limit_users_per_age(combined, max_users_per_year=max_users_per_year)
     return combined.reset_index(drop=True)
 
 
@@ -646,9 +722,25 @@ def _cli_main() -> None:
         default=16,
         help="Maximum samples per user after dorsal filtering (default: 16; set 0 to disable).",
     )
+    parser.add_argument(
+        "--max-users-per-year",
+        type=int,
+        default=20,
+        help="Maximum users per age year (default: 20; set 0 to disable).",
+    )
+    parser.add_argument(
+        "--no-hagrid",
+        action="store_true",
+        default=False,
+        help="Exclude the HaGRIDv2 stop_inverted dataset.",
+    )
     args = parser.parse_args()
 
-    combined = load_combined_metadata(root=args.root)
+    combined = load_combined_metadata(
+        root=args.root,
+        include_hagrid=not args.no_hagrid,
+        max_users_per_year=args.max_users_per_year or None,
+    )
     filtered = filter_metadata(
         combined,
         max_samples_per_user=args.max_samples_per_user,
@@ -674,7 +766,7 @@ def _cli_main() -> None:
         ) -> bool:
             if age_series.empty:
                 return False
-            colour_map = {"primary": "#4c72b0", "archive": "#dd8452", "handrgbd": "#55a868"}
+            colour_map = {"primary": "#4c72b0", "archive": "#dd8452", "handrgbd": "#55a868", "hagrid": "#c44e52"}
             unique_sources = source_series.unique()
 
             min_age = float(np.floor(age_series.min()))

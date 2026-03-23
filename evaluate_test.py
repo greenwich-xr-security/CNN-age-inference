@@ -91,6 +91,12 @@ def parse_args() -> argparse.Namespace:
         help="Apply dataset masks (black out backgrounds) during loading.",
     )
     parser.add_argument(
+        "--no-hagrid",
+        action="store_true",
+        default=False,
+        help="Exclude the HaGRIDv2 stop_inverted dataset from evaluation.",
+    )
+    parser.add_argument(
         "--batch-size",
         type=int,
         default=32,
@@ -145,7 +151,10 @@ def main() -> None:
 
     # ── Build test dataset ────────────────────────────────────────────────────
     metadata = filter_metadata(
-        load_combined_metadata(root=get_dataset_root()),
+        load_combined_metadata(
+            root=get_dataset_root(),
+            include_hagrid=not getattr(args, "no_hagrid", False),
+        ),
         max_samples_per_user=args.max_samples_per_user,
     )
     test_meta = metadata[metadata["user_id"].astype(str).isin(test_ids)].copy()

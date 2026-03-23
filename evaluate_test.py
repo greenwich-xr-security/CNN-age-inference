@@ -330,6 +330,23 @@ def main() -> None:
             show=False,
         )
 
+        # Scatter plot and error-by-age
+        DisplayUtils.save_regression_scatter(
+            agg_targets,
+            agg_preds,
+            save_path=output_dir / f"test_age_scatter_{suffix}.png",
+            title=f"Test Age Predictions (n={group_size})",
+            axis_limits=(0.0, 70.0),
+            point_size=20,
+            alpha=0.6,
+        )
+        DisplayUtils.save_error_by_age(
+            agg_targets,
+            agg_preds,
+            save_path=output_dir / f"test_age_error_by_target_{suffix}.png",
+            title=f"Error vs Target Age (TEST, n={group_size})",
+        )
+
         # Age-gate metrics CSV
         metrics_csv = output_dir / f"test_age_gate_metrics_{suffix}.csv"
         with metrics_csv.open("w", encoding="utf-8") as fp:

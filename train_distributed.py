@@ -1194,6 +1194,215 @@ def main() -> None:
                 print(f"[Rank 0] Saved challenge FPR table to {challenge_csv}")
         else:
             print("[Rank 0] Best checkpoint not found; skipped challenge-threshold table.")
+
+        # ── Full evaluation on held-out test set ──────────────────────────
+        if args.test_users_file and best_model_path.exists():
+            print("[Rank 0] Running full evaluation on held-out test set...")
+            test_split_data = load_test_split(args.test_users_file)
+            test_ids = {str(uid) for uid in test_split_data["test_user_ids"]}
+
+            _, test_transform = build_transforms(img_size)
+            all_meta = filter_metadata(
+                load_combined_metadata(
+                    root=active_root,
+                    include_hagrid=not getattr(args, "no_hagrid", False),
+                ),
+                max_samples_per_user=args.max_samples_per_user or None,
+                max_samples_per_age_bin=args.max_samples_per_age_bin or None,
+            )
+            test_meta = all_meta[all_meta["user_id"].astype(str).isin(test_ids)].reset_index(drop=True)
+
+            if test_meta.empty:
+                print("[Rank 0] No test samples found after filtering; skipping test evaluation.")
+            else:
+                print(f"[Rank 0] Test set: {test_meta['user_id'].nunique()} users, {len(test_meta)} samples.")
+                test_dataset = AgeDataset(test_meta, transform=test_transform, use_masks=args.use_masks)
+                test_loader = DataLoader(
+                    test_dataset,
+                    batch_size=args.batch_size,
+                    shuffle=False,
+                    num_workers=0,
+                )
+
+                test_model = model_builder()
+                state = torch.load(best_model_path, map_location=device)
+                test_model.load_state_dict(state)
+                test_model = test_model.to(device)
+                test_model.eval()
+
+                t_targets: list[float] = []
+                t_means: list[float] = []
+                t_log_vars: list[float] = []
+                t_user_ids: list = []
+                with torch.no_grad():
+                    for images, ages, batch_user_ids in test_loader:
+                        images = images.to(device)
+                        outputs = test_model(images)
+                        if isinstance(outputs, (tuple, list)):
+                            if len(outputs) == 3:
+                                mean, log_var, _ = outputs
+                            else:
+                                mean, log_var = outputs
+                        else:
+                            mean, log_var = outputs
+                        t_targets.extend(ages.tolist())
+                        t_means.extend(mean.cpu().tolist())
+                        t_log_vars.extend(log_var.cpu().tolist())
+                        t_user_ids.extend(list(batch_user_ids))
+
+                t_targets_arr = np.asarray(t_targets, dtype=float)
+                t_means_arr = np.asarray(t_means, dtype=float)
+                t_log_vars_arr = np.asarray(t_log_vars, dtype=float)
+
+                np.savez(
+                    output_dir / "test_predictions_raw_ddp.npz",
+                    targets=t_targets_arr,
+                    pred_mean=t_means_arr,
+                    pred_log_var=t_log_vars_arr,
+                    user_ids=np.asarray(t_user_ids, dtype=str),
+                )
+
+                def _select_best_tau_test(fprs_arr, tprs_arr, thresholds_arr):
+                    fprs_np = np.asarray(fprs_arr, dtype=float)
+                    tprs_np = np.asarray(tprs_arr, dtype=float)
+                    thr_np = np.asarray(thresholds_arr, dtype=float)
+                    if fprs_np.size == 0:
+                        return None
+                    idx = int(np.argmin((fprs_np ** 2) + ((1.0 - tprs_np) ** 2)))
+                    return float(thr_np[idx])
+
+                challenge_thresholds = np.arange(18, 31, 1, dtype=float)
+                summary_rows = []
+
+                for group_size in eval_group_sizes:
+                    agg_rng = random.Random(eval_agg_seed + group_size)
+                    aggregated = aggregate_predictions_by_user(
+                        t_user_ids, t_targets_arr, t_means_arr, t_log_vars_arr,
+                        group_size=group_size, rng=agg_rng,
+                    )
+                    suffix = f"n{group_size}_ddp"
+                    gate_results = compute_age_gate_curves(
+                        aggregated["targets"],
+                        aggregated["pred_mean"],
+                        aggregated["pred_log_var"],
+                        age_threshold=18.0,
+                        num_thresholds=201,
+                    )
+
+                    best_tau_case1 = _select_best_tau_test(
+                        gate_results["case1"]["fpr"], gate_results["case1"]["tpr"],
+                        gate_results["case1"]["thresholds"],
+                    )
+                    best_tau_case2 = _select_best_tau_test(
+                        gate_results["case2"]["fpr"], gate_results["case2"]["tpr"],
+                        gate_results["case2"]["thresholds"],
+                    )
+                    selected_tau_case1 = best_tau_case1 if best_tau_case1 is not None else CHALLENGE_PROB_TAU
+
+                    np.savez(
+                        output_dir / f"test_predictions_{suffix}.npz",
+                        targets=aggregated["targets"],
+                        pred_mean=aggregated["pred_mean"],
+                        pred_log_var=aggregated["pred_log_var"],
+                        adult_prob=gate_results["adult_prob"],
+                        group_size=group_size,
+                    )
+
+                    with (output_dir / f"test_age_gate_metrics_{suffix}.csv").open("w", encoding="utf-8") as fp:
+                        fp.write("case,tau,fpr,fnr,tpr,tnr\n")
+                        for case_name, case_data in (
+                            ("adult_content_gate", gate_results["case1"]),
+                            ("child_platform_gate", gate_results["case2"]),
+                        ):
+                            for tau, fpr, fnr, tpr_val, tnr in zip(
+                                case_data["thresholds"], case_data["fpr"],
+                                case_data["fnr"], case_data["tpr"], case_data["tnr"],
+                            ):
+                                fp.write(f"{case_name},{tau:.4f},{fpr:.6f},{fnr:.6f},{tpr_val:.6f},{tnr:.6f}\n")
+
+                    fpr_rows = compute_challenge_fpr_table(
+                        aggregated["targets"], aggregated["pred_mean"], aggregated["pred_log_var"],
+                        thresholds=challenge_thresholds, prob_threshold=selected_tau_case1,
+                        bins=CHALLENGE_BINS,
+                    )
+                    with (output_dir / f"test_challenge_fpr_bins_{suffix}.csv").open("w", encoding="utf-8") as fp:
+                        header = ["threshold"] + [label for label, _, _ in CHALLENGE_BINS] + ["total"]
+                        fp.write(",".join(header) + "\n")
+                        for row in fpr_rows:
+                            values = [f"{row['threshold']:.1f}"] + [
+                                f"{row[label]:.6f}" for label, _, _ in CHALLENGE_BINS
+                            ] + [f"{row['total']:.6f}"]
+                            fp.write(",".join(values) + "\n")
+
+                    fnr_rows = compute_challenge_fnr_table_case1(
+                        aggregated["targets"], aggregated["pred_mean"], aggregated["pred_log_var"],
+                        thresholds=challenge_thresholds, prob_threshold=selected_tau_case1,
+                    )
+                    with (output_dir / f"test_challenge_fnr_bins_case1_{suffix}.csv").open("w", encoding="utf-8") as fp:
+                        header = ["threshold"] + [label for label, _, _ in CHALLENGE_FNR_BINS] + ["total"]
+                        fp.write(",".join(header) + "\n")
+                        for row in fnr_rows:
+                            values = [f"{row['threshold']:.1f}"] + [
+                                f"{row[label]:.6f}" for label, _, _ in CHALLENGE_FNR_BINS
+                            ] + [f"{row['total']:.6f}"]
+                            fp.write(",".join(values) + "\n")
+
+                    DisplayUtils.plot_roc_curve(
+                        gate_results["case1"]["fpr"], gate_results["case1"]["tpr"],
+                        thresholds=gate_results["case1"]["thresholds"],
+                        save_path=output_dir / f"test_roc_case1_adult_gate_{suffix}.png",
+                        title=f"ROC - Adult Content Gate [TEST] (n={group_size}, DDP)",
+                        auc_value=gate_results["case1"]["auc"],
+                        highlight_tau=best_tau_case1,
+                        show=False,
+                    )
+                    DisplayUtils.plot_roc_curve(
+                        gate_results["case2"]["fpr"], gate_results["case2"]["tpr"],
+                        thresholds=gate_results["case2"]["thresholds"],
+                        save_path=output_dir / f"test_roc_case2_child_gate_{suffix}.png",
+                        title=f"ROC - Child Platform Gate [TEST] (n={group_size}, DDP)",
+                        auc_value=gate_results["case2"]["auc"],
+                        highlight_tau=best_tau_case2,
+                        show=False,
+                    )
+
+                    DisplayUtils.save_regression_scatter(
+                        aggregated["targets"], aggregated["pred_mean"],
+                        save_path=output_dir / f"test_age_scatter_{suffix}.png",
+                        title=f"Test Age Predictions (n={group_size}, DDP)",
+                        axis_limits=(0.0, 70.0),
+                        point_size=20,
+                        alpha=0.6,
+                    )
+
+                    DisplayUtils.save_error_by_age(
+                        aggregated["targets"], aggregated["pred_mean"],
+                        save_path=output_dir / f"test_age_error_by_target_{suffix}.png",
+                        title=f"Error vs Target Age [TEST] (n={group_size}, DDP)",
+                    )
+
+                    mae = float(np.mean(np.abs(aggregated["targets"] - aggregated["pred_mean"])))
+                    rmse = float(np.sqrt(np.mean((aggregated["targets"] - aggregated["pred_mean"]) ** 2)))
+                    summary_rows.append({
+                        "group_size": group_size,
+                        "mae": mae,
+                        "rmse": rmse,
+                        "auc_case1": gate_results["case1"]["auc"],
+                        "auc_case2": gate_results["case2"]["auc"],
+                    })
+
+                with (output_dir / "test_summary_ddp.csv").open("w", encoding="utf-8") as fp:
+                    fp.write("group_size,mae,rmse,auc_case1,auc_case2\n")
+                    for row in summary_rows:
+                        fp.write(
+                            f"{row['group_size']},{row['mae']:.4f},{row['rmse']:.4f},"
+                            f"{row['auc_case1']:.4f},{row['auc_case2']:.4f}\n"
+                        )
+                print(f"[Rank 0] Test evaluation complete. Artifacts saved to {output_dir}")
+
+        elif args.test_users_file and not best_model_path.exists():
+            print("[Rank 0] Best checkpoint not found; skipped test evaluation.")
+
         print("Distributed training complete. Best model saved based on validation improvement.")
     dist.destroy_process_group()
 

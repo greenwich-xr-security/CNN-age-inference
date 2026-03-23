@@ -181,36 +181,8 @@ for USER_GROUP_SIZE in ${USER_GROUP_SIZES}; do
             --group-sizes ${AGG_SIZES}
         fi
 
-        # ── Evaluate best fold on held-out test set ───────────────────────────
-        if [[ "${RUN_TEST_EVAL}" -gt 0 ]]; then
-          # Select the fold with lowest val MAE as the representative checkpoint.
-          BEST_FOLD_IDX=0
-          BEST_VAL_MAE=9999
-          for ((FOLD_IDX=0; FOLD_IDX<KFOLDS; FOLD_IDX++)); do
-            HISTORY="${OUTPUT_ROOT}/${FOLDER_NAME}/fold_${FOLD_IDX}/history_distributed.log"
-            if [[ -f "${HISTORY}" ]]; then
-              FOLD_MAE=$(awk -F'val_mae=' '{print $2}' "${HISTORY}" | cut -d',' -f1 | sort -n | head -1)
-              if awk "BEGIN {exit !( ${FOLD_MAE} < ${BEST_VAL_MAE} )}"; then
-                BEST_VAL_MAE=${FOLD_MAE}
-                BEST_FOLD_IDX=${FOLD_IDX}
-              fi
-            fi
-          done
-          BEST_CKPT="${OUTPUT_ROOT}/${FOLDER_NAME}/fold_${BEST_FOLD_IDX}/${MODEL_NAME}_age_regressor_ddp.pth"
-          TEST_EVAL_OUT="${OUTPUT_ROOT}/${FOLDER_NAME}/test_eval"
-          echo ">>> Evaluating best checkpoint (fold ${BEST_FOLD_IDX}, val_mae=${BEST_VAL_MAE}) on held-out test set"
-          python "${PROJECT_ROOT}/evaluate_test.py" \
-            --checkpoint "${BEST_CKPT}" \
-            --test-users-file "${TEST_SPLIT_FILE}" \
-            --model "${MODEL_NAME}" \
-            --embed-dim "${EMBED_DIM}" \
-            --data-root "${DATA_ROOT}" \
-            --output-dir "${TEST_EVAL_OUT}" \
-            --eval-aggregation-sizes ${AGG_SIZES} \
-            --eval-aggregation-seed "${AGG_SEED_EFF}" \
-            $( [[ "${USE_MASKS}" -gt 0 ]] && echo "--use-masks" )
-          echo ">>> Test evaluation complete. Artifacts in ${TEST_EVAL_OUT}"
-        fi
+        # Test-set evaluation now runs inside each fold's train_distributed.py
+        # (via --test-users-file) — no separate evaluate_test.py step needed.
       else
         RUN_OUT="${OUTPUT_ROOT}/${FOLDER_NAME}"
         echo ">>> Starting distributed age inference training for ${MODEL_NAME} seed=${SEED_VAL} (output: ${RUN_OUT})"

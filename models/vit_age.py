@@ -7,10 +7,12 @@ import torch.nn as nn
 # Canonical ViT input resolutions for supported variants.
 VIT_IMG_SIZES = {
     "tiny_384": 384,
+    "small_384": 384,
 }
 
 _VIT_TIMM_MODEL_IDS = {
     "tiny_384": "timm/vit_tiny_patch16_384.augreg_in21k_ft_in1k",
+    "small_384": "timm/vit_small_patch16_384.augreg_in21k_ft_in1k",
 }
 
 

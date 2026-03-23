@@ -57,7 +57,8 @@ BATCH_SIZE="${BATCH_SIZE:-8}"
 SEED="${SEED:-42}"
 LR="${LR:-2e-4}"
 WEIGHT_DECAY="${WEIGHT_DECAY:-0.2}"
-IMG_SIZE="${IMG_SIZE:-480}"
+# Leave empty to use the canonical input size for the selected model.
+IMG_SIZE="${IMG_SIZE:-}"
 EPOCHS="${EPOCHS:-240}"
 
 # Losses
@@ -70,11 +71,12 @@ LOSS_WEIGHT_EMBED_CONTRAST="${LOSS_WEIGHT_EMBED_CONTRAST:-0}"
 
 USER_GROUP_SIZES="${USER_GROUP_SIZES:-1}"
 PATIENCE="${PATIENCE:-10}"
-MODELS="${MODELS:-${MODEL:-v2_m}}" # choices: b0-b7, v2_{s,m,l}, convnext_{tiny,small,base,large,xlarge}, vit_tiny_384; aliases: cnt,cns,cnb,cnl,cnx,vtt,age_vit
+MODELS="${MODELS:-${MODEL:-v2_m}}" # choices: b0-b7, v2_{s,m,l}, convnext_{tiny,small,base,large,xlarge}, vit_{tiny_384,small_384}; aliases: cnt,cns,cnb,cnl,cnx,vtt,vts,age_vit,age_vit_small
 AGG_SIZES="${AGG_SIZES:-${EVAL_AGG_SIZES:-1}}"   # space-separated list, e.g., "1 2 3"
 AGG_SEED="${AGG_SEED:-${EVAL_AGG_SEED:-${SEED}}}"
 NUM_WORKERS="${NUM_WORKERS:-8}"
-RUN_NAME="${RUN_NAME:-efficientnet_v2_m_480_ddp}"
+# Optional override; when empty the script derives a model-specific run name.
+RUN_NAME="${RUN_NAME:-}"
 # Age imbalance controls
 AGE_REWEIGHT="${AGE_REWEIGHT:-0}"                     # set >0 to enable inverse-frequency loss weighting
 AGE_WEIGHT_EPS="${AGE_WEIGHT_EPS:-1.0}"
@@ -116,7 +118,12 @@ for USER_GROUP_SIZE in ${USER_GROUP_SIZES}; do
   for MODEL_NAME in ${MODELS}; do
     for SEED_VAL in ${SEED}; do
       AGG_SEED_EFF="${AGG_SEED:-${SEED_VAL}}"
-      FOLDER_NAME="${RUN_NAME}"
+      DEFAULT_RUN_NAME="${MODEL_NAME}"
+      if [[ -n "${IMG_SIZE}" ]]; then
+        DEFAULT_RUN_NAME="${DEFAULT_RUN_NAME}_${IMG_SIZE}"
+      fi
+      DEFAULT_RUN_NAME="${DEFAULT_RUN_NAME}_ddp"
+      FOLDER_NAME="${RUN_NAME:-${DEFAULT_RUN_NAME}}"
       FOLD_FILE="${OUTPUT_ROOT}/${FOLDER_NAME}/folds_k${KFOLDS}.json"
 
       if [[ "${KFOLDS}" -gt 1 ]]; then

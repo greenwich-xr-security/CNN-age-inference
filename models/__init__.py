@@ -25,7 +25,9 @@ MODEL_ALIASES = {
     "cnl": "convnext_large",
     "cnx": "convnext_xlarge",
     "vtt": "vit_tiny_384",
+    "vts": "vit_small_384",
     "age_vit": "vit_tiny_384",
+    "age_vit_small": "vit_small_384",
     # Swin V1
     "swt": "swin_tiny",
     "sws": "swin_small",
@@ -116,6 +118,6 @@ def resolve_model_builder(model_name: str, *, embed_dim: int = 0):
         f"or convnext_{{tiny,small,base,large,xlarge}} "
         f"or mobilenet_{{v2,v3_small,v3_large}} "
         f"or swin_{{tiny,small,base,large,v2_tiny,v2_small,v2_base,v2_large}} "
-        f"or vit_{{tiny_384}} "
+        f"or vit_{{tiny_384,small_384}} "
         f"or aliases {sorted(MODEL_ALIASES)}."
     )

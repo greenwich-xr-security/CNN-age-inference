@@ -550,12 +550,14 @@ def load_hagrid_stop_inverted_metadata(root: Optional[PathLike] = None) -> pd.Da
 
     The ``stop_inverted`` gesture (hand raised, back of hand facing camera)
     is a dorsal view suitable for age inference.  Images are already
-    centre-cropped to 500 × 500 px and stored under ``rgb/<name>.jpg``.
+    centre-cropped to 500 × 500 px and are loaded from ``rgb_masked/<name>.png``
+    when available, falling back to ``rgb/<name>.jpg`` if needed.
     Only ``stop_inverted`` rows are included; ``no_gesture`` rows are dropped.
     """
     dataset_root = _resolve_root(root)
     hagrid_root = dataset_root / "HaGRIDv2_stop_inverted"
     csv_path = hagrid_root / "reference_hagrid_stop_inverted.csv"
+    rgb_masked_root = hagrid_root / "rgb_masked"
     rgb_root = hagrid_root / "rgb"
 
     empty_cols = ["source", "user_id", "age", "gender", "aspect", "image_path"]
@@ -578,8 +580,15 @@ def load_hagrid_stop_inverted_metadata(root: Optional[PathLike] = None) -> pd.Da
         if name_val is None or (isinstance(name_val, float) and pd.isna(name_val)):
             return None
         name_str = str(name_val).strip()
-        candidate = rgb_root / f"{name_str}.jpg"
-        return candidate if candidate.is_file() else None
+        candidates = []
+        if rgb_masked_root.exists():
+            candidates.append(rgb_masked_root / f"{name_str}.png")
+        if rgb_root.exists():
+            candidates.append(rgb_root / f"{name_str}.jpg")
+        for candidate in candidates:
+            if candidate.is_file():
+                return candidate
+        return None
 
     working_df["image_path"] = working_df["name"].apply(resolve_path)
     working_df = working_df[working_df["image_path"].notna()]
@@ -615,7 +624,7 @@ def load_hagrid_stop_inverted_metadata(root: Optional[PathLike] = None) -> pd.Da
 
 
 def _limit_users_per_age(df: pd.DataFrame, *, max_users_per_year: int = 15) -> pd.DataFrame:
-    """Cap unique users per age, dropping lowest-priority sources first (archive, then primary)."""
+    """Cap unique users per age, preferring handRGBD/HaGRID when legacy sources are present."""
     required_cols = {"user_id", "age", "source"}
     if not required_cols.issubset(df.columns):
         return df
@@ -654,12 +663,17 @@ def load_combined_metadata(
     *,
     handrgbd_include_wall3: bool = False,
     include_hagrid: bool = True,
+    include_primary: bool = False,
+    include_archive: bool = False,
     max_users_per_year: Optional[int] = None,
 ) -> pd.DataFrame:
-    primary_df = load_primary_metadata(root=root)
-    archive_df = load_archive_metadata(root=root)
     handrgbd_df = load_handrgbd_metadata(root=root, include_wall3=handrgbd_include_wall3)
-    sources = [primary_df, archive_df, handrgbd_df]
+    sources = [handrgbd_df]
+    if include_primary:
+        sources.insert(0, load_primary_metadata(root=root))
+    if include_archive:
+        insert_at = 1 if include_primary else 0
+        sources.insert(insert_at, load_archive_metadata(root=root))
     if include_hagrid:
         hagrid_df = load_hagrid_stop_inverted_metadata(root=root)
         sources.append(hagrid_df)

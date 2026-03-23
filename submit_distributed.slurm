@@ -203,6 +203,7 @@ for USER_GROUP_SIZE in ${USER_GROUP_SIZES}; do
             --checkpoint "${BEST_CKPT}" \
             --test-users-file "${TEST_SPLIT_FILE}" \
             --model "${MODEL_NAME}" \
+            --embed-dim "${EMBED_DIM}" \
             --data-root "${DATA_ROOT}" \
             --output-dir "${TEST_EVAL_OUT}" \
             --eval-aggregation-sizes ${AGG_SIZES} \

@@ -15,7 +15,6 @@ module load www-proxy
 module load CUDA
 
 PROJECT_ROOT="${PROJECT_ROOT:-$HOME/CNN-age-inference}"
-VENV_PATH="${VENV_PATH:-${PROJECT_ROOT}/.venv}"
 DATA_ROOT="${DATA_ROOT:-/home/rb3434w/HandsDatasets}"
 OUTPUT_ROOT="${OUTPUT_ROOT:-${PROJECT_ROOT}/runs}"
 TORCH_HOME="${TORCH_HOME:-${PROJECT_ROOT}/.cache/torch}"
@@ -24,10 +23,10 @@ mkdir -p "${OUTPUT_ROOT}" logs "${TORCH_HOME}"
 export TORCH_HOME
 export PYTHONUNBUFFERED=1
 
-if [[ -f "${VENV_PATH}/bin/activate" ]]; then
-  # shellcheck disable=SC1090
-  source "${VENV_PATH}/bin/activate"
-fi
+# Activate conda xr environment
+source ~/miniconda3/etc/profile.d/conda.sh 2>/dev/null \
+  || source ~/anaconda3/etc/profile.d/conda.sh
+conda activate xr
 
 # Robust GPU count detection (mirrors DepthHandAgeBench approach)
 extract_gpu_count() {

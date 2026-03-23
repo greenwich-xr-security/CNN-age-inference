@@ -15,6 +15,7 @@ __pycache__/
 
 # Ignore local editor config
 .vscode/
+.claude/
 
 # Training artifacts
 /runs/

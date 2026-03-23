@@ -324,7 +324,7 @@ def compute_age_gate_curves(
     age_threshold: float = 18.0,
     num_thresholds: int = 101,
 ) -> dict:
-    """Compute ROC-style metrics for both policy cases using adult probabilities."""
+    """Compute ROC-style metrics for the adult gate using adult probabilities."""
     targets_arr = np.asarray(targets, dtype=float)
     adult_prob = compute_adult_probabilities(pred_means, pred_log_vars, age_threshold=age_threshold)
     tau_values = np.linspace(0.0, 1.0, num=num_thresholds)
@@ -347,29 +347,18 @@ def compute_age_gate_curves(
         tnr = _safe_rate(tn, neg_total)
         return fpr, tpr, fnr, tnr
 
-    case1_fprs = []
-    case1_tprs = []
-    case1_fnrs = []
-    case1_tnrs = []
-    case2_fprs = []
-    case2_tprs = []
-    case2_fnrs = []
-    case2_tnrs = []
+    adult_gate_fprs = []
+    adult_gate_tprs = []
+    adult_gate_fnrs = []
+    adult_gate_tnrs = []
 
     for tau in tau_values:
-        admit_adult = adult_prob >= tau  # Case 1
-        fpr1, tpr1, fnr1, tnr1 = build_case(admit_adult, is_adult, is_minor)
-        case1_fprs.append(fpr1)
-        case1_tprs.append(tpr1)
-        case1_fnrs.append(fnr1)
-        case1_tnrs.append(tnr1)
-
-        admit_minor = adult_prob < tau  # Case 2
-        fpr2, tpr2, fnr2, tnr2 = build_case(admit_minor, is_minor, is_adult)
-        case2_fprs.append(fpr2)
-        case2_tprs.append(tpr2)
-        case2_fnrs.append(fnr2)
-        case2_tnrs.append(tnr2)
+        admit_adult = adult_prob >= tau
+        fpr, tpr, fnr, tnr = build_case(admit_adult, is_adult, is_minor)
+        adult_gate_fprs.append(fpr)
+        adult_gate_tprs.append(tpr)
+        adult_gate_fnrs.append(fnr)
+        adult_gate_tnrs.append(tnr)
 
     def compute_auc(fprs, tprs):
         fprs_arr = np.asarray(fprs, dtype=float)
@@ -381,23 +370,13 @@ def compute_age_gate_curves(
 
     results = {
         "adult_prob": adult_prob,
-        "case1": {
-            "fpr": np.asarray(case1_fprs, dtype=float),
-            "tpr": np.asarray(case1_tprs, dtype=float),
-            "fnr": np.asarray(case1_fnrs, dtype=float),
-            "tnr": np.asarray(case1_tnrs, dtype=float),
+        "adult_gate": {
+            "fpr": np.asarray(adult_gate_fprs, dtype=float),
+            "tpr": np.asarray(adult_gate_tprs, dtype=float),
+            "fnr": np.asarray(adult_gate_fnrs, dtype=float),
+            "tnr": np.asarray(adult_gate_tnrs, dtype=float),
             "thresholds": tau_values,
-            "auc": compute_auc(case1_fprs, case1_tprs),
-            "adult_total": adult_total,
-            "minor_total": minor_total,
-        },
-        "case2": {
-            "fpr": np.asarray(case2_fprs, dtype=float),
-            "tpr": np.asarray(case2_tprs, dtype=float),
-            "fnr": np.asarray(case2_fnrs, dtype=float),
-            "tnr": np.asarray(case2_tnrs, dtype=float),
-            "thresholds": tau_values,
-            "auc": compute_auc(case2_fprs, case2_tprs),
+            "auc": compute_auc(adult_gate_fprs, adult_gate_tprs),
             "adult_total": adult_total,
             "minor_total": minor_total,
         },
@@ -489,7 +468,7 @@ def compute_challenge_fpr_table_weighted(
     return rows
 
 
-def compute_challenge_fnr_table_case1(
+def compute_challenge_fnr_table_adult_gate(
     targets,
     pred_means,
     pred_log_vars,
@@ -499,7 +478,7 @@ def compute_challenge_fnr_table_case1(
     bins: Iterable[tuple[str, float, float | None]] = CHALLENGE_FNR_BINS,
 ) -> list[dict]:
     """
-    Compute FNR per adult bin for challenge Case 1 (admit adults).
+    Compute FNR per adult bin for the adult gate.
 
     FNR per bin = (# of adult samples in bin that were blocked) / (total samples overall).
     Returns one row per threshold with keys: threshold, <bin labels...>, total.
@@ -528,3 +507,23 @@ def compute_challenge_fnr_table_case1(
         row["total"] = _safe_rate(total_fn, overall_total) if overall_total > 0 else 0.0
         rows.append(row)
     return rows
+
+
+def compute_challenge_fnr_table_case1(
+    targets,
+    pred_means,
+    pred_log_vars,
+    *,
+    thresholds: Iterable[float],
+    prob_threshold: float = CHALLENGE_PROB_TAU,
+    bins: Iterable[tuple[str, float, float | None]] = CHALLENGE_FNR_BINS,
+) -> list[dict]:
+    """Backward-compatible alias for compute_challenge_fnr_table_adult_gate."""
+    return compute_challenge_fnr_table_adult_gate(
+        targets,
+        pred_means,
+        pred_log_vars,
+        thresholds=thresholds,
+        prob_threshold=prob_threshold,
+        bins=bins,
+    )

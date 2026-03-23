@@ -35,7 +35,7 @@ from metrics import (
     LossWeights,
     aggregate_predictions_by_user,
     compute_age_gate_curves,
-    compute_challenge_fnr_table_case1,
+    compute_challenge_fnr_table_adult_gate,
     compute_challenge_fpr_table,
     compute_challenge_fpr_table_weighted,
     intra_user_spread_loss,
@@ -929,7 +929,9 @@ def main() -> None:
                     age_threshold=18.0,
                     num_thresholds=201,
                 )
-                # Select tau closest to top-left (0,1) for each case
+                adult_gate = gate_results["adult_gate"]
+
+                # Select tau closest to top-left (0,1)
                 def _select_best_tau(fprs_arr, tprs_arr, thresholds_arr):
                     fprs_np = np.asarray(fprs_arr, dtype=float)
                     tprs_np = np.asarray(tprs_arr, dtype=float)
@@ -939,13 +941,12 @@ def main() -> None:
                     idx = int(np.argmin((fprs_np ** 2) + ((1.0 - tprs_np) ** 2)))
                     return float(thr_np[idx])
 
-                best_tau_case1 = _select_best_tau(
-                    gate_results["case1"]["fpr"], gate_results["case1"]["tpr"], gate_results["case1"]["thresholds"]
+                best_tau_adult_gate = _select_best_tau(
+                    adult_gate["fpr"], adult_gate["tpr"], adult_gate["thresholds"]
                 )
-                best_tau_case2 = _select_best_tau(
-                    gate_results["case2"]["fpr"], gate_results["case2"]["tpr"], gate_results["case2"]["thresholds"]
+                selected_tau_adult_gate = (
+                    best_tau_adult_gate if best_tau_adult_gate is not None else CHALLENGE_PROB_TAU
                 )
-                selected_tau_case1 = best_tau_case1 if best_tau_case1 is not None else CHALLENGE_PROB_TAU
 
                 preds_dump_path = output_dir / f"val_predictions_{suffix}.npz"
                 np.savez(
@@ -964,7 +965,7 @@ def main() -> None:
                     aggregated["pred_mean"],
                     aggregated["pred_log_var"],
                     thresholds=challenge_thresholds,
-                    prob_threshold=selected_tau_case1,
+                    prob_threshold=selected_tau_adult_gate,
                     bins=CHALLENGE_BINS,
                 )
                 challenge_csv = output_dir / f"challenge_fpr_bins_{suffix}.csv"
@@ -976,14 +977,14 @@ def main() -> None:
                             f"{row[label]:.6f}" for label, _, _ in CHALLENGE_BINS
                         ] + [f"{row['total']:.6f}"]
                         fp.write(",".join(values) + "\n")
-                fnr_rows = compute_challenge_fnr_table_case1(
+                fnr_rows = compute_challenge_fnr_table_adult_gate(
                     aggregated["targets"],
                     aggregated["pred_mean"],
                     aggregated["pred_log_var"],
                     thresholds=challenge_thresholds,
-                    prob_threshold=selected_tau_case1,
+                    prob_threshold=selected_tau_adult_gate,
                 )
-                fnr_csv = output_dir / f"challenge_fnr_bins_case1_{suffix}.csv"
+                fnr_csv = output_dir / f"challenge_fnr_bins_adult_gate_{suffix}.csv"
                 with fnr_csv.open("w", encoding="utf-8") as fp:
                     header = ["threshold"] + [label for label, _, _ in CHALLENGE_FNR_BINS] + ["total"]
                     fp.write(",".join(header) + "\n")
@@ -993,46 +994,31 @@ def main() -> None:
                         ] + [f"{row['total']:.6f}"]
                         fp.write(",".join(values) + "\n")
 
-                roc_case1_path = output_dir / f"roc_case1_adult_gate_{suffix}.png"
-                roc_case2_path = output_dir / f"roc_case2_child_gate_{suffix}.png"
+                roc_adult_gate_path = output_dir / f"roc_adult_gate_{suffix}.png"
                 DisplayUtils.plot_roc_curve(
-                    gate_results["case1"]["fpr"],
-                    gate_results["case1"]["tpr"],
-                    thresholds=gate_results["case1"]["thresholds"],
-                    save_path=roc_case1_path,
-                    title=f"ROC - Adult Content Gate (admit adults, n={group_size}, DDP)",
-                    auc_value=gate_results["case1"]["auc"],
-                    highlight_tau=best_tau_case1,
-                    show=False,
-                )
-                DisplayUtils.plot_roc_curve(
-                    gate_results["case2"]["fpr"],
-                    gate_results["case2"]["tpr"],
-                    thresholds=gate_results["case2"]["thresholds"],
-                    save_path=roc_case2_path,
-                    title=f"ROC - Child Platform Gate (admit minors, n={group_size}, DDP)",
-                    auc_value=gate_results["case2"]["auc"],
-                    highlight_tau=best_tau_case2,
+                    adult_gate["fpr"],
+                    adult_gate["tpr"],
+                    thresholds=adult_gate["thresholds"],
+                    save_path=roc_adult_gate_path,
+                    title=f"ROC - Adult Gate (n={group_size}, DDP)",
+                    auc_value=adult_gate["auc"],
+                    highlight_tau=best_tau_adult_gate,
                     show=False,
                 )
 
                 metrics_csv_path = output_dir / f"age_gate_metrics_{suffix}.csv"
                 with metrics_csv_path.open("w", encoding="utf-8") as metrics_fp:
-                    metrics_fp.write("case,tau,fpr,fnr,tpr,tnr\n")
-                    for case_name, case_data in (
-                        ("adult_content_gate", gate_results["case1"]),
-                        ("child_platform_gate", gate_results["case2"]),
+                    metrics_fp.write("gate,tau,fpr,fnr,tpr,tnr\n")
+                    for tau, fpr, fnr, tpr_val, tnr in zip(
+                        adult_gate["thresholds"],
+                        adult_gate["fpr"],
+                        adult_gate["fnr"],
+                        adult_gate["tpr"],
+                        adult_gate["tnr"],
                     ):
-                        for tau, fpr, fnr, tpr_val, tnr in zip(
-                            case_data["thresholds"],
-                            case_data["fpr"],
-                            case_data["fnr"],
-                            case_data["tpr"],
-                            case_data["tnr"],
-                        ):
-                            metrics_fp.write(
-                                f"{case_name},{tau:.4f},{fpr:.6f},{fnr:.6f},{tpr_val:.6f},{tnr:.6f}\n"
-                            )
+                        metrics_fp.write(
+                            f"adult_gate,{tau:.4f},{fpr:.6f},{fnr:.6f},{tpr_val:.6f},{tnr:.6f}\n"
+                        )
 
                 challenge_thresholds = np.arange(18, 31, 1, dtype=float)
                 fpr_rows_weighted_best = compute_challenge_fpr_table_weighted(
@@ -1040,7 +1026,7 @@ def main() -> None:
                     aggregated["pred_mean"],
                     aggregated["pred_log_var"],
                     thresholds=challenge_thresholds,
-                    prob_threshold=selected_tau_case1,
+                    prob_threshold=selected_tau_adult_gate,
                     bins=CHALLENGE_BINS,
                 )
                 # First threshold with total <= 0.001 (ascending order); fallback to min-total threshold
@@ -1066,11 +1052,11 @@ def main() -> None:
                     alpha=0.6,
                 ):
                     saved_artifacts.append(
-                        f"n={group_size} -> {roc_case1_path.name}, {roc_case2_path.name}, {metrics_csv_path.name}, {preds_dump_path.name}, {challenge_csv.name}, {fnr_csv.name}, {scatter_path.name}"
+                        f"n={group_size} -> {roc_adult_gate_path.name}, {metrics_csv_path.name}, {preds_dump_path.name}, {challenge_csv.name}, {fnr_csv.name}, {scatter_path.name}"
                     )
                 else:
                     saved_artifacts.append(
-                        f"n={group_size} -> {roc_case1_path.name}, {roc_case2_path.name}, {metrics_csv_path.name}, {preds_dump_path.name}, {challenge_csv.name}, {fnr_csv.name}"
+                        f"n={group_size} -> {roc_adult_gate_path.name}, {metrics_csv_path.name}, {preds_dump_path.name}, {challenge_csv.name}, {fnr_csv.name}"
                     )
 
                 error_plot_path = output_dir / f"age_error_by_target_{suffix}.png"
@@ -1197,16 +1183,19 @@ def main() -> None:
                     idx = int(np.argmin((fprs_np ** 2) + ((1.0 - tprs_np) ** 2)))
                     return float(thr_np[idx])
 
-                best_tau_case1 = _select_best_tau(
-                    gate_results["case1"]["fpr"], gate_results["case1"]["tpr"], gate_results["case1"]["thresholds"]
+                adult_gate = gate_results["adult_gate"]
+                best_tau_adult_gate = _select_best_tau(
+                    adult_gate["fpr"], adult_gate["tpr"], adult_gate["thresholds"]
                 )
-                selected_tau_case1 = best_tau_case1 if best_tau_case1 is not None else CHALLENGE_PROB_TAU
+                selected_tau_adult_gate = (
+                    best_tau_adult_gate if best_tau_adult_gate is not None else CHALLENGE_PROB_TAU
+                )
                 fpr_rows = compute_challenge_fpr_table(
                     aggregated["targets"],
                     aggregated["pred_mean"],
                     aggregated["pred_log_var"],
                     thresholds=challenge_thresholds,
-                    prob_threshold=selected_tau_case1,
+                    prob_threshold=selected_tau_adult_gate,
                     bins=CHALLENGE_BINS,
                 )
                 challenge_csv = output_dir / f"challenge_fpr_bins_ddp_n{group_size}.csv"
@@ -1305,16 +1294,14 @@ def main() -> None:
                         age_threshold=18.0,
                         num_thresholds=201,
                     )
+                    adult_gate = gate_results["adult_gate"]
 
-                    best_tau_case1 = _select_best_tau_test(
-                        gate_results["case1"]["fpr"], gate_results["case1"]["tpr"],
-                        gate_results["case1"]["thresholds"],
+                    best_tau_adult_gate = _select_best_tau_test(
+                        adult_gate["fpr"], adult_gate["tpr"], adult_gate["thresholds"]
                     )
-                    best_tau_case2 = _select_best_tau_test(
-                        gate_results["case2"]["fpr"], gate_results["case2"]["tpr"],
-                        gate_results["case2"]["thresholds"],
+                    selected_tau_adult_gate = (
+                        best_tau_adult_gate if best_tau_adult_gate is not None else CHALLENGE_PROB_TAU
                     )
-                    selected_tau_case1 = best_tau_case1 if best_tau_case1 is not None else CHALLENGE_PROB_TAU
 
                     np.savez(
                         output_dir / f"test_predictions_{suffix}.npz",
@@ -1326,20 +1313,16 @@ def main() -> None:
                     )
 
                     with (output_dir / f"test_age_gate_metrics_{suffix}.csv").open("w", encoding="utf-8") as fp:
-                        fp.write("case,tau,fpr,fnr,tpr,tnr\n")
-                        for case_name, case_data in (
-                            ("adult_content_gate", gate_results["case1"]),
-                            ("child_platform_gate", gate_results["case2"]),
+                        fp.write("gate,tau,fpr,fnr,tpr,tnr\n")
+                        for tau, fpr, fnr, tpr_val, tnr in zip(
+                            adult_gate["thresholds"], adult_gate["fpr"],
+                            adult_gate["fnr"], adult_gate["tpr"], adult_gate["tnr"],
                         ):
-                            for tau, fpr, fnr, tpr_val, tnr in zip(
-                                case_data["thresholds"], case_data["fpr"],
-                                case_data["fnr"], case_data["tpr"], case_data["tnr"],
-                            ):
-                                fp.write(f"{case_name},{tau:.4f},{fpr:.6f},{fnr:.6f},{tpr_val:.6f},{tnr:.6f}\n")
+                            fp.write(f"adult_gate,{tau:.4f},{fpr:.6f},{fnr:.6f},{tpr_val:.6f},{tnr:.6f}\n")
 
                     fpr_rows = compute_challenge_fpr_table(
                         aggregated["targets"], aggregated["pred_mean"], aggregated["pred_log_var"],
-                        thresholds=challenge_thresholds, prob_threshold=selected_tau_case1,
+                        thresholds=challenge_thresholds, prob_threshold=selected_tau_adult_gate,
                         bins=CHALLENGE_BINS,
                     )
                     with (output_dir / f"test_challenge_fpr_bins_{suffix}.csv").open("w", encoding="utf-8") as fp:
@@ -1351,11 +1334,11 @@ def main() -> None:
                             ] + [f"{row['total']:.6f}"]
                             fp.write(",".join(values) + "\n")
 
-                    fnr_rows = compute_challenge_fnr_table_case1(
+                    fnr_rows = compute_challenge_fnr_table_adult_gate(
                         aggregated["targets"], aggregated["pred_mean"], aggregated["pred_log_var"],
-                        thresholds=challenge_thresholds, prob_threshold=selected_tau_case1,
+                        thresholds=challenge_thresholds, prob_threshold=selected_tau_adult_gate,
                     )
-                    with (output_dir / f"test_challenge_fnr_bins_case1_{suffix}.csv").open("w", encoding="utf-8") as fp:
+                    with (output_dir / f"test_challenge_fnr_bins_adult_gate_{suffix}.csv").open("w", encoding="utf-8") as fp:
                         header = ["threshold"] + [label for label, _, _ in CHALLENGE_FNR_BINS] + ["total"]
                         fp.write(",".join(header) + "\n")
                         for row in fnr_rows:
@@ -1365,21 +1348,12 @@ def main() -> None:
                             fp.write(",".join(values) + "\n")
 
                     DisplayUtils.plot_roc_curve(
-                        gate_results["case1"]["fpr"], gate_results["case1"]["tpr"],
-                        thresholds=gate_results["case1"]["thresholds"],
-                        save_path=output_dir / f"test_roc_case1_adult_gate_{suffix}.png",
-                        title=f"ROC - Adult Content Gate [TEST] (n={group_size}, DDP)",
-                        auc_value=gate_results["case1"]["auc"],
-                        highlight_tau=best_tau_case1,
-                        show=False,
-                    )
-                    DisplayUtils.plot_roc_curve(
-                        gate_results["case2"]["fpr"], gate_results["case2"]["tpr"],
-                        thresholds=gate_results["case2"]["thresholds"],
-                        save_path=output_dir / f"test_roc_case2_child_gate_{suffix}.png",
-                        title=f"ROC - Child Platform Gate [TEST] (n={group_size}, DDP)",
-                        auc_value=gate_results["case2"]["auc"],
-                        highlight_tau=best_tau_case2,
+                        adult_gate["fpr"], adult_gate["tpr"],
+                        thresholds=adult_gate["thresholds"],
+                        save_path=output_dir / f"test_roc_adult_gate_{suffix}.png",
+                        title=f"ROC - Adult Gate [TEST] (n={group_size}, DDP)",
+                        auc_value=adult_gate["auc"],
+                        highlight_tau=best_tau_adult_gate,
                         show=False,
                     )
 
@@ -1404,16 +1378,15 @@ def main() -> None:
                         "group_size": group_size,
                         "mae": mae,
                         "rmse": rmse,
-                        "auc_case1": gate_results["case1"]["auc"],
-                        "auc_case2": gate_results["case2"]["auc"],
+                        "auc_adult_gate": adult_gate["auc"],
                     })
 
                 with (output_dir / "test_summary_ddp.csv").open("w", encoding="utf-8") as fp:
-                    fp.write("group_size,mae,rmse,auc_case1,auc_case2\n")
+                    fp.write("group_size,mae,rmse,auc_adult_gate\n")
                     for row in summary_rows:
                         fp.write(
                             f"{row['group_size']},{row['mae']:.4f},{row['rmse']:.4f},"
-                            f"{row['auc_case1']:.4f},{row['auc_case2']:.4f}\n"
+                            f"{row['auc_adult_gate']:.4f}\n"
                         )
                 print(f"[Rank 0] Test evaluation complete. Artifacts saved to {output_dir}")
 

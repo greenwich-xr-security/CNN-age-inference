@@ -49,14 +49,14 @@ This is the age-specific training objective used by the regression head before b
 
 ### 4. Binary age-gate evaluation
 
-After training all models, treat the age-inference head as a binary age gate with an application-defined threshold (default 18 years). The network performs probabilistic age regression and outputs the parameters of a Gaussian age posterior (mu, sigma^2); integrate the Gaussian tail above the threshold to obtain the probability of the user being an adult, noted as p_adult( tau ).
+After training all models, treat the age-inference head as an adult gate with an application-defined threshold (default 18 years). The network performs probabilistic age regression and outputs the parameters of a Gaussian age posterior `(mu, sigma^2)`; integrate the Gaussian tail above the threshold to obtain the probability of the user being an adult, noted as `p_adult(tau)`.
 
-#### Case 1 - Keep children away from adult content
+#### Adult gate
 Use this configuration when minors must not access adult-only experiences.
 
 Decision rule (threshold at 18):
-- If p_adult >= tau -> True -> user admitted
-- If p_adult < tau -> False -> user rejected
+- If `p_adult >= tau` -> user admitted
+- If `p_adult < tau` -> user rejected
 
 Report the following metrics:
 - Minor Incorrectly Admitted (FPR): percentage of minors incorrectly admitted. <-- undesired risk.
@@ -64,23 +64,10 @@ Report the following metrics:
 - Adult Access Rate (TPR): percentage of adults correctly admitted. <-- desired usability.
 - Minor Rejection Rate (TNR): percentage of minors correctly denied access.
 
-#### Case 2 - Keep adults away from children
-Use this configuration on child-specific platforms where only minors should be admitted.
-
-Decision rule (threshold at 18):
-- If p_adult < tau -> True -> user admitted
-- If p_adult >= tau -> False -> user rejected
-
-Report the following metrics:
-- Adult Incorrectly Admitted (FPR): percentage of adults incorrectly admitted. <-- undesired risk.
-- Minor Incorrectly Rejected (FNR): percentage of minors wrongly denied access.
-- Minor Access Rate (TPR): percentage of minors correctly admitted. <-- desired usability.
-- Adult Rejection Rate (TNR): percentage of adults correctly denied access.
-
 #### ROC analysis
-For both cases, produce a ROC curve with:
+Produce one ROC curve for the adult gate with:
 - x-axis: FPR (undesired risk).
 - y-axis: TPR (desired usability).
-- Each point reflects one threshold value tau (i.e., the confidence cutoff).
-- Always report the Area Under Curve (AUC) next to the plot to summarize overall trade-offs.
+- Each point reflects one threshold value `tau` (the confidence cutoff).
+- Report the Area Under Curve (AUC) next to the plot to summarize the trade-off.
 

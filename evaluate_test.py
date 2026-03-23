@@ -34,7 +34,7 @@ from metrics import (
     CHALLENGE_PROB_TAU,
     aggregate_predictions_by_user,
     compute_age_gate_curves,
-    compute_challenge_fnr_table_case1,
+    compute_challenge_fnr_table_adult_gate,
     compute_challenge_fpr_table,
 )
 from models import resolve_model_builder
@@ -240,9 +240,7 @@ def main() -> None:
 
     # ── Per-aggregation-size evaluation ──────────────────────────────────────
     eval_group_sizes = sorted({int(n) for n in args.eval_aggregation_sizes if int(n) > 0})
-    summary_rows: list[str] = [
-        "group_size,mae,rmse,auc_case1,auc_case2"
-    ]
+    summary_rows: list[str] = ["group_size,mae,rmse,auc_adult_gate"]
 
     for group_size in eval_group_sizes:
         agg_rng = random.Random(args.eval_aggregation_seed + group_size)
@@ -269,13 +267,13 @@ def main() -> None:
             age_threshold=18.0,
             num_thresholds=201,
         )
-        auc1 = gate_results["case1"]["auc"]
-        auc2 = gate_results["case2"]["auc"]
+        adult_gate = gate_results["adult_gate"]
+        auc_adult_gate = adult_gate["auc"]
         print(
             f"n={group_size:2d}  MAE={mae:.4f}  RMSE={rmse:.4f}  "
-            f"AUC(case1)={auc1:.4f}  AUC(case2)={auc2:.4f}"
+            f"AUC(adult_gate)={auc_adult_gate:.4f}"
         )
-        summary_rows.append(f"{group_size},{mae:.6f},{rmse:.6f},{auc1:.6f},{auc2:.6f}")
+        summary_rows.append(f"{group_size},{mae:.6f},{rmse:.6f},{auc_adult_gate:.6f}")
 
         # Aggregated predictions
         np.savez(
@@ -297,36 +295,23 @@ def main() -> None:
             idx = int(np.argmin(fprs_np**2 + (1.0 - tprs_np)**2))
             return float(thrs_np[idx])
 
-        best_tau_case1 = _best_tau(
-            gate_results["case1"]["fpr"],
-            gate_results["case1"]["tpr"],
-            gate_results["case1"]["thresholds"],
+        best_tau_adult_gate = _best_tau(
+            adult_gate["fpr"],
+            adult_gate["tpr"],
+            adult_gate["thresholds"],
         )
-        best_tau_case2 = _best_tau(
-            gate_results["case2"]["fpr"],
-            gate_results["case2"]["tpr"],
-            gate_results["case2"]["thresholds"],
+        selected_tau_adult_gate = (
+            best_tau_adult_gate if best_tau_adult_gate is not None else CHALLENGE_PROB_TAU
         )
-        selected_tau_case1 = best_tau_case1 if best_tau_case1 is not None else CHALLENGE_PROB_TAU
 
         DisplayUtils.plot_roc_curve(
-            gate_results["case1"]["fpr"],
-            gate_results["case1"]["tpr"],
-            thresholds=gate_results["case1"]["thresholds"],
-            save_path=output_dir / f"roc_case1_adult_gate_{suffix}.png",
-            title=f"ROC - Adult Content Gate (TEST, n={group_size})",
-            auc_value=auc1,
-            highlight_tau=best_tau_case1,
-            show=False,
-        )
-        DisplayUtils.plot_roc_curve(
-            gate_results["case2"]["fpr"],
-            gate_results["case2"]["tpr"],
-            thresholds=gate_results["case2"]["thresholds"],
-            save_path=output_dir / f"roc_case2_child_gate_{suffix}.png",
-            title=f"ROC - Child Platform Gate (TEST, n={group_size})",
-            auc_value=auc2,
-            highlight_tau=best_tau_case2,
+            adult_gate["fpr"],
+            adult_gate["tpr"],
+            thresholds=adult_gate["thresholds"],
+            save_path=output_dir / f"roc_adult_gate_{suffix}.png",
+            title=f"ROC - Adult Gate (TEST, n={group_size})",
+            auc_value=auc_adult_gate,
+            highlight_tau=best_tau_adult_gate,
             show=False,
         )
 
@@ -350,19 +335,15 @@ def main() -> None:
         # Age-gate metrics CSV
         metrics_csv = output_dir / f"test_age_gate_metrics_{suffix}.csv"
         with metrics_csv.open("w", encoding="utf-8") as fp:
-            fp.write("case,tau,fpr,fnr,tpr,tnr\n")
-            for case_name, case_data in (
-                ("adult_content_gate", gate_results["case1"]),
-                ("child_platform_gate", gate_results["case2"]),
+            fp.write("gate,tau,fpr,fnr,tpr,tnr\n")
+            for tau, fpr, fnr, tpr_val, tnr in zip(
+                adult_gate["thresholds"],
+                adult_gate["fpr"],
+                adult_gate["fnr"],
+                adult_gate["tpr"],
+                adult_gate["tnr"],
             ):
-                for tau, fpr, fnr, tpr_val, tnr in zip(
-                    case_data["thresholds"],
-                    case_data["fpr"],
-                    case_data["fnr"],
-                    case_data["tpr"],
-                    case_data["tnr"],
-                ):
-                    fp.write(f"{case_name},{tau:.4f},{fpr:.6f},{fnr:.6f},{tpr_val:.6f},{tnr:.6f}\n")
+                fp.write(f"adult_gate,{tau:.4f},{fpr:.6f},{fnr:.6f},{tpr_val:.6f},{tnr:.6f}\n")
 
         # Challenge FPR / FNR tables
         challenge_thresholds = np.arange(18, 31, 1, dtype=float)
@@ -371,7 +352,7 @@ def main() -> None:
             agg_preds,
             agg_log_vars,
             thresholds=challenge_thresholds,
-            prob_threshold=selected_tau_case1,
+            prob_threshold=selected_tau_adult_gate,
             bins=CHALLENGE_BINS,
         )
         fpr_csv = output_dir / f"test_challenge_fpr_bins_{suffix}.csv"
@@ -384,14 +365,14 @@ def main() -> None:
                 ] + [f"{row['total']:.6f}"]
                 fp.write(",".join(values) + "\n")
 
-        fnr_rows = compute_challenge_fnr_table_case1(
+        fnr_rows = compute_challenge_fnr_table_adult_gate(
             agg_targets,
             agg_preds,
             agg_log_vars,
             thresholds=challenge_thresholds,
-            prob_threshold=selected_tau_case1,
+            prob_threshold=selected_tau_adult_gate,
         )
-        fnr_csv = output_dir / f"test_challenge_fnr_bins_{suffix}.csv"
+        fnr_csv = output_dir / f"test_challenge_fnr_bins_adult_gate_{suffix}.csv"
         with fnr_csv.open("w", encoding="utf-8") as fp:
             header = ["threshold"] + [label for label, _, _ in CHALLENGE_FNR_BINS] + ["total"]
             fp.write(",".join(header) + "\n")

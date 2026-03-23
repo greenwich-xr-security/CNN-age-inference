@@ -34,9 +34,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--auc-case",
         type=str,
-        default="mean",
-        choices=["case1", "case2", "mean"],
-        help="Which ROC AUC to optimize (default: mean of case1/case2).",
+        default="adult_gate",
+        choices=["adult_gate", "case1"],
+        help="Which ROC AUC to optimize (default: adult_gate; case1 kept as a deprecated alias).",
     )
     parser.add_argument("--tune-lr", action="store_true", help="Tune learning rate.")
     parser.add_argument("--lr", type=float, default=3e-4, help="Fixed learning rate when --tune-lr is off.")
@@ -95,21 +95,21 @@ def read_kfold_metrics(path: Path) -> dict:
         return sum(values) / float(len(values))
 
     mae_vals = [float(row["mae"]) for row in rows]
-    auc1_vals = [float(row["auc_case1"]) for row in rows]
-    auc2_vals = [float(row["auc_case2"]) for row in rows]
+    auc_vals = [
+        float(row.get("auc_adult_gate", row.get("auc_case1", "nan")))
+        for row in rows
+    ]
     intra_vals = [
         float(row.get("intra_user_std_mean", "nan"))
         for row in rows
         if row.get("intra_user_std_mean") not in (None, "")
     ]
     avg_mae = mean(mae_vals)
-    avg_auc1 = mean(auc1_vals)
-    avg_auc2 = mean(auc2_vals)
+    avg_auc = mean(auc_vals)
     avg_intra = mean(intra_vals) if intra_vals else float("nan")
     return {
         "avg_mae": avg_mae,
-        "avg_auc_case1": avg_auc1,
-        "avg_auc_case2": avg_auc2,
+        "avg_auc_adult_gate": avg_auc,
         "avg_intra_user_std": avg_intra,
     }
 
@@ -208,12 +208,7 @@ def main() -> None:
             raise FileNotFoundError(f"Expected metrics file not found: {metrics_path}")
 
         metrics = read_kfold_metrics(metrics_path)
-        if args.auc_case == "case1":
-            avg_auc = metrics["avg_auc_case1"]
-        elif args.auc_case == "case2":
-            avg_auc = metrics["avg_auc_case2"]
-        else:
-            avg_auc = 0.5 * (metrics["avg_auc_case1"] + metrics["avg_auc_case2"])
+        avg_auc = metrics["avg_auc_adult_gate"]
 
         trial.set_user_attr("output_dir", str(config_root))
         trial.set_user_attr("avg_intra_user_std", metrics["avg_intra_user_std"])

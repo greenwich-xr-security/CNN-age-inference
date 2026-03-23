@@ -396,8 +396,7 @@ def main() -> None:
 
     for group_size in group_sizes:
         fold_rows = []
-        roc_case1 = []
-        roc_case2 = []
+        roc_adult_gate = []
         age_tables = []
         all_targets_concat: list[float] = []
         all_preds_concat: list[float] = []
@@ -419,21 +418,14 @@ def main() -> None:
                 age_threshold=args.age_threshold,
                 num_thresholds=args.num_thresholds,
             )
+            adult_gate = gate["adult_gate"]
             fold_label = fold_dir.name
-            roc_case1.append(
+            roc_adult_gate.append(
                 {
                     "label": fold_label,
-                    "fpr": gate["case1"]["fpr"],
-                    "tpr": gate["case1"]["tpr"],
-                    "auc": gate["case1"]["auc"],
-                }
-            )
-            roc_case2.append(
-                {
-                    "label": fold_label,
-                    "fpr": gate["case2"]["fpr"],
-                    "tpr": gate["case2"]["tpr"],
-                    "auc": gate["case2"]["auc"],
+                    "fpr": adult_gate["fpr"],
+                    "tpr": adult_gate["tpr"],
+                    "auc": adult_gate["auc"],
                 }
             )
 
@@ -447,8 +439,7 @@ def main() -> None:
                     "group_size": group_size,
                     "mae": mae,
                     "rmse": rmse,
-                    "auc_case1": gate["case1"]["auc"],
-                    "auc_case2": gate["case2"]["auc"],
+                    "auc_adult_gate": adult_gate["auc"],
                     "samples": int(targets.size),
                     "intra_user_std_mean": (stats["mean"] if stats else float("nan")),
                     "intra_user_std_median": (stats["median"] if stats else float("nan")),
@@ -459,51 +450,35 @@ def main() -> None:
         fold_rows_path = output_dir / f"kfold_summary_n{group_size}.csv"
         with fold_rows_path.open("w", encoding="utf-8") as fp:
             fp.write(
-                "fold,group_size,mae,rmse,auc_case1,auc_case2,samples,"
+                "fold,group_size,mae,rmse,auc_adult_gate,samples,"
                 "intra_user_std_mean,intra_user_std_median,users_with_variability\n"
             )
             for row in fold_rows:
                 fp.write(
                     f"{row['fold']},{row['group_size']},{row['mae']:.6f},{row['rmse']:.6f},"
-                    f"{row['auc_case1']:.6f},{row['auc_case2']:.6f},{row['samples']},"
+                    f"{row['auc_adult_gate']:.6f},{row['samples']},"
                     f"{row['intra_user_std_mean']:.6f},{row['intra_user_std_median']:.6f},"
                     f"{row['users_with_variability']}\n"
                 )
 
         fpr_grid = np.linspace(0.0, 1.0, 101)
-        mean_case1 = []
-        mean_case2 = []
-        for entry in roc_case1:
+        mean_adult_gate = []
+        for entry in roc_adult_gate:
             order = np.argsort(entry["fpr"])
-            mean_case1.append(np.interp(fpr_grid, entry["fpr"][order], entry["tpr"][order]))
-        for entry in roc_case2:
-            order = np.argsort(entry["fpr"])
-            mean_case2.append(np.interp(fpr_grid, entry["fpr"][order], entry["tpr"][order]))
+            mean_adult_gate.append(np.interp(fpr_grid, entry["fpr"][order], entry["tpr"][order]))
 
-        mean_case1_tpr = np.mean(mean_case1, axis=0)
-        mean_case2_tpr = np.mean(mean_case2, axis=0)
-        mean_auc_case1 = float(np.mean([entry["auc"] for entry in roc_case1]))
-        mean_auc_case2 = float(np.mean([entry["auc"] for entry in roc_case2]))
+        mean_adult_gate_tpr = np.mean(mean_adult_gate, axis=0)
+        mean_auc_adult_gate = float(np.mean([entry["auc"] for entry in roc_adult_gate]))
 
         plot_roc_curves(
-            roc_case1,
+            roc_adult_gate,
             {
                 "fpr": fpr_grid,
-                "tpr": mean_case1_tpr,
-                "label": f"mean (AUC={mean_auc_case1:.3f})",
+                "tpr": mean_adult_gate_tpr,
+                "label": f"mean (AUC={mean_auc_adult_gate:.3f})",
             },
-            title=f"ROC - Adult Content Gate (k-fold, n={group_size})",
-            output_path=output_dir / f"roc_case1_kfold_n{group_size}.png",
-        )
-        plot_roc_curves(
-            roc_case2,
-            {
-                "fpr": fpr_grid,
-                "tpr": mean_case2_tpr,
-                "label": f"mean (AUC={mean_auc_case2:.3f})",
-            },
-            title=f"ROC - Child Platform Gate (k-fold, n={group_size})",
-            output_path=output_dir / f"roc_case2_kfold_n{group_size}.png",
+            title=f"ROC - Adult Gate (k-fold, n={group_size})",
+            output_path=output_dir / f"roc_adult_gate_kfold_n{group_size}.png",
         )
 
         all_ages = sorted({int(age) for entry in age_tables for age in entry["ages"]})

@@ -24,8 +24,7 @@ export TORCH_HOME
 export PYTHONUNBUFFERED=1
 
 # Activate conda xr environment
-source ~/miniconda3/etc/profile.d/conda.sh 2>/dev/null \
-  || source ~/anaconda3/etc/profile.d/conda.sh
+source /opt/software/eb/software/Miniforge3/24.11.3-2/etc/profile.d/conda.sh
 conda activate xr
 
 # Robust GPU count detection (mirrors DepthHandAgeBench approach)

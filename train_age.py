@@ -880,6 +880,9 @@ def main() -> None:
         save_path=hist_samples_path,
         show=False,
         title="Per-sample age distribution (train vs test)",
+        train_title="Train samples",
+        eval_title="Test samples",
+        count_label="Number of samples",
     )
     if saved_hist_samples:
         print(f"Saved per-sample age histograms to {saved_hist_samples}")

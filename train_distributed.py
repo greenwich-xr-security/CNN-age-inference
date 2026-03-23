@@ -405,6 +405,23 @@ def build_datasets(args: argparse.Namespace, seed: int, img_size: int):
     return train_ds, val_ds, active_root, len(train_meta), len(val_meta), fold_info
 
 
+def load_filtered_test_metadata(args: argparse.Namespace, active_root) -> pd.DataFrame | None:
+    if not args.test_users_file:
+        return None
+
+    test_split_data = load_test_split(args.test_users_file)
+    test_ids = {str(uid) for uid in test_split_data["test_user_ids"]}
+    all_meta = filter_metadata(
+        load_combined_metadata(
+            root=active_root,
+            include_hagrid=not getattr(args, "no_hagrid", False),
+        ),
+        max_samples_per_user=args.max_samples_per_user or None,
+        max_samples_per_age_bin=args.max_samples_per_age_bin or None,
+    )
+    return all_meta[all_meta["user_id"].astype(str).isin(test_ids)].reset_index(drop=True)
+
+
 def build_dataloaders(
     train_dataset,
     val_dataset,
@@ -1084,25 +1101,35 @@ def main() -> None:
             break
 
     if is_main:
-        train_user_ages = train_dataset.records.groupby("user_id")["age"].mean().to_numpy()
-        val_user_ages = val_dataset.records.groupby("user_id")["age"].mean().to_numpy()
-        hist_path = output_dir / "age_distribution_users_ddp.png"
-        saved_hist = DisplayUtils.plot_age_histograms(
-            train_user_ages,
-            val_user_ages,
-            save_path=hist_path,
-            show=False,
-            title="Per-user age distribution (train vs val, DDP)",
-        )
-        if saved_hist:
-            print(f"[Rank 0] Saved per-user age histograms to {saved_hist}")
+        stale_users_hist = output_dir / "age_distribution_users_ddp.png"
+        if stale_users_hist.exists():
+            stale_users_hist.unlink()
+            print(f"[Rank 0] Removed stale per-user age histogram {stale_users_hist}")
+        test_meta = load_filtered_test_metadata(args, active_root)
         hist_samples_path = output_dir / "age_distribution_samples_ddp.png"
         saved_hist_samples = DisplayUtils.plot_age_histograms(
             train_dataset.records["age"].to_numpy(),
             val_dataset.records["age"].to_numpy(),
             save_path=hist_samples_path,
             show=False,
-            title="Per-sample age distribution (train vs val, DDP)",
+            title=(
+                "Per-sample age distribution (train vs val vs test, DDP)"
+                if test_meta is not None and not test_meta.empty
+                else "Per-sample age distribution (train vs val, DDP)"
+            ),
+            train_title="Train samples",
+            eval_title="Val samples",
+            count_label="Number of samples",
+            extra_ages=(
+                test_meta["age"].to_numpy()
+                if test_meta is not None and not test_meta.empty
+                else None
+            ),
+            extra_title=(
+                "Test samples"
+                if test_meta is not None and not test_meta.empty
+                else None
+            ),
         )
         if saved_hist_samples:
             print(f"[Rank 0] Saved per-sample age histograms to {saved_hist_samples}")
@@ -1198,19 +1225,9 @@ def main() -> None:
         # ── Full evaluation on held-out test set ──────────────────────────
         if args.test_users_file and best_model_path.exists():
             print("[Rank 0] Running full evaluation on held-out test set...")
-            test_split_data = load_test_split(args.test_users_file)
-            test_ids = {str(uid) for uid in test_split_data["test_user_ids"]}
-
             _, test_transform = build_transforms(img_size)
-            all_meta = filter_metadata(
-                load_combined_metadata(
-                    root=active_root,
-                    include_hagrid=not getattr(args, "no_hagrid", False),
-                ),
-                max_samples_per_user=args.max_samples_per_user or None,
-                max_samples_per_age_bin=args.max_samples_per_age_bin or None,
-            )
-            test_meta = all_meta[all_meta["user_id"].astype(str).isin(test_ids)].reset_index(drop=True)
+            if test_meta is None:
+                test_meta = load_filtered_test_metadata(args, active_root)
 
             if test_meta.empty:
                 print("[Rank 0] No test samples found after filtering; skipping test evaluation.")

@@ -625,7 +625,7 @@ def _limit_users_per_age(df: pd.DataFrame, *, max_users_per_year: int = 15) -> p
         return df
 
     age_known["age_year"] = age_known["age"].astype(float).round().astype(int)
-    priority_map = {"handrgbd": 0, "hagrid": 0, "primary": 1, "archive": 2}
+    priority_map = {"handrgbd": 0, "hagrid": 1, "primary": 2, "archive": 3}
     age_known["priority"] = age_known["source"].map(priority_map).fillna(99).astype(int)
 
     keep_users: set[str] = set()
@@ -654,7 +654,7 @@ def load_combined_metadata(
     *,
     handrgbd_include_wall3: bool = False,
     include_hagrid: bool = True,
-    max_users_per_year: Optional[int] = 20,
+    max_users_per_year: Optional[int] = None,
 ) -> pd.DataFrame:
     primary_df = load_primary_metadata(root=root)
     archive_df = load_archive_metadata(root=root)
@@ -664,7 +664,6 @@ def load_combined_metadata(
         hagrid_df = load_hagrid_stop_inverted_metadata(root=root)
         sources.append(hagrid_df)
     combined = pd.concat(sources, ignore_index=True)
-    #combined = handrgbd_df
     combined = combined.drop_duplicates(subset="image_path")
     if max_users_per_year:
         combined = _limit_users_per_age(combined, max_users_per_year=max_users_per_year)
@@ -725,8 +724,8 @@ def _cli_main() -> None:
     parser.add_argument(
         "--max-users-per-year",
         type=int,
-        default=20,
-        help="Maximum users per age year (default: 20; set 0 to disable).",
+        default=0,
+        help="Maximum users per age year (default: 0 = disabled).",
     )
     parser.add_argument(
         "--no-hagrid",

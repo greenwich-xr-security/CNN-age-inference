@@ -62,17 +62,62 @@ def _limit_samples_per_user(
     return limited
 
 
+_SOURCE_PRIORITY = {"handrgbd": 0, "hagrid": 1, "primary": 2, "archive": 3}
+
+
+def _limit_samples_per_age_bin(
+    df: pd.DataFrame,
+    max_samples_per_age: int | None,
+) -> pd.DataFrame:
+    """Cap total samples per integer age year, preferring higher-priority sources.
+
+    Priority order (lower = kept first): handrgbd → hagrid → primary → archive.
+    Within the same source, order is preserved (i.e. first rows in the DataFrame
+    are kept when the cap is reached).
+    """
+    if max_samples_per_age is None:
+        return df
+    try:
+        max_s = int(max_samples_per_age)
+    except (TypeError, ValueError):
+        return df
+    if max_s <= 0:
+        return df
+    if "age" not in df.columns:
+        return df
+
+    work = df.copy()
+    work["_age_bin"] = work["age"].round().astype(int)
+    if "source" in work.columns:
+        work["_priority"] = work["source"].map(_SOURCE_PRIORITY).fillna(99).astype(int)
+    else:
+        work["_priority"] = 99
+
+    work = work.sort_values(["_age_bin", "_priority"], kind="stable")
+    limited = work.groupby("_age_bin", sort=False).head(max_s)
+    dropped = len(work) - len(limited)
+    if dropped > 0:
+        print(
+            f"Per-age-bin sample cap applied ({max_s} samples/year): "
+            f"dropped {dropped} samples."
+        )
+    limited = limited.drop(columns=["_age_bin", "_priority"])
+    return limited.reset_index(drop=True)
+
+
 def filter_metadata(
     df: pd.DataFrame,
     *,
-    max_samples_per_user: int | None = 16,
+    max_samples_per_user: int | None = None,
+    max_samples_per_age_bin: int | None = 200,
 ) -> pd.DataFrame:
-    """Keep dorsal images with known ages, cast ages to float, and cap samples per user."""
+    """Keep dorsal images with known ages, cast ages to float, and apply sample caps."""
     df = df[df["aspect"].str.contains("dorsal", case=False, na=False)]
     df = df[df["age"].notna()]
     df = df.copy()
     df["age"] = df["age"].astype(float)
     df = _limit_samples_per_user(df, max_samples_per_user)
+    df = _limit_samples_per_age_bin(df, max_samples_per_age_bin)
     return df.reset_index(drop=True)
 
 

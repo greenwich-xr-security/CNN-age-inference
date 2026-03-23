@@ -718,8 +718,14 @@ def _cli_main() -> None:
     parser.add_argument(
         "--max-samples-per-user",
         type=int,
-        default=16,
-        help="Maximum samples per user after dorsal filtering (default: 16; set 0 to disable).",
+        default=0,
+        help="Maximum samples per user after dorsal filtering (default: 0 = disabled).",
+    )
+    parser.add_argument(
+        "--max-samples-per-age-bin",
+        type=int,
+        default=200,
+        help="Maximum total samples per integer age year (default: 200; set 0 to disable).",
     )
     parser.add_argument(
         "--max-users-per-year",
@@ -742,7 +748,8 @@ def _cli_main() -> None:
     )
     filtered = filter_metadata(
         combined,
-        max_samples_per_user=args.max_samples_per_user,
+        max_samples_per_user=args.max_samples_per_user or None,
+        max_samples_per_age_bin=args.max_samples_per_age_bin or None,
     )
     active_root = _resolve_root(args.root)
     print(f"Using dataset root: {active_root}")

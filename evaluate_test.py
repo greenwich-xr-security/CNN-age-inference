@@ -82,8 +82,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--max-samples-per-user",
         type=int,
-        default=16,
-        help="Maximum samples per user after dorsal filtering (default: 16; set 0 to disable).",
+        default=0,
+        help="Maximum samples per user after dorsal filtering (default: 0 = disabled).",
+    )
+    parser.add_argument(
+        "--max-samples-per-age-bin",
+        type=int,
+        default=200,
+        help="Maximum samples per integer age year (default: 200; set 0 to disable).",
     )
     parser.add_argument(
         "--use-masks",
@@ -155,7 +161,8 @@ def main() -> None:
             root=get_dataset_root(),
             include_hagrid=not getattr(args, "no_hagrid", False),
         ),
-        max_samples_per_user=args.max_samples_per_user,
+        max_samples_per_user=args.max_samples_per_user or None,
+        max_samples_per_age_bin=args.max_samples_per_age_bin or None,
     )
     test_meta = metadata[metadata["user_id"].astype(str).isin(test_ids)].copy()
     if test_meta.empty:

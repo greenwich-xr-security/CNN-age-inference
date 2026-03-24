@@ -409,7 +409,7 @@ def build_datasets(args: argparse.Namespace, seed: int, img_size: int):
     train_ds = AgeDataset(train_meta, transform=train_transform)
     val_ds = AgeDataset(val_meta, transform=test_transform, use_masks=args.use_masks)
     val_user_skin = build_user_skin_color_series(val_meta)
-    return train_ds, val_ds, active_root, len(train_meta), len(val_meta), fold_info
+    return train_ds, val_ds, active_root, len(train_meta), len(val_meta), fold_info, val_user_skin
 
 
 def load_filtered_test_metadata(args: argparse.Namespace, active_root) -> pd.DataFrame | None:
@@ -534,7 +534,7 @@ def main() -> None:
         )
 
     set_random_seed(args.seed + rank)
-    train_dataset, val_dataset, active_root, train_len, val_len, fold_info = build_datasets(
+    train_dataset, val_dataset, active_root, train_len, val_len, fold_info, val_user_skin = build_datasets(
         args, args.seed, img_size
     )
 

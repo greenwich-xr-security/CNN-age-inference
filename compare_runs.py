@@ -21,7 +21,7 @@ FOLD_PATTERN = re.compile(r"^fold_\\d+$")
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Compare runs by MAE per age decade using val_predictions_*.npz files."
+        description="Compare runs by MAE per age decade using val/test prediction files."
     )
     parser.add_argument(
         "--runs-root",
@@ -39,7 +39,14 @@ def parse_args() -> argparse.Namespace:
         "--group-size",
         type=int,
         default=1,
-        help="Aggregation group size n used in val_predictions_n{n}_ddp.npz (default: 1).",
+        help="Aggregation group size n used in <split>_predictions_n{n}_ddp.npz (default: 1).",
+    )
+    parser.add_argument(
+        "--split",
+        type=str,
+        default="val",
+        choices=["val", "test"],
+        help="Prediction split to compare: validation or held-out test (default: val).",
     )
     parser.add_argument(
         "--run-subdir",
@@ -80,12 +87,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--allow-raw",
         action="store_true",
-        help="Fall back to val_predictions_raw_ddp.npz if aggregated file is missing.",
+        help="Fall back to <split>_predictions_raw_ddp.npz if aggregated file is missing.",
     )
     parser.add_argument(
         "--skip-variability",
         action="store_true",
-        help="Skip intra-user variability comparison (requires val_predictions_raw_ddp.npz).",
+        help="Skip intra-user variability comparison (requires <split>_predictions_raw_ddp.npz).",
     )
     return parser.parse_args()
 
@@ -138,8 +145,9 @@ def locate_predictions(
     group_size: int,
     run_subdir: str | None,
     allow_raw: bool,
+    split: str,
 ) -> Path | None:
-    file_name = f"val_predictions_n{group_size}_ddp.npz"
+    file_name = f"{split}_predictions_n{group_size}_ddp.npz"
     candidates: list[Path] = []
     if run_subdir:
         candidates.append(fold_dir / run_subdir)
@@ -154,7 +162,7 @@ def locate_predictions(
     if not allow_raw:
         return None
 
-    raw_name = "val_predictions_raw_ddp.npz"
+    raw_name = f"{split}_predictions_raw_ddp.npz"
     for cand in candidates:
         if cand.is_dir():
             found = _search_predictions(cand, raw_name)
@@ -163,13 +171,13 @@ def locate_predictions(
     return None
 
 
-def locate_raw_predictions(fold_dir: Path, run_subdir: str | None) -> Path | None:
+def locate_raw_predictions(fold_dir: Path, run_subdir: str | None, split: str) -> Path | None:
     candidates: list[Path] = []
     if run_subdir:
         candidates.append(fold_dir / run_subdir)
     candidates.append(fold_dir)
 
-    raw_name = "val_predictions_raw_ddp.npz"
+    raw_name = f"{split}_predictions_raw_ddp.npz"
     for cand in candidates:
         if cand.is_dir():
             found = _search_predictions(cand, raw_name)
@@ -302,8 +310,13 @@ def main() -> None:
     runs_root = Path(args.runs_root)
     if not runs_root.exists():
         raise FileNotFoundError(f"Runs root not found: {runs_root}")
-    output_dir = Path(args.output_dir) if args.output_dir else runs_root / "compare_runs"
+    if args.output_dir:
+        output_dir = Path(args.output_dir)
+    else:
+        output_name = "compare_runs" if args.split == "val" else f"compare_runs_{args.split}"
+        output_dir = runs_root / output_name
     output_dir.mkdir(parents=True, exist_ok=True)
+    split_label = "validation" if args.split == "val" else "held-out test"
 
     exclude_names = set()
     try:
@@ -333,7 +346,7 @@ def main() -> None:
 
         for fold_dir in fold_dirs:
             pred_path = locate_predictions(
-                fold_dir, args.group_size, args.run_subdir, args.allow_raw
+                fold_dir, args.group_size, args.run_subdir, args.allow_raw, args.split
             )
             if pred_path is None:
                 missing_folds.append(fold_dir)
@@ -363,7 +376,7 @@ def main() -> None:
             raw_user_ids: list[np.ndarray] = []
             missing_raw: list[Path] = []
             for fold_dir in fold_dirs:
-                raw_path = locate_raw_predictions(fold_dir, args.run_subdir)
+                raw_path = locate_raw_predictions(fold_dir, args.run_subdir, args.split)
                 if raw_path is None:
                     missing_raw.append(fold_dir)
                     continue
@@ -475,7 +488,7 @@ def main() -> None:
     ax.set_xticks(x)
     ax.set_xticklabels(run_names, rotation=20, ha="right")
     ax.set_ylabel("Error (years)")
-    ax.set_title("Overall MAE/RMSE/Intra-user STD (aggregated across folds)")
+    ax.set_title(f"Overall MAE/RMSE/Intra-user STD ({split_label}, aggregated across folds)")
     ax.grid(True, axis="y", linestyle="--", linewidth=0.5, alpha=0.4)
     ax.legend()
     fig.tight_layout()
@@ -527,7 +540,7 @@ def main() -> None:
     ax.set_xticklabels(bin_labels, rotation=0)
     ax.set_xlabel("Age bin (years)")
     ax.set_ylabel("MAE (years)")
-    ax.set_title("MAE by Age Decade (aggregated across folds)")
+    ax.set_title(f"MAE by Age Decade ({split_label}, aggregated across folds)")
     ax.grid(True, linestyle="--", linewidth=0.5, alpha=0.4)
     ax.legend(fontsize=8, ncol=2)
     fig.tight_layout()
@@ -603,7 +616,7 @@ def main() -> None:
             ax.set_xticklabels(bin_labels, rotation=0)
             ax.set_xlabel("Age bin (years)")
             ax.set_ylabel("Intra-user prediction STD (years)")
-            ax.set_title("Intra-user Variability by Age Decade")
+            ax.set_title(f"Intra-user Variability by Age Decade ({split_label})")
             ax.grid(True, linestyle="--", linewidth=0.5, alpha=0.4)
             ax.legend(fontsize=8, ncol=2)
             fig.tight_layout()

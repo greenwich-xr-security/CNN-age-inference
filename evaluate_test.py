@@ -355,7 +355,7 @@ def main() -> None:
             prob_threshold=selected_tau_adult_gate,
             bins=CHALLENGE_BINS,
         )
-        fpr_csv = output_dir / f"test_challenge_fpr_bins_{suffix}.csv"
+        fpr_csv = output_dir / f"test_challenge_fpr_bins_adult_gate_{suffix}.csv"
         with fpr_csv.open("w", encoding="utf-8") as fp:
             header = ["threshold"] + [label for label, _, _ in CHALLENGE_BINS] + ["total"]
             fp.write(",".join(header) + "\n")

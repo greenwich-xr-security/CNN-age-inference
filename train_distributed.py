@@ -970,7 +970,7 @@ def main() -> None:
                     prob_threshold=selected_tau_adult_gate,
                     bins=CHALLENGE_BINS,
                 )
-                challenge_csv = output_dir / f"challenge_fpr_bins_{suffix}.csv"
+                challenge_csv = output_dir / f"challenge_fpr_bins_adult_gate_{suffix}.csv"
                 with challenge_csv.open("w", encoding="utf-8") as fp:
                     header = ["threshold"] + [label for label, _, _ in CHALLENGE_BINS] + ["total"]
                     fp.write(",".join(header) + "\n")
@@ -1200,7 +1200,7 @@ def main() -> None:
                     prob_threshold=selected_tau_adult_gate,
                     bins=CHALLENGE_BINS,
                 )
-                challenge_csv = output_dir / f"challenge_fpr_bins_ddp_n{group_size}.csv"
+                challenge_csv = output_dir / f"challenge_fpr_bins_adult_gate_ddp_n{group_size}.csv"
                 with challenge_csv.open("w", encoding="utf-8") as fp:
                     header = ["threshold"] + [label for label, _, _ in CHALLENGE_BINS] + ["total"]
                     fp.write(",".join(header) + "\n")
@@ -1327,7 +1327,7 @@ def main() -> None:
                         thresholds=challenge_thresholds, prob_threshold=selected_tau_adult_gate,
                         bins=CHALLENGE_BINS,
                     )
-                    with (output_dir / f"test_challenge_fpr_bins_{suffix}.csv").open("w", encoding="utf-8") as fp:
+                    with (output_dir / f"test_challenge_fpr_bins_adult_gate_{suffix}.csv").open("w", encoding="utf-8") as fp:
                         header = ["threshold"] + [label for label, _, _ in CHALLENGE_BINS] + ["total"]
                         fp.write(",".join(header) + "\n")
                         for row in fpr_rows:

@@ -398,49 +398,8 @@ def compute_challenge_fpr_table(
 
     For each threshold:
     - minors = targets < threshold
-    - FPR per bin = (# of bin minors allowed) / (total minors)
-    - total = (# of all minors allowed) / (total minors)
-    If bins cover all minors, total matches the global FPR for that threshold.
-    """
-    targets_arr = np.asarray(targets, dtype=float)
-    preds_arr = np.asarray(pred_means, dtype=float)
-    log_vars_arr = np.asarray(pred_log_vars, dtype=float)
-    rows: list[dict] = []
-    for thr in thresholds:
-        adult_prob = compute_adult_probabilities(preds_arr, log_vars_arr, age_threshold=thr)
-        allow_mask = adult_prob >= prob_threshold
-        minors_mask_global = targets_arr < thr
-        minors_total = int(minors_mask_global.sum())
-
-        row: dict[str, float] = {"threshold": float(thr)}
-        bin_fprs = []
-        total_fp = 0
-        for label, lower, upper in bins:
-            bin_mask = (targets_arr >= lower) & (targets_arr <= upper) & minors_mask_global
-            fp = int(np.logical_and(allow_mask, bin_mask).sum())
-            fpr = _safe_rate(fp, minors_total)
-            row[label] = fpr
-            bin_fprs.append(fpr)
-            total_fp += fp
-
-        row["total"] = _safe_rate(total_fp, minors_total) if bin_fprs else 0.0
-        rows.append(row)
-    return rows
-
-
-def compute_challenge_fpr_table_weighted(
-    targets,
-    pred_means,
-    pred_log_vars,
-    *,
-    thresholds: Iterable[float],
-    prob_threshold: float = CHALLENGE_PROB_TAU,
-    bins: Iterable[tuple[str, float, float]] = CHALLENGE_BINS,
-) -> list[dict]:
-    """
-    Compute FPR per bin (relative to each bin's count) and an overall count-weighted FPR.
-
-    total = sum(fp_bin) / sum(count_bin), where bin counts are restricted to minors (< threshold).
+    - FPR per bin = (# of bin minors allowed) / (total minors in bin)
+    - total = (# of all minors allowed in covered bins) / (total minors in covered bins)
     """
     targets_arr = np.asarray(targets, dtype=float)
     preds_arr = np.asarray(pred_means, dtype=float)
@@ -468,6 +427,28 @@ def compute_challenge_fpr_table_weighted(
     return rows
 
 
+def compute_challenge_fpr_table_weighted(
+    targets,
+    pred_means,
+    pred_log_vars,
+    *,
+    thresholds: Iterable[float],
+    prob_threshold: float = CHALLENGE_PROB_TAU,
+    bins: Iterable[tuple[str, float, float]] = CHALLENGE_BINS,
+) -> list[dict]:
+    """
+    Backward-compatible alias for compute_challenge_fpr_table().
+    """
+    return compute_challenge_fpr_table(
+        targets,
+        pred_means,
+        pred_log_vars,
+        thresholds=thresholds,
+        prob_threshold=prob_threshold,
+        bins=bins,
+    )
+
+
 def compute_challenge_fnr_table_adult_gate(
     targets,
     pred_means,
@@ -480,13 +461,13 @@ def compute_challenge_fnr_table_adult_gate(
     """
     Compute FNR per adult bin for the adult gate.
 
-    FNR per bin = (# of adult samples in bin that were blocked) / (total samples overall).
+    FNR per bin = (# of samples in bin that were blocked) / (total samples in bin).
+    total = (# of blocked samples in covered bins) / (total samples in covered bins).
     Returns one row per threshold with keys: threshold, <bin labels...>, total.
     """
     targets_arr = np.asarray(targets, dtype=float)
     preds_arr = np.asarray(pred_means, dtype=float)
     log_vars_arr = np.asarray(pred_log_vars, dtype=float)
-    overall_total = int(targets_arr.size)
     rows: list[dict] = []
     for thr in thresholds:
         adult_prob = compute_adult_probabilities(preds_arr, log_vars_arr, age_threshold=thr)
@@ -495,16 +476,19 @@ def compute_challenge_fnr_table_adult_gate(
 
         row: dict[str, float] = {"threshold": float(thr)}
         total_fn = 0
+        total_count = 0
         for label, lower, upper in bins:
             lower_val = lower
             upper_val = float("inf") if upper is None else upper
             bin_mask = (targets_arr >= lower_val) & (targets_arr <= upper_val)
+            bin_total = int(bin_mask.sum())
             fn = int(np.logical_and(fn_mask, bin_mask).sum())
-            fnr = _safe_rate(fn, overall_total)
+            fnr = _safe_rate(fn, bin_total)
             row[label] = fnr
             total_fn += fn
+            total_count += bin_total
 
-        row["total"] = _safe_rate(total_fn, overall_total) if overall_total > 0 else 0.0
+        row["total"] = _safe_rate(total_fn, total_count)
         rows.append(row)
     return rows
 

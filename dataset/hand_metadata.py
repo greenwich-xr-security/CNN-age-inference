@@ -438,6 +438,7 @@ def load_handrgbd_metadata(
         "bbox",
         "wall_label",
         "lights_label",
+        "skin_color",
     ]
     if not metadata_csv.exists():
         return pd.DataFrame(columns=empty_cols)
@@ -513,6 +514,39 @@ def load_handrgbd_metadata(
     working_df["image_path"] = working_df["name"].apply(resolve_path)
     working_df = working_df[working_df["image_path"].notna()]
 
+    manifest_path = hand_root / "patches" / "manifest_with_ita.csv"
+    working_df["skin_color"] = None
+    if manifest_path.exists():
+        try:
+            manifest_df = pd.read_csv(manifest_path, usecols=["user_id", "skin color"])
+        except (ValueError, pd.errors.EmptyDataError):
+            manifest_df = pd.DataFrame(columns=["user_id", "skin color"])
+
+        if not manifest_df.empty:
+            manifest_df = manifest_df.rename(columns={"skin color": "skin_color"}).copy()
+            manifest_df["user_id"] = manifest_df["user_id"].astype(str).str.strip()
+            manifest_df["skin_color"] = (
+                manifest_df["skin_color"]
+                .astype(str)
+                .str.strip()
+                .str.lower()
+                .replace({"nan": pd.NA, "none": pd.NA, "": pd.NA})
+            )
+            manifest_df = manifest_df.drop_duplicates(subset="user_id", keep="first")
+
+            working_df["user_id_str"] = working_df["user_id"].astype(str).str.strip()
+            working_df = working_df.merge(
+                manifest_df,
+                left_on="user_id_str",
+                right_on="user_id",
+                how="left",
+                suffixes=("", "_manifest"),
+            )
+            working_df["skin_color"] = working_df["skin_color_manifest"]
+            working_df = working_df.drop(
+                columns=[col for col in ("user_id_str", "user_id_manifest", "skin_color_manifest") if col in working_df.columns]
+            )
+
     if "gender" in working_df.columns:
         working_df["gender_norm"] = working_df["gender"].apply(_normalise_gender)
     else:
@@ -536,6 +570,7 @@ def load_handrgbd_metadata(
             "bbox": working_df["bbox_tuple"],
             "wall_label": working_df["wall_label"],
             "lights_label": working_df["lights_label"],
+            "skin_color": working_df["skin_color"],
         }
     )
     df_out = df_out.reset_index(drop=True)
@@ -778,16 +813,30 @@ def _cli_main() -> None:
     else:
         def _plot_histogram(
             age_series: pd.Series,
-            source_series: pd.Series,
+            stack_series: pd.Series,
             *,
             title: str,
             ylabel: str,
             output_path: Path,
+            legend_title: str = "Source",
+            colour_map: dict[str, str] | None = None,
+            stack_order: list[str] | None = None,
         ) -> bool:
             if age_series.empty:
                 return False
-            colour_map = {"primary": "#4c72b0", "archive": "#dd8452", "handrgbd": "#55a868", "hagrid": "#c44e52"}
-            unique_sources = source_series.unique()
+            default_colour_map = {
+                "primary": "#4c72b0",
+                "archive": "#dd8452",
+                "handrgbd": "#55a868",
+                "hagrid": "#c44e52",
+            }
+            palette = colour_map or default_colour_map
+            stack_values = stack_series.fillna("unknown").astype(str)
+            if stack_order:
+                ordered = [label for label in stack_order if label in set(stack_values)]
+                unique_stacks = ordered + [label for label in stack_values.unique() if label not in ordered]
+            else:
+                unique_stacks = list(stack_values.unique())
 
             min_age = float(np.floor(age_series.min()))
             max_age = float(np.ceil(age_series.max()))
@@ -800,8 +849,8 @@ def _cli_main() -> None:
 
             plt.figure(figsize=(9, 5))
             cumulative = np.zeros_like(bin_centers, dtype=float)
-            for src in unique_sources:
-                mask = source_series[source_series == src].index
+            for stack_label in unique_stacks:
+                mask = stack_values[stack_values == stack_label].index
                 ages = age_series.loc[mask]
                 if ages.empty:
                     continue
@@ -811,14 +860,14 @@ def _cli_main() -> None:
                     counts,
                     width=bar_width * 0.9,
                     bottom=cumulative,
-                    color=colour_map.get(src, None),
+                    color=palette.get(stack_label, None),
                     edgecolor="black",
                     alpha=0.85,
-                    label=src,
+                    label=stack_label,
                 )
                 cumulative = cumulative + counts
-            if len(unique_sources) > 1:
-                plt.legend(title="Source")
+            if len(unique_stacks) > 1:
+                plt.legend(title=legend_title)
 
             plt.xlabel("Age")
             plt.ylabel(ylabel)
@@ -836,24 +885,73 @@ def _cli_main() -> None:
         if per_user_age.empty:
             print("No age values available; histogram skipped.")
         else:
-            source_for_user = filtered.groupby("user_id")["source"].first()
+            default_colour_map = {
+                "primary": "#4c72b0",
+                "archive": "#dd8452",
+                "handrgbd": "#55a868",
+                "hagrid": "#c44e52",
+            }
+            skin_colour_map = {
+                "light": "#f2d2b6",
+                "tan": "#c68642",
+                "dark": "#6f4e37",
+                "unlabeled": "#9ea3a8",
+            }
+            use_skin_stacks = (
+                filtered["source"].dropna().nunique() == 1
+                and filtered["source"].dropna().iloc[0] == "handrgbd"
+                and "skin_color" in filtered.columns
+                and filtered["skin_color"].notna().any()
+            )
+            if use_skin_stacks:
+                stack_title_prefix = "HandRGBD"
+                legend_title = "Skin color"
+                stack_order = ["light", "tan", "dark", "unlabeled"]
+                user_stack = (
+                    filtered.groupby("user_id")["skin_color"]
+                    .first()
+                    .fillna("unlabeled")
+                    .astype(str)
+                    .str.strip()
+                    .str.lower()
+                )
+                sample_stack = (
+                    filtered["skin_color"]
+                    .fillna("unlabeled")
+                    .astype(str)
+                    .str.strip()
+                    .str.lower()
+                )
+                plot_colour_map = skin_colour_map
+            else:
+                stack_title_prefix = "Hand datasets"
+                legend_title = "Source"
+                stack_order = None
+                user_stack = filtered.groupby("user_id")["source"].first()
+                sample_stack = filtered["source"]
+                plot_colour_map = default_colour_map
             any_plot = False
             any_plot |= _plot_histogram(
                 per_user_age,
-                source_for_user,
-                title="Hand datasets age distribution (per user)",
+                user_stack,
+                title=f"{stack_title_prefix} age distribution (per user)",
                 ylabel="User count",
                 output_path=Path("age_histogram_users.png"),
+                legend_title=legend_title,
+                colour_map=plot_colour_map,
+                stack_order=stack_order,
             )
 
             per_sample_age = filtered["age"].astype(float)
-            per_sample_source = filtered["source"]
             any_plot |= _plot_histogram(
                 per_sample_age,
-                per_sample_source,
-                title="Hand datasets age distribution (per sample)",
+                sample_stack,
+                title=f"{stack_title_prefix} age distribution (per sample)",
                 ylabel="Sample count",
                 output_path=Path("age_histogram_samples.png"),
+                legend_title=legend_title,
+                colour_map=plot_colour_map,
+                stack_order=stack_order,
             )
 
             if any_plot:

@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 from typing import Iterable
 
+import numpy as np
 import pandas as pd
 from sklearn.model_selection import KFold
 from sklearn.model_selection import StratifiedKFold
@@ -279,6 +280,30 @@ def normalise_user_skin_color_labels(user_skin_colors: pd.Series) -> pd.Series:
     ordered_labels = [label for label in _SKIN_COLOR_ORDER if label in set(labels)]
     ordered_labels.extend(sorted(label for label in labels.unique() if label not in ordered_labels))
     return labels.astype(pd.CategoricalDtype(categories=ordered_labels, ordered=True))
+
+
+def build_user_skin_color_series(df: pd.DataFrame) -> pd.Series:
+    """Return a normalised user_id -> skin_color series, defaulting missing values to ``unlabeled``."""
+    if "user_id" not in df.columns:
+        return pd.Series(dtype="category", name="skin_color")
+    if "skin_color" in df.columns:
+        user_skin = df.groupby("user_id")["skin_color"].first()
+    else:
+        user_ids = pd.Index(df["user_id"].astype(str).unique(), name="user_id")
+        user_skin = pd.Series("unlabeled", index=user_ids, name="skin_color")
+    return normalise_user_skin_color_labels(user_skin).rename("skin_color")
+
+
+def map_user_series_to_array(
+    user_ids: Iterable[object],
+    user_values: pd.Series,
+    *,
+    default: str = "unlabeled",
+) -> np.ndarray:
+    """Map a user-level series onto an ordered list of user_ids."""
+    values = pd.Series(user_values).copy()
+    values.index = values.index.astype(str)
+    return np.asarray([str(values.get(str(uid), default)) for uid in user_ids], dtype=str)
 
 
 def build_user_age_skin_strata(

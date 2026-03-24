@@ -9,7 +9,7 @@ from pathlib import Path
 import numpy as np
 from matplotlib import pyplot as plt
 
-from metrics import compute_age_gate_curves
+from metrics import compute_age_gate_curves, compute_group_summary_rows, save_group_summary_csv
 
 
 def parse_args() -> argparse.Namespace:
@@ -82,6 +82,8 @@ def load_predictions(run_dir: Path, group_size: int, *, split: str = "val") -> d
         "targets": data["targets"].astype(float),
         "pred_mean": data["pred_mean"].astype(float),
         "pred_log_var": data["pred_log_var"].astype(float),
+        "user_ids": data["user_ids"].astype(str) if "user_ids" in data.files else None,
+        "skin_color": data["skin_color"].astype(str) if "skin_color" in data.files else None,
     }
 
 
@@ -393,6 +395,7 @@ def aggregate_prediction_outputs(
     roc_name_template: str,
     age_error_name_template: str,
     scatter_name_template: str,
+    skin_summary_name_template: str,
     roc_title_template: str,
     age_error_title_template: str,
     scatter_title_template: str,
@@ -404,6 +407,9 @@ def aggregate_prediction_outputs(
         age_tables = []
         all_targets_concat: list[float] = []
         all_preds_concat: list[float] = []
+        all_log_vars_concat: list[float] = []
+        all_user_ids_concat: list[str] = []
+        all_skin_colors_concat: list[str] = []
 
         for fold_idx, (fold_dir, run_dir) in enumerate(zip(fold_dirs, run_dirs)):
             try:
@@ -422,6 +428,11 @@ def aggregate_prediction_outputs(
             pred_log_var = preds["pred_log_var"]
             all_targets_concat.extend(targets.tolist())
             all_preds_concat.extend(pred_mean.tolist())
+            all_log_vars_concat.extend(pred_log_var.tolist())
+            if preds.get("user_ids") is not None:
+                all_user_ids_concat.extend(preds["user_ids"].tolist())
+            if preds.get("skin_color") is not None:
+                all_skin_colors_concat.extend(preds["skin_color"].tolist())
             mae = float(np.mean(np.abs(pred_mean - targets)))
             rmse = float(np.sqrt(np.mean((pred_mean - targets) ** 2)))
 
@@ -542,6 +553,20 @@ def aggregate_prediction_outputs(
                 title=scatter_title_template.format(group_size=group_size),
                 output_path=output_dir / scatter_name_template.format(group_size=group_size),
             )
+        if all_skin_colors_concat and len(all_skin_colors_concat) == len(all_targets_concat):
+            save_group_summary_csv(
+                output_dir / skin_summary_name_template.format(group_size=group_size),
+                compute_group_summary_rows(
+                    np.asarray(all_skin_colors_concat, dtype=str),
+                    np.asarray(all_targets_concat, dtype=float),
+                    np.asarray(all_preds_concat, dtype=float),
+                    np.asarray(all_log_vars_concat, dtype=float),
+                    user_ids=np.asarray(all_user_ids_concat, dtype=str) if all_user_ids_concat else None,
+                    age_threshold=age_threshold,
+                    num_thresholds=num_thresholds,
+                ),
+                group_name="skin_color",
+            )
 
 
 def main() -> None:
@@ -597,6 +622,7 @@ def main() -> None:
         roc_name_template="roc_adult_gate_kfold_n{group_size}.png",
         age_error_name_template="age_error_kfold_n{group_size}.{ext}",
         scatter_name_template="age_val_scatter_kfold_n{group_size}.png",
+        skin_summary_name_template="kfold_skin_color_summary_n{group_size}.csv",
         roc_title_template="ROC - Adult Gate (k-fold validation, n={group_size})",
         age_error_title_template="MAE/RMSE per Age (k-fold validation mean, n={group_size})",
         scatter_title_template="Validation scatter (all folds, n={group_size})",
@@ -626,6 +652,7 @@ def main() -> None:
         roc_name_template="test_roc_adult_gate_kfold_n{group_size}.png",
         age_error_name_template="test_age_error_kfold_n{group_size}.{ext}",
         scatter_name_template="test_age_scatter_kfold_n{group_size}.png",
+        skin_summary_name_template="kfold_test_skin_color_summary_n{group_size}.csv",
         roc_title_template="ROC - Adult Gate [held-out test] (k-fold checkpoints, n={group_size})",
         age_error_title_template="MAE/RMSE per Age [held-out test] (k-fold mean, n={group_size})",
         scatter_title_template="Held-out test scatter (all fold checkpoints, n={group_size})",

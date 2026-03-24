@@ -19,10 +19,12 @@ from dataset.hand_metadata import (
 from dataset.samplers import GroupedBatchSampler
 from dataset.transforms import build_transforms
 from dataset.utils import (
+    build_user_skin_color_series,
     compute_age_weight_map,
     dataset_composition_stats,
     filter_metadata,
     load_kfold_splits,
+    map_user_series_to_array,
     oversample_by_age,
 )
 from displayUtils import DisplayUtils
@@ -38,7 +40,9 @@ from metrics import (
     compute_challenge_fnr_table_adult_gate,
     compute_challenge_fpr_table,
     compute_challenge_fpr_table_weighted,
+    compute_group_summary_rows,
     intra_user_spread_loss,
+    save_group_summary_csv,
     weighted_regression_loss,
 )
 from models import resolve_model_builder
@@ -464,6 +468,7 @@ def main() -> None:
         print("Split mode: Unstratified per-user split (random).")
     train_ds = AgeDataset(train_meta, transform=train_transform, use_masks=args.use_masks)
     test_ds = AgeDataset(test_meta, transform=test_transform, use_masks=args.use_masks)
+    test_user_skin = build_user_skin_color_series(test_meta)
     train_sampler = GroupedBatchSampler(
         train_ds.records["user_id"].tolist(),
         batch_size=args.batch_size,
@@ -719,14 +724,28 @@ def main() -> None:
                 )
                 suffix = f"n{group_size}"
                 preds_dump_path = output_dir / f"val_predictions_{suffix}.npz"
+                agg_skin_colors = map_user_series_to_array(aggregated["user_ids"], test_user_skin)
                 np.savez(
                     preds_dump_path,
                     targets=aggregated["targets"],
                     pred_mean=aggregated["pred_mean"],
                     pred_log_var=aggregated["pred_log_var"],
                     adult_prob=gate_results["adult_prob"],
+                    user_ids=aggregated["user_ids"],
+                    skin_color=agg_skin_colors,
                     epoch=epoch,
                     group_size=group_size,
+                )
+                skin_summary_path = save_group_summary_csv(
+                    output_dir / f"age_metrics_by_skin_color_{suffix}.csv",
+                    compute_group_summary_rows(
+                        agg_skin_colors,
+                        aggregated["targets"],
+                        aggregated["pred_mean"],
+                        aggregated["pred_log_var"],
+                        user_ids=aggregated["user_ids"],
+                    ),
+                    group_name="skin_color",
                 )
                 challenge_thresholds = np.arange(18, 31, 1, dtype=float)  # 18..30
                 fpr_rows = compute_challenge_fpr_table(
@@ -809,11 +828,11 @@ def main() -> None:
                     alpha=0.6,
                 ):
                     saved_artifacts.append(
-                        f"n={group_size} -> {roc_adult_gate_path.name}, {metrics_csv_path.name}, {preds_dump_path.name}, {challenge_csv.name}, {fnr_csv.name}, {scatter_path.name}"
+                        f"n={group_size} -> {roc_adult_gate_path.name}, {metrics_csv_path.name}, {preds_dump_path.name}, {challenge_csv.name}, {fnr_csv.name}, {skin_summary_path.name}, {scatter_path.name}"
                     )
                 else:
                     saved_artifacts.append(
-                        f"n={group_size} -> {roc_adult_gate_path.name}, {metrics_csv_path.name}, {preds_dump_path.name}, {challenge_csv.name}, {fnr_csv.name}"
+                        f"n={group_size} -> {roc_adult_gate_path.name}, {metrics_csv_path.name}, {preds_dump_path.name}, {challenge_csv.name}, {fnr_csv.name}, {skin_summary_path.name}"
                     )
                 error_plot_path = output_dir / f"age_error_by_target_{suffix}.png"
                 if DisplayUtils.save_error_by_age(

@@ -18,11 +18,13 @@ from dataset.hand_metadata import get_dataset_root, load_combined_metadata, set_
 from dataset.samplers import DistributedGroupedBatchSampler
 from dataset.transforms import build_transforms
 from dataset.utils import (
+    build_user_skin_color_series,
     compute_age_weight_map,
     dataset_composition_stats,
     filter_metadata,
     load_kfold_splits,
     load_test_split,
+    map_user_series_to_array,
     oversample_by_age,
 )
 from displayUtils import DisplayUtils
@@ -38,7 +40,9 @@ from metrics import (
     compute_challenge_fnr_table_adult_gate,
     compute_challenge_fpr_table,
     compute_challenge_fpr_table_weighted,
+    compute_group_summary_rows,
     intra_user_spread_loss,
+    save_group_summary_csv,
     weighted_regression_loss,
 )
 from models import resolve_model_builder
@@ -404,6 +408,7 @@ def build_datasets(args: argparse.Namespace, seed: int, img_size: int):
 
     train_ds = AgeDataset(train_meta, transform=train_transform)
     val_ds = AgeDataset(val_meta, transform=test_transform, use_masks=args.use_masks)
+    val_user_skin = build_user_skin_color_series(val_meta)
     return train_ds, val_ds, active_root, len(train_meta), len(val_meta), fold_info
 
 
@@ -903,12 +908,14 @@ def main() -> None:
             user_ids_list = list(user_ids_all)
 
             raw_preds_path = output_dir / "val_predictions_raw_ddp.npz"
+            raw_skin_colors = map_user_series_to_array(user_ids_list, val_user_skin)
             np.savez(
                 raw_preds_path,
                 targets=targets_arr,
                 pred_mean=preds_arr,
                 pred_log_var=log_vars_arr,
                 user_ids=np.asarray(user_ids_list, dtype=str),
+                skin_color=raw_skin_colors,
                 epoch=epoch,
             )
 
@@ -951,14 +958,28 @@ def main() -> None:
                 )
 
                 preds_dump_path = output_dir / f"val_predictions_{suffix}.npz"
+                agg_skin_colors = map_user_series_to_array(aggregated["user_ids"], val_user_skin)
                 np.savez(
                     preds_dump_path,
                     targets=aggregated["targets"],
                     pred_mean=aggregated["pred_mean"],
                     pred_log_var=aggregated["pred_log_var"],
                     adult_prob=gate_results["adult_prob"],
+                    user_ids=aggregated["user_ids"],
+                    skin_color=agg_skin_colors,
                     epoch=epoch,
                     group_size=group_size,
+                )
+                skin_summary_path = save_group_summary_csv(
+                    output_dir / f"age_metrics_by_skin_color_{suffix}.csv",
+                    compute_group_summary_rows(
+                        agg_skin_colors,
+                        aggregated["targets"],
+                        aggregated["pred_mean"],
+                        aggregated["pred_log_var"],
+                        user_ids=aggregated["user_ids"],
+                    ),
+                    group_name="skin_color",
                 )
 
                 challenge_thresholds = np.arange(18, 31, 1, dtype=float)  # 18..30
@@ -1054,11 +1075,11 @@ def main() -> None:
                     alpha=0.6,
                 ):
                     saved_artifacts.append(
-                        f"n={group_size} -> {roc_adult_gate_path.name}, {metrics_csv_path.name}, {preds_dump_path.name}, {challenge_csv.name}, {fnr_csv.name}, {scatter_path.name}"
+                        f"n={group_size} -> {roc_adult_gate_path.name}, {metrics_csv_path.name}, {preds_dump_path.name}, {challenge_csv.name}, {fnr_csv.name}, {skin_summary_path.name}, {scatter_path.name}"
                     )
                 else:
                     saved_artifacts.append(
-                        f"n={group_size} -> {roc_adult_gate_path.name}, {metrics_csv_path.name}, {preds_dump_path.name}, {challenge_csv.name}, {fnr_csv.name}"
+                        f"n={group_size} -> {roc_adult_gate_path.name}, {metrics_csv_path.name}, {preds_dump_path.name}, {challenge_csv.name}, {fnr_csv.name}, {skin_summary_path.name}"
                     )
 
                 error_plot_path = output_dir / f"age_error_by_target_{suffix}.png"
@@ -1233,6 +1254,7 @@ def main() -> None:
                 )
 
                 test_model = model_builder()
+                test_user_skin = build_user_skin_color_series(test_meta)
                 state = torch.load(best_model_path, map_location=device)
                 test_model.load_state_dict(state)
                 test_model = test_model.to(device)
@@ -1268,6 +1290,7 @@ def main() -> None:
                     pred_mean=t_means_arr,
                     pred_log_var=t_log_vars_arr,
                     user_ids=np.asarray(t_user_ids, dtype=str),
+                    skin_color=map_user_series_to_array(t_user_ids, test_user_skin),
                 )
 
                 def _select_best_tau_test(fprs_arr, tprs_arr, thresholds_arr):
@@ -1311,7 +1334,20 @@ def main() -> None:
                         pred_mean=aggregated["pred_mean"],
                         pred_log_var=aggregated["pred_log_var"],
                         adult_prob=gate_results["adult_prob"],
+                        user_ids=aggregated["user_ids"],
+                        skin_color=map_user_series_to_array(aggregated["user_ids"], test_user_skin),
                         group_size=group_size,
+                    )
+                    save_group_summary_csv(
+                        output_dir / f"test_age_metrics_by_skin_color_{suffix}.csv",
+                        compute_group_summary_rows(
+                            map_user_series_to_array(aggregated["user_ids"], test_user_skin),
+                            aggregated["targets"],
+                            aggregated["pred_mean"],
+                            aggregated["pred_log_var"],
+                            user_ids=aggregated["user_ids"],
+                        ),
+                        group_name="skin_color",
                     )
 
                     with (output_dir / f"test_age_gate_metrics_{suffix}.csv").open("w", encoding="utf-8") as fp:

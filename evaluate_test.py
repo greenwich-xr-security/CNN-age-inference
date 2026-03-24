@@ -27,7 +27,7 @@ from torch.utils.data import DataLoader
 from dataset.age import AgeDataset
 from dataset.hand_metadata import get_dataset_root, load_combined_metadata, set_dataset_root
 from dataset.transforms import build_transforms
-from dataset.utils import filter_metadata, load_test_split
+from dataset.utils import build_user_skin_color_series, filter_metadata, load_test_split, map_user_series_to_array
 from metrics import (
     CHALLENGE_BINS,
     CHALLENGE_FNR_BINS,
@@ -36,6 +36,8 @@ from metrics import (
     compute_age_gate_curves,
     compute_challenge_fnr_table_adult_gate,
     compute_challenge_fpr_table,
+    compute_group_summary_rows,
+    save_group_summary_csv,
 )
 from models import resolve_model_builder
 from displayUtils import DisplayUtils
@@ -178,6 +180,7 @@ def main() -> None:
     _, test_transform = build_transforms(img_size)
 
     test_ds = AgeDataset(test_meta, transform=test_transform, use_masks=args.use_masks)
+    test_user_skin = build_user_skin_color_series(test_meta)
     test_loader = DataLoader(
         test_ds,
         batch_size=args.batch_size,
@@ -235,6 +238,7 @@ def main() -> None:
         pred_mean=preds_arr,
         pred_log_var=log_vars_arr,
         user_ids=np.asarray(all_user_ids, dtype=str),
+        skin_color=map_user_series_to_array(all_user_ids, test_user_skin),
     )
     print(f"Saved raw predictions: {raw_path}")
 
@@ -282,7 +286,20 @@ def main() -> None:
             pred_mean=agg_preds,
             pred_log_var=agg_log_vars,
             adult_prob=gate_results["adult_prob"],
+            user_ids=aggregated["user_ids"],
+            skin_color=map_user_series_to_array(aggregated["user_ids"], test_user_skin),
             group_size=group_size,
+        )
+        save_group_summary_csv(
+            output_dir / f"test_age_metrics_by_skin_color_{suffix}.csv",
+            compute_group_summary_rows(
+                map_user_series_to_array(aggregated["user_ids"], test_user_skin),
+                agg_targets,
+                agg_preds,
+                agg_log_vars,
+                user_ids=aggregated["user_ids"],
+            ),
+            group_name="skin_color",
         )
 
         # ROC curves

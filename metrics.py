@@ -3,6 +3,7 @@ from __future__ import annotations
 import math
 import random
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Iterable, Sequence, Tuple
 
 import numpy as np
@@ -251,14 +252,16 @@ def aggregate_predictions_by_user(
     agg_targets: list[float] = []
     agg_means: list[float] = []
     agg_log_vars: list[float] = []
+    agg_user_ids: list[str] = []
 
-    for samples in user_buckets.values():
+    for uid, samples in user_buckets.items():
         if group_size == 1:
             for tgt, mean, log_var in samples:
                 clamped_lv = float(np.clip(log_var, LOG_VAR_MIN, LOG_VAR_MAX))
                 agg_targets.append(tgt)
                 agg_means.append(mean)
                 agg_log_vars.append(clamped_lv)
+                agg_user_ids.append(uid)
             continue
 
         rng.shuffle(samples)
@@ -272,6 +275,7 @@ def aggregate_predictions_by_user(
             agg_targets.append(float(np.mean(tgt_vals)))
             agg_means.append(float(np.mean(mean_vals)))
             agg_log_vars.append(float(np.log(max(mean_var, 1e-12))))
+            agg_user_ids.append(uid)
 
         for _ in range(full_groups):
             chunk = samples[cursor : cursor + group_size]
@@ -285,6 +289,7 @@ def aggregate_predictions_by_user(
         "targets": np.asarray(agg_targets, dtype=float),
         "pred_mean": np.asarray(agg_means, dtype=float),
         "pred_log_var": np.asarray(agg_log_vars, dtype=float),
+        "user_ids": np.asarray(agg_user_ids, dtype=str),
     }
 
 
@@ -366,7 +371,10 @@ def compute_age_gate_curves(
         order = np.argsort(fprs_arr)
         if fprs_arr.size == 0:
             return 0.0
-        return float(np.trapz(tprs_arr[order], fprs_arr[order]))
+        integrator = getattr(np, "trapezoid", None)
+        if integrator is None:
+            integrator = np.trapz
+        return float(integrator(tprs_arr[order], fprs_arr[order]))
 
     results = {
         "adult_prob": adult_prob,
@@ -511,3 +519,90 @@ def compute_challenge_fnr_table_case1(
         prob_threshold=prob_threshold,
         bins=bins,
     )
+
+
+def compute_group_summary_rows(
+    group_labels,
+    targets,
+    pred_means,
+    pred_log_vars,
+    *,
+    user_ids: Sequence[object] | None = None,
+    age_threshold: float = 18.0,
+    num_thresholds: int = 201,
+) -> list[dict]:
+    """Compute regression and adult-gate summary metrics for labeled subgroups."""
+    labels_arr = np.asarray(group_labels, dtype=str)
+    targets_arr = np.asarray(targets, dtype=float)
+    preds_arr = np.asarray(pred_means, dtype=float)
+    log_vars_arr = np.asarray(pred_log_vars, dtype=float)
+    if not (labels_arr.size == targets_arr.size == preds_arr.size == log_vars_arr.size):
+        raise ValueError("group_labels, targets, pred_means, and pred_log_vars must have matching lengths.")
+
+    if user_ids is not None:
+        user_ids_arr = np.asarray(user_ids, dtype=str)
+        if user_ids_arr.size != labels_arr.size:
+            raise ValueError("user_ids length must match group_labels length.")
+    else:
+        user_ids_arr = None
+
+    preferred_order = ("light", "tan", "dark", "unlabeled")
+    label_set = set(labels_arr.tolist())
+    ordered_labels = [label for label in preferred_order if label in label_set]
+    ordered_labels.extend(sorted(label for label in label_set if label not in ordered_labels))
+
+    rows: list[dict] = []
+    for label in ordered_labels:
+        mask = labels_arr == label
+        if not np.any(mask):
+            continue
+        group_targets = targets_arr[mask]
+        group_preds = preds_arr[mask]
+        group_log_vars = log_vars_arr[mask]
+        gate_results = compute_age_gate_curves(
+            group_targets,
+            group_preds,
+            group_log_vars,
+            age_threshold=age_threshold,
+            num_thresholds=num_thresholds,
+        )
+        adult_gate = gate_results["adult_gate"]
+        rows.append(
+            {
+                "group_label": str(label),
+                "samples": int(mask.sum()),
+                "users": int(np.unique(user_ids_arr[mask]).size) if user_ids_arr is not None else int(mask.sum()),
+                "adult_count": int(adult_gate["adult_total"]),
+                "minor_count": int(adult_gate["minor_total"]),
+                "target_age_mean": float(np.mean(group_targets)),
+                "pred_age_mean": float(np.mean(group_preds)),
+                "mean_error": float(np.mean(group_preds - group_targets)),
+                "mae": float(np.mean(np.abs(group_preds - group_targets))),
+                "rmse": float(np.sqrt(np.mean((group_preds - group_targets) ** 2))),
+                "auc_adult_gate": float(adult_gate["auc"]),
+            }
+        )
+    return rows
+
+
+def save_group_summary_csv(
+    path: str | Path,
+    rows: Sequence[dict],
+    *,
+    group_name: str = "group",
+) -> Path:
+    """Write subgroup summary rows to CSV."""
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8") as fp:
+        fp.write(
+            f"{group_name},samples,users,adult_count,minor_count,target_age_mean,pred_age_mean,"
+            "mean_error,mae,rmse,auc_adult_gate\n"
+        )
+        for row in rows:
+            fp.write(
+                f"{row['group_label']},{row['samples']},{row['users']},{row['adult_count']},{row['minor_count']},"
+                f"{row['target_age_mean']:.6f},{row['pred_age_mean']:.6f},{row['mean_error']:.6f},"
+                f"{row['mae']:.6f},{row['rmse']:.6f},{row['auc_adult_gate']:.6f}\n"
+            )
+    return path

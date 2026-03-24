@@ -262,6 +262,102 @@ def build_user_age_strata(
     return labels.astype(pd.CategoricalDtype(categories=ordered_labels, ordered=True))
 
 
+_SKIN_COLOR_ORDER = ("light", "tan", "dark", "unlabeled")
+
+
+def normalise_user_skin_color_labels(user_skin_colors: pd.Series) -> pd.Series:
+    """Return ordered user-level skin-color labels with missing values mapped to ``unlabeled``."""
+    labels = pd.Series(user_skin_colors).copy()
+    labels.index = labels.index.astype(str)
+    labels = (
+        labels.fillna("unlabeled")
+        .astype(str)
+        .str.strip()
+        .str.lower()
+        .replace({"": "unlabeled", "nan": "unlabeled", "none": "unlabeled"})
+    )
+    ordered_labels = [label for label in _SKIN_COLOR_ORDER if label in set(labels)]
+    ordered_labels.extend(sorted(label for label in labels.unique() if label not in ordered_labels))
+    return labels.astype(pd.CategoricalDtype(categories=ordered_labels, ordered=True))
+
+
+def build_user_age_skin_strata(
+    user_ages: pd.Series,
+    user_skin_colors: pd.Series,
+    *,
+    fine_bin_width: int = 2,
+    coarse_start_age: int = 51,
+    coarse_bin_width: int = 5,
+    min_count: int = 1,
+) -> pd.Series:
+    """
+    Build ordered user-level joint age/skin strata for split stratification.
+
+    Strategy:
+    - build the adaptive user-age bins first
+    - split those bins by user skin color where enough users are available
+    - fall back to age-only labels for sparse age/skin combinations
+    """
+    age_labels = build_user_age_strata(
+        user_ages,
+        fine_bin_width=fine_bin_width,
+        coarse_start_age=coarse_start_age,
+        coarse_bin_width=coarse_bin_width,
+        min_count=min_count,
+    )
+    if age_labels.empty:
+        return pd.Series(dtype="category", name="age_skin_stratum")
+
+    skin_labels = normalise_user_skin_color_labels(user_skin_colors).reindex(age_labels.index)
+    skin_labels = (
+        skin_labels.fillna("unlabeled")
+        .astype(str)
+        .str.strip()
+        .str.lower()
+        .replace({"": "unlabeled", "nan": "unlabeled", "none": "unlabeled"})
+    )
+    if skin_labels.nunique(dropna=False) <= 1:
+        return age_labels.rename("age_skin_stratum")
+
+    age_label_strings = age_labels.astype(str)
+    combined = pd.Series(
+        [f"{age_label} | {skin_label}" for age_label, skin_label in zip(age_label_strings, skin_labels)],
+        index=age_labels.index,
+        dtype="object",
+        name="age_skin_stratum",
+    )
+    resolved = combined.copy()
+    for age_label in age_labels.cat.categories:
+        age_label = str(age_label)
+        age_mask = age_label_strings.eq(age_label)
+        age_group = combined.loc[age_mask]
+        age_counts = age_group.value_counts()
+        sparse_labels = age_counts[age_counts < min_count].index.tolist()
+        if not sparse_labels:
+            continue
+        sparse_mask = age_mask & combined.isin(sparse_labels)
+        sparse_total = int(sparse_mask.sum())
+        if sparse_total < min_count:
+            resolved.loc[age_mask] = age_label
+        else:
+            resolved.loc[sparse_mask] = age_label
+
+    ordered_labels: list[str] = []
+    unique_labels = set(resolved.unique())
+    skin_order = [label for label in _SKIN_COLOR_ORDER if label in set(skin_labels)]
+    skin_order.extend(sorted(label for label in set(skin_labels) if label not in skin_order))
+    for age_label in age_labels.cat.categories:
+        age_label = str(age_label)
+        for skin_label in skin_order:
+            label = f"{age_label} | {skin_label}"
+            if label in unique_labels:
+                ordered_labels.append(label)
+        if age_label in unique_labels:
+            ordered_labels.append(age_label)
+    ordered_labels.extend(label for label in resolved.unique() if label not in ordered_labels)
+    return resolved.astype(pd.CategoricalDtype(categories=ordered_labels, ordered=True))
+
+
 def summarise_user_stratification(
     user_labels: pd.Series,
     split_to_user_ids: dict[str, Iterable[str]],

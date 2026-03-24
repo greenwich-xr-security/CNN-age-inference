@@ -9,8 +9,10 @@ from dataset.hand_metadata import get_dataset_root, load_combined_metadata, set_
 from dataset.utils import (
     build_kfold_user_splits,
     build_user_age_strata,
+    build_user_age_skin_strata,
     filter_metadata,
     load_test_split,
+    normalise_user_skin_color_labels,
     save_kfold_splits,
     summarise_user_stratification,
 )
@@ -68,10 +70,16 @@ def parse_args() -> argparse.Namespace:
         help="Disable fold stratification entirely.",
     )
     parser.add_argument(
+        "--no-hagrid",
+        action="store_true",
+        default=False,
+        help="Exclude the HaGRIDv2 stop_inverted dataset when building the folds.",
+    )
+    parser.add_argument(
         "--stratify-mode",
         type=str,
         default="age_bins",
-        choices=["age_bins", "adult", "none"],
+        choices=["age_bins", "age_bins_skin_color", "adult", "none"],
         help="User-level fold stratification mode (default: age_bins).",
     )
     parser.add_argument(
@@ -110,7 +118,10 @@ def main() -> None:
         raise FileExistsError(f"Fold file already exists: {out_path}")
 
     metadata = filter_metadata(
-        load_combined_metadata(root=get_dataset_root()),
+        load_combined_metadata(
+            root=get_dataset_root(),
+            include_hagrid=not args.no_hagrid,
+        ),
         max_samples_per_user=args.max_samples_per_user,
     )
 
@@ -129,16 +140,35 @@ def main() -> None:
     user_age = metadata.groupby("user_id")["age"].mean()
     stratify_labels = None
     stratify_col = None
+    age_labels = None
+    skin_labels = None
     if stratify_mode == "adult":
         stratify_labels = (user_age >= 18.0).map(lambda x: "adult" if x else "minor")
-    elif stratify_mode == "age_bins":
-        stratify_labels = build_user_age_strata(
+    elif stratify_mode in {"age_bins", "age_bins_skin_color"}:
+        age_labels = build_user_age_strata(
             user_age,
             fine_bin_width=args.age_bin_width,
             coarse_start_age=args.age_bin_coarse_start,
             coarse_bin_width=args.age_bin_coarse_width,
             min_count=args.k,
         )
+        if stratify_mode == "age_bins_skin_color":
+            user_skin = (
+                metadata.groupby("user_id")["skin_color"].first()
+                if "skin_color" in metadata.columns
+                else user_age.map(lambda _age: "unlabeled")
+            )
+            skin_labels = normalise_user_skin_color_labels(user_skin)
+            stratify_labels = build_user_age_skin_strata(
+                user_age,
+                user_skin,
+                fine_bin_width=args.age_bin_width,
+                coarse_start_age=args.age_bin_coarse_start,
+                coarse_bin_width=args.age_bin_coarse_width,
+                min_count=args.k,
+            )
+        else:
+            stratify_labels = age_labels
 
     if stratify_labels is not None:
         metadata = metadata.merge(
@@ -179,6 +209,9 @@ def main() -> None:
         if stratify_mode == "age_bins":
             bins = ", ".join(str(label) for label in stratify_labels.cat.categories)
             print(f"User age bins: {bins}")
+        elif stratify_mode == "age_bins_skin_color" and age_labels is not None:
+            bins = ", ".join(str(label) for label in age_labels.cat.categories)
+            print(f"User age bins: {bins}")
         for idx in range(len(folds)):
             row = quality_df[quality_df["split"] == f"fold_{idx}"]
             if row.empty:
@@ -188,6 +221,18 @@ def main() -> None:
                 f"fold_{idx} — max abs frac diff: {row['max_abs_frac_diff']:.4f}, "
                 f"mean abs frac diff: {row['mean_abs_frac_diff']:.4f}"
             )
+
+        if stratify_mode == "age_bins_skin_color" and skin_labels is not None:
+            skin_stats_df, skin_quality_df = summarise_user_stratification(
+                skin_labels,
+                {f"fold_{idx}": fold for idx, fold in enumerate(folds)},
+            )
+            skin_stats_path = saved_path.with_name(saved_path.stem + "_skin_color_stats.csv")
+            skin_quality_path = saved_path.with_name(saved_path.stem + "_skin_color_quality.csv")
+            skin_stats_df.to_csv(skin_stats_path, index=False)
+            skin_quality_df.to_csv(skin_quality_path, index=False)
+            print(f"Skin-color stats written to: {skin_stats_path}")
+            print(f"Skin-color quality written to: {skin_quality_path}")
 
 
 if __name__ == "__main__":

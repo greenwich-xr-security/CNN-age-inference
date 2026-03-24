@@ -92,6 +92,7 @@ EMBED_AGE_SLACK="${EMBED_AGE_SLACK:-5.0}"
 EMBED_CONTRAST_MARGIN="${EMBED_CONTRAST_MARGIN:-1.0}"
 EMBED_CONTRAST_AGE_THRESH="${EMBED_CONTRAST_AGE_THRESH:-5.0}"
 USE_MASKS="${USE_MASKS:-0}"                        # set >0 to apply dataset masks (black background)
+NO_HAGRID="${NO_HAGRID:-0}"                       # set >0 to exclude HaGRIDv2 from split generation and training
 # K-fold settings (set KFOLDS > 1 to enable).
 KFOLDS="${KFOLDS:-5}"
 FOLD_SEED="${FOLD_SEED:-${SEED}}"
@@ -100,6 +101,7 @@ FOLD_OVERWRITE="${FOLD_OVERWRITE:-0}"
 # Held-out test split (created once before any training).
 TEST_SPLIT_FILE="${TEST_SPLIT_FILE:-${OUTPUT_ROOT}/test_users.json}"
 TEST_SPLIT_SIZE="${TEST_SPLIT_SIZE:-0.15}"
+SPLIT_STRATIFY_MODE="${SPLIT_STRATIFY_MODE:-age_bins}"  # age_bins | age_bins_skin_color | adult | none
 RUN_TEST_EVAL="${RUN_TEST_EVAL:-1}"
 
 # ── Create held-out test split (once, before any training) ───────────────────
@@ -109,7 +111,9 @@ if [[ ! -f "${TEST_SPLIT_FILE}" ]]; then
     --data-root "${DATA_ROOT}" \
     --test-size "${TEST_SPLIT_SIZE}" \
     --seed "${SEED}" \
-    --out-file "${TEST_SPLIT_FILE}"
+    --out-file "${TEST_SPLIT_FILE}" \
+    --stratify-mode "${SPLIT_STRATIFY_MODE}" \
+    $( [[ "${NO_HAGRID}" -gt 0 ]] && echo "--no-hagrid" )
 else
   echo ">>> Using existing test split: ${TEST_SPLIT_FILE}"
 fi
@@ -134,6 +138,8 @@ for USER_GROUP_SIZE in ${USER_GROUP_SIZES}; do
             --seed "${FOLD_SEED}" \
             --out-file "${FOLD_FILE}" \
             --test-users-file "${TEST_SPLIT_FILE}" \
+            --stratify-mode "${SPLIT_STRATIFY_MODE}" \
+            $( [[ "${NO_HAGRID}" -gt 0 ]] && echo "--no-hagrid" ) \
             $( [[ "${FOLD_OVERWRITE}" -gt 0 ]] && echo "--overwrite" )
         fi
         for ((FOLD_IDX=0; FOLD_IDX<KFOLDS; FOLD_IDX++)); do
@@ -170,6 +176,7 @@ for USER_GROUP_SIZE in ${USER_GROUP_SIZES}; do
             --embed-contrast-margin "${EMBED_CONTRAST_MARGIN}" \
             --embed-contrast-age-thresh "${EMBED_CONTRAST_AGE_THRESH}" \
             $( [[ "${USE_MASKS}" -gt 0 ]] && echo "--use-masks" ) \
+            $( [[ "${NO_HAGRID}" -gt 0 ]] && echo "--no-hagrid" ) \
             $( [[ "${AGE_REWEIGHT}" -gt 0 ]] && echo "--age-reweight-loss --age-weight-eps ${AGE_WEIGHT_EPS} --age-weight-power ${AGE_WEIGHT_POWER} --age-weight-min ${AGE_WEIGHT_MIN} --age-weight-max ${AGE_WEIGHT_MAX}" ) \
             $( [[ "${AGE_OVERSAMPLE}" -gt 0 ]] && echo "--age-oversample --age-oversample-max-multiplier ${AGE_OVERSAMPLE_MAX_MULT}" ) \
             $( [[ -n "${AGE_OVERSAMPLE_TARGET}" ]] && echo "--age-oversample-target ${AGE_OVERSAMPLE_TARGET}" ) \
@@ -224,6 +231,7 @@ for USER_GROUP_SIZE in ${USER_GROUP_SIZES}; do
           --embed-contrast-margin "${EMBED_CONTRAST_MARGIN}" \
           --embed-contrast-age-thresh "${EMBED_CONTRAST_AGE_THRESH}" \
           $( [[ "${USE_MASKS}" -gt 0 ]] && echo "--use-masks" ) \
+          $( [[ "${NO_HAGRID}" -gt 0 ]] && echo "--no-hagrid" ) \
           $( [[ "${AGE_REWEIGHT}" -gt 0 ]] && echo "--age-reweight-loss --age-weight-eps ${AGE_WEIGHT_EPS} --age-weight-power ${AGE_WEIGHT_POWER} --age-weight-min ${AGE_WEIGHT_MIN} --age-weight-max ${AGE_WEIGHT_MAX}" ) \
           $( [[ "${AGE_OVERSAMPLE}" -gt 0 ]] && echo "--age-oversample --age-oversample-max-multiplier ${AGE_OVERSAMPLE_MAX_MULT}" ) \
           $( [[ -n "${AGE_OVERSAMPLE_TARGET}" ]] && echo "--age-oversample-target ${AGE_OVERSAMPLE_TARGET}" ) \

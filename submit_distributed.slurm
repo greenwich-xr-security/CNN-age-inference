@@ -78,7 +78,7 @@ NUM_WORKERS="${NUM_WORKERS:-8}"
 # Optional override; when empty the script derives a model-specific run name.
 RUN_NAME="${RUN_NAME:-}"
 # Age imbalance controls
-AGE_REWEIGHT="${AGE_REWEIGHT:-0}"                     # set >0 to enable inverse-frequency loss weighting
+AGE_REWEIGHT="${AGE_REWEIGHT:-1}"                     # enabled by default for HandRGBD-only age balancing
 AGE_WEIGHT_EPS="${AGE_WEIGHT_EPS:-1.0}"
 AGE_WEIGHT_POWER="${AGE_WEIGHT_POWER:-1.0}"
 AGE_WEIGHT_MIN="${AGE_WEIGHT_MIN:-0.25}"

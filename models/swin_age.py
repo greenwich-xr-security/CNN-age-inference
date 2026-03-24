@@ -18,6 +18,7 @@ SWIN_IMG_SIZES: dict[str, int] = {
     "v2_tiny_512": 512,
     "v2_small":    256,
     "v2_base":     256,
+    "v2_base_384": 384,
     "v2_large":    256,
 }
 
@@ -31,6 +32,7 @@ _SWIN_TIMM_IDS: dict[str, str] = {
     "v2_tiny_512": "swinv2_tiny_window8_256",
     "v2_small": "swinv2_small_window8_256",
     "v2_base":  "swinv2_base_window8_256",
+    "v2_base_384": "swinv2_base_window12to24_192to384.ms_in22k_ft_in1k",
     "v2_large": "swinv2_large_window12to16_192to256_22kft1k",
 }
 
@@ -51,7 +53,7 @@ class SwinAgeRegressor(nn.Module):
     Variant names
     -------------
     V1 : tiny | small | base | large
-    V2 : v2_tiny | v2_tiny_384 | v2_tiny_512 | v2_small | v2_base | v2_large
+    V2 : v2_tiny | v2_tiny_384 | v2_tiny_512 | v2_small | v2_base | v2_base_384 | v2_large
     """
 
     def __init__(self, variant: str = "tiny", embed_dim: int = 0):
@@ -64,6 +66,13 @@ class SwinAgeRegressor(nn.Module):
             )
         if embed_dim < 0:
             raise ValueError("embed_dim must be non-negative.")
+
+        if variant == "v2_tiny_384":
+            raise ValueError(
+                "No pretrained Swin V2 tiny 384 checkpoint is available in the installed timm build. "
+                "Use 'swin_v2_tiny' (256), 'swin_v2_tiny_512' (resized tiny), or "
+                "'swin_v2_base_384' for a true pretrained 384px Swin V2 model."
+            )
 
         timm_id = _SWIN_TIMM_IDS[variant]
         timm_kwargs = dict(_SWIN_TIMM_KWARGS.get(variant, {}))

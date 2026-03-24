@@ -42,6 +42,7 @@ MODEL_ALIASES = {
     "sw2t512": "swin_v2_tiny_512",
     "sw2s": "swin_v2_small",
     "sw2b": "swin_v2_base",
+    "sw2b384": "swin_v2_base_384",
     "sw2l": "swin_v2_large",
     # MobileNet
     "mnv2":  "mobilenet_v2",
@@ -138,7 +139,7 @@ def resolve_model_builder(model_name: str, *, embed_dim: int = 0):
         f"or convnext_{{tiny,small,base,large,xlarge}} "
         f"or mobilenet_{{v2,v3_small,v3_large}} "
         f"or resnet50 "
-        f"or swin_{{tiny,small,base,large,v2_tiny,v2_tiny_384,v2_tiny_512,v2_small,v2_base,v2_large}} "
+        f"or swin_{{tiny,small,base,large,v2_tiny,v2_tiny_384,v2_tiny_512,v2_small,v2_base,v2_base_384,v2_large}} "
         f"or vit_{{tiny_384,small_384}} "
         f"or aliases {sorted(MODEL_ALIASES)}."
     )

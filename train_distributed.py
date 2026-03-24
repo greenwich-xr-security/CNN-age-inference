@@ -96,8 +96,8 @@ def parse_args() -> argparse.Namespace:
         help=(
             "Backbone to use. EfficientNet: b0-b7. ConvNeXt: convnext_{tiny,small,base,large,xlarge}. "
             "ResNet: resnet50. "
-            "Swin: swin_{tiny,small,base,large,v2_tiny,v2_tiny_384,v2_tiny_512,v2_small,v2_base,v2_large}. "
-            "ViT: vit_{tiny_384,small_384}. Aliases: cnt,cns,cnb,cnl,cnx,rn50,sw2t,sw2t384,sw2t512,sw2s,sw2b,sw2l,vtt,vts,age_vit,age_vit_small."
+            "Swin: swin_{tiny,small,base,large,v2_tiny,v2_tiny_384,v2_tiny_512,v2_small,v2_base,v2_base_384,v2_large}. "
+            "ViT: vit_{tiny_384,small_384}. Aliases: cnt,cns,cnb,cnl,cnx,rn50,sw2t,sw2t384,sw2t512,sw2s,sw2b,sw2b384,sw2l,vtt,vts,age_vit,age_vit_small."
         ),
     )
     parser.add_argument(

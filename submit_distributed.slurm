@@ -71,7 +71,7 @@ LOSS_WEIGHT_EMBED_CONTRAST="${LOSS_WEIGHT_EMBED_CONTRAST:-0}"
 
 USER_GROUP_SIZES="${USER_GROUP_SIZES:-1}"
 PATIENCE="${PATIENCE:-10}"
-MODELS="${MODELS:-${MODEL:-v2_m}}" # choices: b0-b7, v2_{s,m,l}, convnext_{tiny,small,base,large,xlarge}, vit_{tiny_384,small_384}; aliases: cnt,cns,cnb,cnl,cnx,vtt,vts,age_vit,age_vit_small
+MODELS="${MODELS:-${MODEL:-v2_m}}" # choices: b0-b7, v2_{s,m,l}, convnext_{tiny,small,base,large,xlarge}, swin_{tiny,small,base,large,v2_tiny,v2_tiny_512,v2_small,v2_base,v2_large}, vit_{tiny_384,small_384}; aliases: cnt,cns,cnb,cnl,cnx,sw2t,sw2t512,sw2s,sw2b,sw2l,vtt,vts,age_vit,age_vit_small
 AGG_SIZES="${AGG_SIZES:-${EVAL_AGG_SIZES:-1}}"   # space-separated list, e.g., "1 2 3"
 AGG_SEED="${AGG_SEED:-${EVAL_AGG_SEED:-${SEED}}}"
 NUM_WORKERS="${NUM_WORKERS:-8}"

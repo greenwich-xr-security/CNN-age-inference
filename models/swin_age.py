@@ -5,7 +5,7 @@ import torch
 import torch.nn as nn
 
 # Canonical input resolutions per Swin variant.
-# Swin V1 uses 224px; Swin V2 variants use 256px (tiny/small/base) or 192px (large).
+# Swin V1 uses 224px; Swin V2 variants use 256px by default, with a dedicated 512px tiny variant.
 SWIN_IMG_SIZES: dict[str, int] = {
     # Swin Transformer V1
     "tiny":        224,
@@ -14,6 +14,7 @@ SWIN_IMG_SIZES: dict[str, int] = {
     "large":       224,
     # Swin Transformer V2
     "v2_tiny":     256,
+    "v2_tiny_512": 512,
     "v2_small":    256,
     "v2_base":     256,
     "v2_large":    256,
@@ -25,9 +26,14 @@ _SWIN_TIMM_IDS: dict[str, str] = {
     "base":     "swin_base_patch4_window7_224",
     "large":    "swin_large_patch4_window7_224",
     "v2_tiny":  "swinv2_tiny_window8_256",
+    "v2_tiny_512": "swinv2_tiny_window8_256",
     "v2_small": "swinv2_small_window8_256",
     "v2_base":  "swinv2_base_window8_256",
     "v2_large": "swinv2_large_window12to16_192to256_22kft1k",
+}
+
+_SWIN_TIMM_KWARGS: dict[str, dict[str, int]] = {
+    "v2_tiny_512": {"img_size": 512},
 }
 
 
@@ -43,7 +49,7 @@ class SwinAgeRegressor(nn.Module):
     Variant names
     -------------
     V1 : tiny | small | base | large
-    V2 : v2_tiny | v2_small | v2_base | v2_large
+    V2 : v2_tiny | v2_tiny_512 | v2_small | v2_base | v2_large
     """
 
     def __init__(self, variant: str = "tiny", embed_dim: int = 0):
@@ -58,10 +64,16 @@ class SwinAgeRegressor(nn.Module):
             raise ValueError("embed_dim must be non-negative.")
 
         timm_id = _SWIN_TIMM_IDS[variant]
+        timm_kwargs = dict(_SWIN_TIMM_KWARGS.get(variant, {}))
         total_outputs = 2 + int(embed_dim)
 
         try:
-            self.backbone = timm.create_model(timm_id, pretrained=True, num_classes=total_outputs)
+            self.backbone = timm.create_model(
+                timm_id,
+                pretrained=True,
+                num_classes=total_outputs,
+                **timm_kwargs,
+            )
         except Exception as exc:
             raise ValueError(
                 f"Unable to create pretrained Swin model '{timm_id}' via timm."
@@ -69,6 +81,7 @@ class SwinAgeRegressor(nn.Module):
 
         self.variant = variant
         self.timm_id = timm_id
+        self.timm_kwargs = timm_kwargs
         self.embed_dim = int(embed_dim)
 
     def forward(self, x: torch.Tensor):

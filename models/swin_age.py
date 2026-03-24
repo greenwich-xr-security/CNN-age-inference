@@ -5,7 +5,7 @@ import torch
 import torch.nn as nn
 
 # Canonical input resolutions per Swin variant.
-# Swin V1 uses 224px; Swin V2 variants use 256px by default, with a dedicated 512px tiny variant.
+# Swin V1 uses 224px; Swin V2 variants use 256px by default, with dedicated 384px/512px tiny variants.
 SWIN_IMG_SIZES: dict[str, int] = {
     # Swin Transformer V1
     "tiny":        224,
@@ -14,6 +14,7 @@ SWIN_IMG_SIZES: dict[str, int] = {
     "large":       224,
     # Swin Transformer V2
     "v2_tiny":     256,
+    "v2_tiny_384": 384,
     "v2_tiny_512": 512,
     "v2_small":    256,
     "v2_base":     256,
@@ -26,6 +27,7 @@ _SWIN_TIMM_IDS: dict[str, str] = {
     "base":     "swin_base_patch4_window7_224",
     "large":    "swin_large_patch4_window7_224",
     "v2_tiny":  "swinv2_tiny_window8_256",
+    "v2_tiny_384": "swinv2_cr_tiny_384",
     "v2_tiny_512": "swinv2_tiny_window8_256",
     "v2_small": "swinv2_small_window8_256",
     "v2_base":  "swinv2_base_window8_256",
@@ -49,7 +51,7 @@ class SwinAgeRegressor(nn.Module):
     Variant names
     -------------
     V1 : tiny | small | base | large
-    V2 : v2_tiny | v2_tiny_512 | v2_small | v2_base | v2_large
+    V2 : v2_tiny | v2_tiny_384 | v2_tiny_512 | v2_small | v2_base | v2_large
     """
 
     def __init__(self, variant: str = "tiny", embed_dim: int = 0):

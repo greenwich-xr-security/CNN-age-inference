@@ -1,0 +1,4 @@
+split,total_users,max_abs_frac_diff,mean_abs_frac_diff
+overall,435,0.0,0.0
+train_dev,369,0.01016727408653395,0.005083637043266978
+test,66,0.05684430512016719,0.028422152560083604

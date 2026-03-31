@@ -9,7 +9,7 @@ from pathlib import Path
 import numpy as np
 from matplotlib import pyplot as plt
 
-from metrics import compute_age_gate_curves, compute_group_summary_rows, save_group_summary_csv
+from metrics import compute_age_gate_curves, compute_age_gate_curves_direct_threshold, compute_group_summary_rows, save_group_summary_csv
 
 
 def parse_args() -> argparse.Namespace:
@@ -44,6 +44,25 @@ def parse_args() -> argparse.Namespace:
         type=float,
         default=18.0,
         help="Age threshold for adult/minor ROC calculations (default: 18).",
+    )
+    parser.add_argument(
+        "--eval-age-gate-mode",
+        choices=["probability", "age_threshold"],
+        default="probability",
+        help="ROC evaluation mode: 'probability' uses Gaussian CDF; "
+             "'age_threshold' directly thresholds pred_mean (default: probability).",
+    )
+    parser.add_argument(
+        "--age-gate-threshold-min",
+        type=float,
+        default=10.0,
+        help="Lower bound of age sweep for age_threshold mode (default: 10.0).",
+    )
+    parser.add_argument(
+        "--age-gate-threshold-max",
+        type=float,
+        default=30.0,
+        help="Upper bound of age sweep for age_threshold mode (default: 30.0).",
     )
     parser.add_argument(
         "--num-thresholds",
@@ -391,6 +410,9 @@ def aggregate_prediction_outputs(
     output_dir: Path,
     age_threshold: float,
     num_thresholds: int,
+    eval_age_gate_mode: str = "probability",
+    age_gate_threshold_min: float = 10.0,
+    age_gate_threshold_max: float = 30.0,
     summary_name_template: str,
     roc_name_template: str,
     age_error_name_template: str,
@@ -436,13 +458,22 @@ def aggregate_prediction_outputs(
             mae = float(np.mean(np.abs(pred_mean - targets)))
             rmse = float(np.sqrt(np.mean((pred_mean - targets) ** 2)))
 
-            gate = compute_age_gate_curves(
-                targets,
-                pred_mean,
-                pred_log_var,
-                age_threshold=age_threshold,
-                num_thresholds=num_thresholds,
-            )
+            if eval_age_gate_mode == "age_threshold":
+                gate = compute_age_gate_curves_direct_threshold(
+                    targets,
+                    pred_mean,
+                    age_min=age_gate_threshold_min,
+                    age_max=age_gate_threshold_max,
+                    num_thresholds=num_thresholds,
+                )
+            else:
+                gate = compute_age_gate_curves(
+                    targets,
+                    pred_mean,
+                    pred_log_var,
+                    age_threshold=age_threshold,
+                    num_thresholds=num_thresholds,
+                )
             adult_gate = gate["adult_gate"]
             fold_label = fold_dir.name
             roc_adult_gate.append(
@@ -618,6 +649,9 @@ def main() -> None:
         output_dir=output_dir,
         age_threshold=args.age_threshold,
         num_thresholds=args.num_thresholds,
+        eval_age_gate_mode=args.eval_age_gate_mode,
+        age_gate_threshold_min=args.age_gate_threshold_min,
+        age_gate_threshold_max=args.age_gate_threshold_max,
         summary_name_template="kfold_summary_n{group_size}.csv",
         roc_name_template="roc_adult_gate_kfold_n{group_size}.png",
         age_error_name_template="age_error_kfold_n{group_size}.{ext}",
@@ -648,6 +682,9 @@ def main() -> None:
         output_dir=output_dir,
         age_threshold=args.age_threshold,
         num_thresholds=args.num_thresholds,
+        eval_age_gate_mode=args.eval_age_gate_mode,
+        age_gate_threshold_min=args.age_gate_threshold_min,
+        age_gate_threshold_max=args.age_gate_threshold_max,
         summary_name_template="kfold_test_summary_n{group_size}.csv",
         roc_name_template="test_roc_adult_gate_kfold_n{group_size}.png",
         age_error_name_template="test_age_error_kfold_n{group_size}.{ext}",

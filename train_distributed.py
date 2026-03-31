@@ -37,6 +37,7 @@ from metrics import (
     LossWeights,
     aggregate_predictions_by_user,
     compute_age_gate_curves,
+    compute_age_gate_curves_direct_threshold,
     compute_challenge_fnr_table_adult_gate,
     compute_challenge_fpr_table,
     compute_challenge_fpr_table_weighted,
@@ -256,6 +257,26 @@ def parse_args() -> argparse.Namespace:
         type=float,
         default=0.0,
         help="Weight for intra-user prediction spread penalty (default: 0.0).",
+    )
+    parser.add_argument(
+        "--eval-age-gate-mode",
+        choices=["probability", "age_threshold"],
+        default="probability",
+        help="How to compute the age gate ROC curve: 'probability' uses the Gaussian CDF "
+             "(requires calibrated log_var); 'age_threshold' directly thresholds pred_mean "
+             "against a sweep of age values (default: probability).",
+    )
+    parser.add_argument(
+        "--age-gate-threshold-min",
+        type=float,
+        default=10.0,
+        help="Lower bound of the age sweep for age_threshold eval mode (default: 10.0).",
+    )
+    parser.add_argument(
+        "--age-gate-threshold-max",
+        type=float,
+        default=30.0,
+        help="Upper bound of the age sweep for age_threshold eval mode (default: 30.0).",
     )
     parser.add_argument(
         "--embed-dim",
@@ -931,13 +952,22 @@ def main() -> None:
                     rng=agg_rng,
                 )
                 suffix = f"n{group_size}_ddp"
-                gate_results = compute_age_gate_curves(
-                    aggregated["targets"],
-                    aggregated["pred_mean"],
-                    aggregated["pred_log_var"],
-                    age_threshold=18.0,
-                    num_thresholds=201,
-                )
+                if args.eval_age_gate_mode == "age_threshold":
+                    gate_results = compute_age_gate_curves_direct_threshold(
+                        aggregated["targets"],
+                        aggregated["pred_mean"],
+                        age_min=args.age_gate_threshold_min,
+                        age_max=args.age_gate_threshold_max,
+                        num_thresholds=201,
+                    )
+                else:
+                    gate_results = compute_age_gate_curves(
+                        aggregated["targets"],
+                        aggregated["pred_mean"],
+                        aggregated["pred_log_var"],
+                        age_threshold=18.0,
+                        num_thresholds=201,
+                    )
                 adult_gate = gate_results["adult_gate"]
 
                 # Select tau closest to top-left (0,1)
@@ -1190,13 +1220,22 @@ def main() -> None:
                     group_size=group_size,
                     rng=agg_rng,
                 )
-                gate_results = compute_age_gate_curves(
-                    aggregated["targets"],
-                    aggregated["pred_mean"],
-                    aggregated["pred_log_var"],
-                    age_threshold=18.0,
-                    num_thresholds=201,
-                )
+                if args.eval_age_gate_mode == "age_threshold":
+                    gate_results = compute_age_gate_curves_direct_threshold(
+                        aggregated["targets"],
+                        aggregated["pred_mean"],
+                        age_min=args.age_gate_threshold_min,
+                        age_max=args.age_gate_threshold_max,
+                        num_thresholds=201,
+                    )
+                else:
+                    gate_results = compute_age_gate_curves(
+                        aggregated["targets"],
+                        aggregated["pred_mean"],
+                        aggregated["pred_log_var"],
+                        age_threshold=18.0,
+                        num_thresholds=201,
+                    )
                 def _select_best_tau(fprs_arr, tprs_arr, thresholds_arr):
                     fprs_np = np.asarray(fprs_arr, dtype=float)
                     tprs_np = np.asarray(tprs_arr, dtype=float)
@@ -1312,13 +1351,22 @@ def main() -> None:
                         group_size=group_size, rng=agg_rng,
                     )
                     suffix = f"n{group_size}_ddp"
-                    gate_results = compute_age_gate_curves(
-                        aggregated["targets"],
-                        aggregated["pred_mean"],
-                        aggregated["pred_log_var"],
-                        age_threshold=18.0,
-                        num_thresholds=201,
-                    )
+                    if args.eval_age_gate_mode == "age_threshold":
+                        gate_results = compute_age_gate_curves_direct_threshold(
+                            aggregated["targets"],
+                            aggregated["pred_mean"],
+                            age_min=args.age_gate_threshold_min,
+                            age_max=args.age_gate_threshold_max,
+                            num_thresholds=201,
+                        )
+                    else:
+                        gate_results = compute_age_gate_curves(
+                            aggregated["targets"],
+                            aggregated["pred_mean"],
+                            aggregated["pred_log_var"],
+                            age_threshold=18.0,
+                            num_thresholds=201,
+                        )
                     adult_gate = gate_results["adult_gate"]
 
                     best_tau_adult_gate = _select_best_tau_test(

@@ -61,13 +61,17 @@ WEIGHT_DECAY="${WEIGHT_DECAY:-0.2}"
 IMG_SIZE="${IMG_SIZE:-}"
 EPOCHS="${EPOCHS:-240}"
 
-# Losses
-LOSS_WEIGHT_NLL="${LOSS_WEIGHT_NLL:-1}"
+# Losses (mae-only branch: NLL=0, MAE=1)
+LOSS_WEIGHT_NLL="${LOSS_WEIGHT_NLL:-0}"
 LOSS_WEIGHT_MSE="${LOSS_WEIGHT_MSE:-0}"
-LOSS_WEIGHT_MAE="${LOSS_WEIGHT_MAE:-0}"
+LOSS_WEIGHT_MAE="${LOSS_WEIGHT_MAE:-1}"
 LOSS_WEIGHT_SPREAD="${LOSS_WEIGHT_SPREAD:-0}"
 LOSS_WEIGHT_EMBED_VAR="${LOSS_WEIGHT_EMBED_VAR:-0}"
 LOSS_WEIGHT_EMBED_CONTRAST="${LOSS_WEIGHT_EMBED_CONTRAST:-0}"
+# Age-gate evaluation mode (age_threshold: classify adult if pred_mean >= tau_age)
+EVAL_AGE_GATE_MODE="${EVAL_AGE_GATE_MODE:-age_threshold}"
+AGE_GATE_THRESHOLD_MIN="${AGE_GATE_THRESHOLD_MIN:-10}"
+AGE_GATE_THRESHOLD_MAX="${AGE_GATE_THRESHOLD_MAX:-30}"
 
 USER_GROUP_SIZES="${USER_GROUP_SIZES:-1}"
 PATIENCE="${PATIENCE:-10}"
@@ -87,7 +91,7 @@ AGE_OVERSAMPLE="${AGE_OVERSAMPLE:-0}"                 # set >0 to oversample rar
 AGE_OVERSAMPLE_TARGET="${AGE_OVERSAMPLE_TARGET:-}"    # optional explicit target per age (int)
 AGE_OVERSAMPLE_MAX_MULT="${AGE_OVERSAMPLE_MAX_MULT:-3.0}"
 # Embedding head / losses (default disabled)
-EMBED_DIM="${EMBED_DIM:-128}"
+EMBED_DIM="${EMBED_DIM:-0}"
 EMBED_AGE_SLACK="${EMBED_AGE_SLACK:-5.0}"
 EMBED_CONTRAST_MARGIN="${EMBED_CONTRAST_MARGIN:-1.0}"
 EMBED_CONTRAST_AGE_THRESH="${EMBED_CONTRAST_AGE_THRESH:-5.0}"
@@ -183,6 +187,9 @@ for USER_GROUP_SIZE in ${USER_GROUP_SIZES}; do
             --fold-file "${FOLD_FILE}" \
             --fold-index "${FOLD_IDX}" \
             --test-users-file "${TEST_SPLIT_FILE}" \
+            --eval-age-gate-mode "${EVAL_AGE_GATE_MODE}" \
+            --age-gate-threshold-min "${AGE_GATE_THRESHOLD_MIN}" \
+            --age-gate-threshold-max "${AGE_GATE_THRESHOLD_MAX}" \
             --dist-backend nccl
           echo ">>> Training for ${MODEL_NAME} seed=${SEED_VAL} fold=${FOLD_IDX} complete. Artifacts in ${RUN_OUT}"
         done
@@ -192,7 +199,10 @@ for USER_GROUP_SIZE in ${USER_GROUP_SIZES}; do
           python "${PROJECT_ROOT}/aggregate_kfold.py" \
             --kfold-root "${AGG_OUT}" \
             --output-dir "${AGG_OUT}" \
-            --group-sizes ${AGG_SIZES}
+            --group-sizes ${AGG_SIZES} \
+            --eval-age-gate-mode "${EVAL_AGE_GATE_MODE}" \
+            --age-gate-threshold-min "${AGE_GATE_THRESHOLD_MIN}" \
+            --age-gate-threshold-max "${AGE_GATE_THRESHOLD_MAX}"
         fi
 
         # Test-set evaluation now runs inside each fold's train_distributed.py

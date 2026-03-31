@@ -392,6 +392,83 @@ def compute_age_gate_curves(
     return results
 
 
+def compute_age_gate_curves_direct_threshold(
+    targets,
+    pred_means,
+    *,
+    age_min: float = 10.0,
+    age_max: float = 30.0,
+    num_thresholds: int = 101,
+) -> dict:
+    """Compute ROC-style gate metrics by thresholding predicted age directly.
+
+    Instead of computing P(age >= 18) from a Gaussian, this classifies a subject
+    as adult when ``pred_mean >= tau_age``, sweeping ``tau_age`` from ``age_min``
+    to ``age_max``.  Returns the same dict structure as ``compute_age_gate_curves``
+    so all downstream plotting code is unchanged.
+    """
+    targets_arr = np.asarray(targets, dtype=float)
+    means_arr = np.asarray(pred_means, dtype=float)
+    tau_values = np.linspace(age_min, age_max, num=num_thresholds)
+
+    age_threshold = 18.0
+    is_adult = targets_arr >= age_threshold
+    is_minor = ~is_adult
+    adult_total = int(is_adult.sum())
+    minor_total = int(is_minor.sum())
+
+    def build_case(admit_mask, positive_mask, negative_mask):
+        tp = np.logical_and(admit_mask, positive_mask).sum()
+        fp = np.logical_and(admit_mask, negative_mask).sum()
+        fn = np.logical_and(~admit_mask, positive_mask).sum()
+        tn = np.logical_and(~admit_mask, negative_mask).sum()
+        pos_total = positive_mask.sum()
+        neg_total = negative_mask.sum()
+        tpr = _safe_rate(tp, pos_total)
+        fpr = _safe_rate(fp, neg_total)
+        fnr = _safe_rate(fn, pos_total)
+        tnr = _safe_rate(tn, neg_total)
+        return fpr, tpr, fnr, tnr
+
+    adult_gate_fprs, adult_gate_tprs, adult_gate_fnrs, adult_gate_tnrs = [], [], [], []
+    for tau_age in tau_values:
+        admit_adult = means_arr >= tau_age
+        fpr, tpr, fnr, tnr = build_case(admit_adult, is_adult, is_minor)
+        adult_gate_fprs.append(fpr)
+        adult_gate_tprs.append(tpr)
+        adult_gate_fnrs.append(fnr)
+        adult_gate_tnrs.append(tnr)
+
+    def compute_auc(fprs, tprs):
+        fprs_arr = np.asarray(fprs, dtype=float)
+        tprs_arr = np.asarray(tprs, dtype=float)
+        order = np.argsort(fprs_arr)
+        if fprs_arr.size == 0:
+            return 0.0
+        integrator = getattr(np, "trapezoid", None)
+        if integrator is None:
+            integrator = np.trapz
+        return float(integrator(tprs_arr[order], fprs_arr[order]))
+
+    # Populate adult_prob field with a dummy array (0/1 per subject at tau=18)
+    # so callers that index gate_results["adult_prob"] don't break.
+    adult_prob = (means_arr >= age_threshold).astype(float)
+
+    return {
+        "adult_prob": adult_prob,
+        "adult_gate": {
+            "fpr": np.asarray(adult_gate_fprs, dtype=float),
+            "tpr": np.asarray(adult_gate_tprs, dtype=float),
+            "fnr": np.asarray(adult_gate_fnrs, dtype=float),
+            "tnr": np.asarray(adult_gate_tnrs, dtype=float),
+            "thresholds": tau_values,
+            "auc": compute_auc(adult_gate_fprs, adult_gate_tprs),
+            "adult_total": adult_total,
+            "minor_total": minor_total,
+        },
+    }
+
+
 def compute_challenge_fpr_table(
     targets,
     pred_means,

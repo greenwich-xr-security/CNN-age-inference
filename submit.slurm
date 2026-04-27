@@ -22,9 +22,15 @@ PATIENCE="${PATIENCE:-60}"
 AGG_SIZES="${AGG_SIZES:-${EVAL_AGG_SIZES:-1}}"   # space-separated list, e.g., "1 2 3"
 AGG_SEED="${AGG_SEED:-${EVAL_AGG_SEED:-${SEED}}}"
 AGG_LABEL=${AGG_SIZES// /-}
+# Normals auxiliary prior experiment (set NORMALS_AUX=1 to enable)
+NORMALS_AUX="${NORMALS_AUX:-0}"
+LOSS_WEIGHT_NORMALS="${LOSS_WEIGHT_NORMALS:-0.1}"
+LUCID_FRACTION="${LUCID_FRACTION:-0.4}"
 
 for MODEL_NAME in ${MODELS}; do
-    FOLDER_NAME="${MODEL_NAME}_bs${BATCH_SIZE}_seed${SEED}_agg${AGG_LABEL}_nll${LOSS_WEIGHT_NLL}_mse${LOSS_WEIGHT_MSE}_mae${LOSS_WEIGHT_MAE}"
+    NORMALS_SUFFIX=""
+    [[ "${NORMALS_AUX}" -gt 0 ]] && NORMALS_SUFFIX="_normals"
+    FOLDER_NAME="${MODEL_NAME}_bs${BATCH_SIZE}_seed${SEED}_agg${AGG_LABEL}_nll${LOSS_WEIGHT_NLL}_mse${LOSS_WEIGHT_MSE}_mae${LOSS_WEIGHT_MAE}${NORMALS_SUFFIX}"
     OUTPUT_DIR="/home/rb3434w/CNN-age-inference/runs/${FOLDER_NAME}"
 
     echo ">>> Starting training for model ${MODEL_NAME} (output: ${OUTPUT_DIR})"
@@ -41,6 +47,7 @@ for MODEL_NAME in ${MODELS}; do
         --loss-weight-mse "${LOSS_WEIGHT_MSE}" \
         --loss-weight-mae "${LOSS_WEIGHT_MAE}" \
         --eval-aggregation-sizes ${AGG_SIZES} \
-        --eval-aggregation-seed "${AGG_SEED}"
+        --eval-aggregation-seed "${AGG_SEED}" \
+        $( [[ "${NORMALS_AUX}" -gt 0 ]] && echo "--normals-aux --loss-weight-normals ${LOSS_WEIGHT_NORMALS} --lucid-fraction ${LUCID_FRACTION}" )
     echo ">>> Finished training for model ${MODEL_NAME}"
 done

@@ -14,9 +14,9 @@ from sklearn.model_selection import train_test_split
 from tqdm import tqdm
 
 from dataset.age import AgeDataset
-from dataset.hand_metadata import get_dataset_root, load_combined_metadata, set_dataset_root
+from dataset.hand_metadata import get_dataset_root, load_combined_metadata, load_lucid_metadata, set_dataset_root
 from dataset.samplers import DistributedGroupedBatchSampler
-from dataset.transforms import build_transforms
+from dataset.transforms import build_normals_transform, build_transforms
 from dataset.utils import (
     build_user_skin_color_series,
     compute_age_weight_map,
@@ -43,6 +43,7 @@ from metrics import (
     compute_challenge_fpr_table_weighted,
     compute_group_summary_rows,
     intra_user_spread_loss,
+    normals_reconstruction_loss,
     save_group_summary_csv,
     weighted_regression_loss,
 )
@@ -338,6 +339,23 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Enable DistributedDataParallel(find_unused_parameters=True).",
     )
+    parser.add_argument(
+        "--normals-aux",
+        action="store_true",
+        help="Attach auxiliary normal-map decoder to the backbone (EfficientNet only).",
+    )
+    parser.add_argument(
+        "--loss-weight-normals",
+        type=float,
+        default=0.1,
+        help="Weight for the auxiliary normal map reconstruction loss (default: 0.1).",
+    )
+    parser.add_argument(
+        "--lucid-fraction",
+        type=float,
+        default=0.4,
+        help="Target fraction of each training batch from LUICIDHands (via oversampling; default: 0.4).",
+    )
     return parser.parse_args()
 
 
@@ -369,6 +387,7 @@ def build_datasets(args: argparse.Namespace, seed: int, img_size: int):
     active_root = get_dataset_root()
 
     train_transform, test_transform = build_transforms(img_size)
+    normals_transform = build_normals_transform(img_size) if getattr(args, "normals_aux", False) else None
 
     metadata = filter_metadata(
         load_combined_metadata(
@@ -413,8 +432,8 @@ def build_datasets(args: argparse.Namespace, seed: int, img_size: int):
     else:
         user_ids = metadata["user_id"].unique()
         train_ids, val_ids = train_test_split(user_ids, test_size=0.2, random_state=seed)
-    train_meta = metadata[metadata["user_id"].isin(train_ids)]
-    val_meta = metadata[metadata["user_id"].isin(val_ids)]
+    train_meta = metadata[metadata["user_id"].isin(train_ids)].copy()
+    val_meta = metadata[metadata["user_id"].isin(val_ids)].copy()
 
     if args.age_oversample:
         before = len(train_meta)
@@ -427,10 +446,37 @@ def build_datasets(args: argparse.Namespace, seed: int, img_size: int):
         if len(train_meta) != before:
             print(f"[data] Oversampled train set from {before} to {len(train_meta)} samples.")
 
-    train_ds = AgeDataset(train_meta, transform=train_transform)
+    # Merge LUICIDHands into training (oversampled to hit --lucid-fraction).
+    if normals_transform is not None:
+        lucid_meta = filter_metadata(
+            load_lucid_metadata(root=active_root),
+            max_samples_per_user=args.max_samples_per_user or None,
+        )
+        if not lucid_meta.empty:
+            lucid_users = lucid_meta["user_id"].unique()
+            lucid_train_ids, _ = train_test_split(lucid_users, test_size=0.2, random_state=seed)
+            lucid_train = lucid_meta[lucid_meta["user_id"].isin(lucid_train_ids)].copy()
+            if not lucid_train.empty:
+                frac = getattr(args, "lucid_fraction", 0.4)
+                n_target = int(round(len(train_meta) * frac / max(1.0 - frac, 1e-6)))
+                repeat = max(1, round(n_target / len(lucid_train)))
+                lucid_over = pd.concat([lucid_train] * repeat, ignore_index=True).head(n_target)
+                if "normals_path" not in train_meta.columns:
+                    train_meta["normals_path"] = None
+                train_meta = pd.concat([train_meta, lucid_over], ignore_index=True)
+                print(
+                    f"[normals] LUICIDHands merged: {len(lucid_over)} samples "
+                    f"({100 * len(lucid_over) / len(train_meta):.1f}% of combined train set)."
+                )
+
+    train_ds = AgeDataset(
+        train_meta,
+        transform=train_transform,
+        normals_transform=normals_transform,
+    )
     val_ds = AgeDataset(val_meta, transform=test_transform, use_masks=args.use_masks)
     val_user_skin = build_user_skin_color_series(val_meta)
-    return train_ds, val_ds, active_root, len(train_meta), len(val_meta), fold_info, val_user_skin
+    return train_ds, val_ds, active_root, len(train_meta), len(val_meta), fold_info, val_user_skin, normals_transform
 
 
 def load_filtered_test_metadata(args: argparse.Namespace, active_root) -> pd.DataFrame | None:
@@ -461,6 +507,7 @@ def build_dataloaders(
     world_size: int,
     rank: int,
     seed: int,
+    collate_fn=None,
 ):
     pin_memory = device.type == "cuda"
     train_sampler = DistributedGroupedBatchSampler(
@@ -488,6 +535,7 @@ def build_dataloaders(
         pin_memory=pin_memory,
         drop_last=False,
         persistent_workers=num_workers > 0,
+        collate_fn=collate_fn,
     )
     val_loader = DataLoader(
         val_dataset,
@@ -545,7 +593,7 @@ def main() -> None:
     rank, world_size, local_rank, device = init_distributed(args)
     is_main = rank == 0
     model_builder, default_size, model_desc, model_key = resolve_model_builder(
-        args.model, embed_dim=args.embed_dim
+        args.model, embed_dim=args.embed_dim, normals_aux=getattr(args, "normals_aux", False)
     )
     img_size = args.img_size if args.img_size is not None else default_size
     if args.img_size is not None and args.img_size != default_size and is_main:
@@ -555,9 +603,25 @@ def main() -> None:
         )
 
     set_random_seed(args.seed + rank)
-    train_dataset, val_dataset, active_root, train_len, val_len, fold_info, val_user_skin = build_datasets(
+    train_dataset, val_dataset, active_root, train_len, val_len, fold_info, val_user_skin, normals_transform = build_datasets(
         args, args.seed, img_size
     )
+
+    def _collate_with_normals(batch):
+        rgbs, ages, user_ids, normals_list = zip(*batch)
+        rgb_batch = torch.stack(rgbs)
+        age_batch = torch.stack(ages)
+        valid = [n for n in normals_list if n is not None]
+        if not valid:
+            return rgb_batch, age_batch, list(user_ids), None, None
+        h, w = valid[0].shape[-2], valid[0].shape[-1]
+        normals_batch = torch.stack(
+            [n if n is not None else torch.zeros(3, h, w) for n in normals_list]
+        )
+        has_normals = torch.tensor([n is not None for n in normals_list], dtype=torch.bool)
+        return rgb_batch, age_batch, list(user_ids), normals_batch, has_normals
+
+    train_collate = _collate_with_normals if getattr(args, "normals_aux", False) else None
 
     age_weight_map: dict[int, float] | None = None
     if args.age_reweight_loss:
@@ -592,6 +656,7 @@ def main() -> None:
         world_size=world_size,
         rank=rank,
         seed=args.seed,
+        collate_fn=train_collate,
     )
 
     output_dir = Path(args.output_dir).expanduser()
@@ -695,20 +760,36 @@ def main() -> None:
         train_spread_sum = 0.0
         train_emb_var_sum = 0.0
         train_emb_contrast_sum = 0.0
+        train_normals_sum = 0.0
+        _normals_aux = getattr(args, "normals_aux", False)
+        _loss_weight_normals = getattr(args, "loss_weight_normals", 0.0)
 
         progress = tqdm(
             train_loader,
             desc=f"[Rank {rank}] Epoch {epoch}/{args.epochs}",
             disable=not is_main,
         )
-        for images, ages, batch_user_ids in progress:
+        for batch in progress:
+            if _normals_aux:
+                images, ages, batch_user_ids, normals_gt, has_normals = batch
+                normals_gt = normals_gt.to(device, non_blocking=True) if normals_gt is not None else None
+                has_normals = has_normals.to(device, non_blocking=True) if has_normals is not None else None
+            else:
+                images, ages, batch_user_ids = batch
+                normals_gt = None
+                has_normals = None
             images = images.to(device, non_blocking=True)
             ages = ages.to(device, non_blocking=True)
             optimizer.zero_grad()
             outputs = ddp_model(images)
             z = None
+            pred_normals = None
             if isinstance(outputs, (tuple, list)):
-                if len(outputs) == 3:
+                if _normals_aux and len(outputs) == 3:
+                    pred_mean, pred_log_var, pred_normals = outputs
+                elif _normals_aux and len(outputs) == 4:
+                    pred_mean, pred_log_var, z, pred_normals = outputs
+                elif len(outputs) == 3:
                     pred_mean, pred_log_var, z = outputs
                 else:
                     pred_mean, pred_log_var = outputs
@@ -745,6 +826,10 @@ def main() -> None:
                         age_thresh=args.embed_contrast_age_thresh,
                     )
                     loss = loss + args.loss_weight_embed_contrast * embed_contrast_loss
+            norm_loss = None
+            if pred_normals is not None and normals_gt is not None and _loss_weight_normals > 0:
+                norm_loss = normals_reconstruction_loss(pred_normals, normals_gt, has_normals)
+                loss = loss + _loss_weight_normals * norm_loss
             loss.backward()
             optimizer.step()
 
@@ -763,6 +848,8 @@ def main() -> None:
                 train_emb_var_sum += embed_var_loss.item() * batch_size
             if embed_contrast_loss is not None:
                 train_emb_contrast_sum += embed_contrast_loss.item() * batch_size
+            if norm_loss is not None:
+                train_normals_sum += norm_loss.item() * batch_size
 
         train_totals = all_reduce_metrics(
             device,
@@ -774,10 +861,11 @@ def main() -> None:
                 train_spread_sum,
                 train_emb_var_sum,
                 train_emb_contrast_sum,
+                train_normals_sum,
                 train_sample_count,
             ],
         )
-        denom_train = max(1.0, train_totals[7])
+        denom_train = max(1.0, train_totals[8])
         train_loss = train_totals[0] / denom_train
         train_mae = train_totals[1] / denom_train
         train_rmse = float(np.sqrt(train_totals[2] / denom_train))
@@ -785,6 +873,7 @@ def main() -> None:
         train_spread = train_totals[4] / denom_train
         train_emb_var = train_totals[5] / denom_train
         train_emb_contrast = train_totals[6] / denom_train
+        train_normals = train_totals[7] / denom_train
 
         ddp_model.eval()
         val_sample_count = 0.0
@@ -807,7 +896,11 @@ def main() -> None:
                 outputs = ddp_model(images)
                 z = None
                 if isinstance(outputs, (tuple, list)):
-                    if len(outputs) == 3:
+                    if _normals_aux and len(outputs) == 3:
+                        pred_mean, pred_log_var, _pn = outputs
+                    elif _normals_aux and len(outputs) == 4:
+                        pred_mean, pred_log_var, z, _pn = outputs
+                    elif len(outputs) == 3:
                         pred_mean, pred_log_var, z = outputs
                     else:
                         pred_mean, pred_log_var = outputs

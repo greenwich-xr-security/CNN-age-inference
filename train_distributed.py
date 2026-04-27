@@ -733,7 +733,7 @@ def main() -> None:
         model,
         device_ids=[local_rank] if device.type == "cuda" else None,
         output_device=local_rank if device.type == "cuda" else None,
-        find_unused_parameters=args.find_unused_params,
+        find_unused_parameters=args.find_unused_params or args.normals_aux,
     )
     optimizer = torch.optim.AdamW(
         ddp_model.parameters(),

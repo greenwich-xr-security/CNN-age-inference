@@ -1,6 +1,7 @@
 from .efficientnet_age import EFFICIENTNET_IMG_SIZES, EfficientNetAgeRegressor
 from .convnext_age import CONVNEXT_IMG_SIZES, ConvNeXtAgeRegressor
 from .mobilenet_age import MOBILENET_IMG_SIZES, MobileNetAgeRegressor
+from .normals_head import NormalsHead
 from .resnet_age import RESNET_IMG_SIZES, ResNetAgeRegressor
 from .swin_age import SWIN_IMG_SIZES, SwinAgeRegressor
 from .vit_age import VIT_IMG_SIZES, ViTAgeRegressor
@@ -12,6 +13,7 @@ __all__ = [
     "ConvNeXtAgeRegressor",
     "MOBILENET_IMG_SIZES",
     "MobileNetAgeRegressor",
+    "NormalsHead",
     "RESNET_IMG_SIZES",
     "ResNetAgeRegressor",
     "SWIN_IMG_SIZES",
@@ -53,9 +55,11 @@ MODEL_ALIASES = {
 }
 
 
-def resolve_model_builder(model_name: str, *, embed_dim: int = 0):
+def resolve_model_builder(model_name: str, *, embed_dim: int = 0, normals_aux: bool = False):
     """
     Resolve a model name (including aliases) to a builder, default image size, display label, and normalized key.
+
+    normals_aux: attach a lightweight normal-map decoder to the backbone (EfficientNet only for now).
     """
     name = model_name.lower()
     name = MODEL_ALIASES.get(name, name)
@@ -63,7 +67,7 @@ def resolve_model_builder(model_name: str, *, embed_dim: int = 0):
     if name in EFFICIENTNET_IMG_SIZES:
         size = EFFICIENTNET_IMG_SIZES[name]
         return (
-            lambda: EfficientNetAgeRegressor(name, embed_dim=embed_dim),
+            lambda: EfficientNetAgeRegressor(name, embed_dim=embed_dim, normals_aux=normals_aux),
             size,
             f"EfficientNet-{name.upper()}",
             name,

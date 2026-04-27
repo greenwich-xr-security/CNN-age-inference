@@ -13,12 +13,25 @@ from displayUtils import DisplayUtils
 
 
 class AgeDataset(Dataset):
-    """Simple age regression dataset that supports optional bbox cropping."""
+    """Age regression dataset with optional bbox cropping and normal map loading.
 
-    def __init__(self, records: pd.DataFrame, transform=None, use_masks: bool = False):
+    When ``normals_transform`` is provided and the DataFrame contains a
+    ``normals_path`` column, ``__getitem__`` returns a 4-tuple
+    ``(image, age, user_id, normals_tensor_or_None)``; otherwise a 3-tuple.
+    """
+
+    def __init__(
+        self,
+        records: pd.DataFrame,
+        transform=None,
+        use_masks: bool = False,
+        normals_transform=None,
+    ):
         self.records = records.reset_index(drop=True)
         self.transform = transform
         self.use_masks = bool(use_masks)
+        self.normals_transform = normals_transform
+        self._has_normals_col = "normals_path" in self.records.columns
 
     def __len__(self):
         return len(self.records)
@@ -120,4 +133,19 @@ class AgeDataset(Dataset):
                 pass
         if self.transform:
             image = self.transform(image)
-        return image, torch.tensor(age, dtype=torch.float32), row["user_id"]
+
+        if self.normals_transform is None or not self._has_normals_col:
+            return image, torch.tensor(age, dtype=torch.float32), row["user_id"]
+
+        # Load paired normal map if available.
+        normals_tensor = None
+        normals_raw = row.get("normals_path")
+        if normals_raw is not None and not (isinstance(normals_raw, float) and pd.isna(normals_raw)):
+            normals_path = Path(normals_raw) if not isinstance(normals_raw, Path) else normals_raw
+            try:
+                normals_img = Image.open(normals_path).convert("RGB")
+                normals_tensor = self.normals_transform(normals_img)
+            except Exception:
+                normals_tensor = None
+
+        return image, torch.tensor(age, dtype=torch.float32), row["user_id"], normals_tensor

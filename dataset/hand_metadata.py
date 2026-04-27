@@ -693,6 +693,75 @@ def _limit_users_per_age(df: pd.DataFrame, *, max_users_per_year: int = 15) -> p
     return pd.concat([age_unknown, filtered_known], ignore_index=True)
 
 
+def load_lucid_metadata(root: Optional[PathLike] = None) -> pd.DataFrame:
+    """Load LUICIDHands paired RGB + normal map metadata.
+
+    Returns a DataFrame with the standard columns plus a ``normals_path``
+    column pointing to the matching normal map image for each sample.
+    Only rows where ``has_detection=true`` are included.
+    """
+    dataset_root = _resolve_root(root)
+    lucid_root = dataset_root / "LUICIDHands"
+    rgb_root = lucid_root / "rgb"
+    normals_root = lucid_root / "normals"
+    csv_path = lucid_root / "reference_LUCID.csv"
+
+    empty_cols = ["source", "user_id", "age", "gender", "aspect", "image_path", "normals_path"]
+    if not csv_path.exists():
+        print(f"[LUICIDHands] CSV not found: {csv_path}")
+        return pd.DataFrame(columns=empty_cols)
+
+    raw_df = pd.read_csv(csv_path)
+    if raw_df.empty or "name" not in raw_df.columns:
+        return pd.DataFrame(columns=empty_cols)
+
+    # Keep only detected samples.
+    working_df = raw_df[raw_df["has_detection"].astype(str).str.lower() == "true"].copy()
+
+    def resolve_rgb(name: object) -> Optional[Path]:
+        if name is None or (isinstance(name, float) and pd.isna(name)):
+            return None
+        p = rgb_root / f"{name}.jpg"
+        return p if p.is_file() else None
+
+    def resolve_normals(name: object) -> Optional[Path]:
+        if name is None or (isinstance(name, float) and pd.isna(name)):
+            return None
+        p = normals_root / f"{name}.jpg"
+        return p if p.is_file() else None
+
+    working_df["image_path"] = working_df["name"].apply(resolve_rgb)
+    working_df["normals_path"] = working_df["name"].apply(resolve_normals)
+    working_df = working_df[working_df["image_path"].notna()].copy()
+
+    working_df["aspect_norm"] = working_df["aspect"].apply(_normalise_label)
+    working_df["gender_norm"] = working_df["gender"].apply(_normalise_gender)
+    working_df["age_norm"] = working_df["age"].apply(
+        lambda a: int(round(float(a))) if pd.notna(a) else pd.NA
+    )
+
+    df_out = pd.DataFrame(
+        {
+            "source": "lucid",
+            "user_id": working_df["user_id"].apply(lambda uid: f"lucid_{uid}"),
+            "age": working_df["age_norm"],
+            "gender": working_df["gender_norm"],
+            "aspect": working_df["aspect_norm"],
+            "image_path": working_df["image_path"].apply(Path),
+            "normals_path": working_df["normals_path"].apply(
+                lambda p: Path(p) if p is not None else None
+            ),
+        }
+    )
+    df_out = df_out.reset_index(drop=True)
+    n_with_normals = df_out["normals_path"].notna().sum()
+    print(
+        f"LUICIDHands -> users: {df_out['user_id'].nunique()} | "
+        f"images: {len(df_out)} | with normals: {n_with_normals}"
+    )
+    return df_out
+
+
 def load_combined_metadata(
     root: Optional[PathLike] = None,
     *,

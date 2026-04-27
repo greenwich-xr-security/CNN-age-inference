@@ -28,3 +28,19 @@ def build_transforms(img_size: int):
     )
 
     return train_transform, test_transform
+
+
+def build_normals_transform(img_size: int):
+    """Return a transform for normal map images (resize + decode to [-1, 1] only).
+
+    No spatial augmentations (flip/rotate) are applied because those would
+    invalidate the normal vector directions. ColorJitter is also skipped.
+    Normalize(0.5, 0.5) maps [0,1] ToTensor output to [-1,1].
+    """
+    return transforms.Compose(
+        [
+            transforms.Resize((img_size, img_size)),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]),
+        ]
+    )

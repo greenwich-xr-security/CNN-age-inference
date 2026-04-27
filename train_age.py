@@ -14,10 +14,11 @@ from dataset.age import AgeDataset
 from dataset.hand_metadata import (
     get_dataset_root,
     load_combined_metadata,
+    load_lucid_metadata,
     set_dataset_root,
 )
 from dataset.samplers import GroupedBatchSampler
-from dataset.transforms import build_transforms
+from dataset.transforms import build_normals_transform, build_transforms
 from dataset.utils import (
     build_user_skin_color_series,
     compute_age_weight_map,
@@ -42,6 +43,7 @@ from metrics import (
     compute_challenge_fpr_table_weighted,
     compute_group_summary_rows,
     intra_user_spread_loss,
+    normals_reconstruction_loss,
     save_group_summary_csv,
     weighted_regression_loss,
 )
@@ -306,6 +308,26 @@ def main() -> None:
         default=DEFAULT_PATIENCE,
         help=f"Early stopping patience in epochs (default: {DEFAULT_PATIENCE}).",
     )
+    parser.add_argument(
+        "--normals-aux",
+        action="store_true",
+        help="Attach auxiliary normal-map decoder to the backbone (EfficientNet only).",
+    )
+    parser.add_argument(
+        "--loss-weight-normals",
+        type=float,
+        default=0.1,
+        help="Weight for the auxiliary normal map reconstruction loss (default: 0.1).",
+    )
+    parser.add_argument(
+        "--lucid-fraction",
+        type=float,
+        default=0.4,
+        help=(
+            "Target fraction of each training batch drawn from LUICIDHands "
+            "(achieved via oversampling; default: 0.4)."
+        ),
+    )
     args = parser.parse_args()
     loss_weights = LossWeights(
         nll=args.loss_weight_nll,
@@ -325,7 +347,7 @@ def main() -> None:
     )
     set_random_seed(args.seed)
     model_builder, default_size, model_desc, model_key = resolve_model_builder(
-        args.model, embed_dim=args.embed_dim
+        args.model, embed_dim=args.embed_dim, normals_aux=args.normals_aux
     )
     img_size = args.img_size if args.img_size is not None else default_size
     if args.img_size is not None and args.img_size != default_size:
@@ -372,10 +394,21 @@ def main() -> None:
         fp.write(f"resolved_age_oversample_max_multiplier={args.age_oversample_max_multiplier}\n")
         fp.write(f"resolved_use_masks={int(args.use_masks)}\n")
     train_transform, test_transform = build_transforms(img_size)
+    normals_transform = build_normals_transform(img_size) if args.normals_aux else None
+
+    # Load base metadata (handRGBD + HaGRID etc.) without LUICIDHands.
     metadata = filter_metadata(
         load_combined_metadata(root=active_root),
         max_samples_per_user=args.max_samples_per_user,
     )
+
+    # Load LUICIDHands and attach it separately so we can control the mix ratio.
+    lucid_meta: pd.DataFrame | None = None
+    if args.normals_aux:
+        lucid_meta = filter_metadata(
+            load_lucid_metadata(root=active_root),
+            max_samples_per_user=args.max_samples_per_user,
+        )
     _append_dataset_stats(config_path, "dataset", metadata)
     fold_info = None
     if args.fold_file:
@@ -405,8 +438,31 @@ def main() -> None:
         train_ids, test_ids = train_test_split(
             user_ids, test_size=0.2, random_state=args.seed
         )
-    train_meta = metadata[metadata["user_id"].isin(train_ids)]
-    test_meta = metadata[metadata["user_id"].isin(test_ids)]
+    train_meta = metadata[metadata["user_id"].isin(train_ids)].copy()
+    test_meta = metadata[metadata["user_id"].isin(test_ids)].copy()
+
+    # Merge LUICIDHands into training only, oversampled to hit --lucid-fraction.
+    if lucid_meta is not None and not lucid_meta.empty:
+        lucid_user_ids = lucid_meta["user_id"].unique()
+        lucid_train_ids, _ = train_test_split(
+            lucid_user_ids, test_size=0.2, random_state=args.seed
+        )
+        lucid_train = lucid_meta[lucid_meta["user_id"].isin(lucid_train_ids)].copy()
+        if not lucid_train.empty:
+            n_base = len(train_meta)
+            target_lucid_n = int(round(n_base * args.lucid_fraction / max(1.0 - args.lucid_fraction, 1e-6)))
+            repeat = max(1, round(target_lucid_n / len(lucid_train)))
+            lucid_oversampled = pd.concat([lucid_train] * repeat, ignore_index=True).head(target_lucid_n)
+            # Ensure normals_path column exists in base metadata for uniform schema.
+            if "normals_path" not in train_meta.columns:
+                train_meta = train_meta.copy()
+                train_meta["normals_path"] = None
+            train_meta = pd.concat([train_meta, lucid_oversampled], ignore_index=True)
+            print(
+                f"[normals] LUICIDHands train samples: {len(lucid_train)} "
+                f"→ oversampled to {len(lucid_oversampled)} "
+                f"({100 * len(lucid_oversampled) / len(train_meta):.1f}% of combined train set)."
+            )
 
     if args.age_oversample:
         before = len(train_meta)
@@ -466,7 +522,12 @@ def main() -> None:
         )
     else:
         print("Split mode: Unstratified per-user split (random).")
-    train_ds = AgeDataset(train_meta, transform=train_transform, use_masks=args.use_masks)
+    train_ds = AgeDataset(
+        train_meta,
+        transform=train_transform,
+        use_masks=args.use_masks,
+        normals_transform=normals_transform,
+    )
     test_ds = AgeDataset(test_meta, transform=test_transform, use_masks=args.use_masks)
     test_user_skin = build_user_skin_color_series(test_meta)
     train_sampler = GroupedBatchSampler(
@@ -477,8 +538,25 @@ def main() -> None:
         seed=args.seed,
         drop_last=False,
     )
+
+    def _collate_with_normals(batch):
+        """Collate that handles mixed batches where some samples have no normals GT."""
+        rgbs, ages, user_ids, normals_list = zip(*batch)
+        rgb_batch = torch.stack(rgbs)
+        age_batch = torch.stack(ages)
+        valid = [n for n in normals_list if n is not None]
+        if not valid:
+            return rgb_batch, age_batch, list(user_ids), None, None
+        h, w = valid[0].shape[-2], valid[0].shape[-1]
+        normals_batch = torch.stack(
+            [n if n is not None else torch.zeros(3, h, w) for n in normals_list]
+        )
+        has_normals = torch.tensor([n is not None for n in normals_list], dtype=torch.bool)
+        return rgb_batch, age_batch, list(user_ids), normals_batch, has_normals
+
+    train_collate = _collate_with_normals if args.normals_aux else None
     train_loader = DataLoader(
-        train_ds, batch_sampler=train_sampler, num_workers=0
+        train_ds, batch_sampler=train_sampler, num_workers=0, collate_fn=train_collate
     )
     test_loader = DataLoader(
         test_ds, batch_size=args.batch_size, shuffle=False, num_workers=0
@@ -512,15 +590,29 @@ def main() -> None:
         running_spread = 0.0
         running_embed_var = 0.0
         running_embed_contrast = 0.0
-        for images, ages, batch_user_ids in tqdm(
-            train_loader, desc=f"Epoch {epoch}/{args.epochs}"
-        ):
+        running_normals = 0.0
+        for batch in tqdm(train_loader, desc=f"Epoch {epoch}/{args.epochs}"):
+            if args.normals_aux:
+                images, ages, batch_user_ids, normals_gt, has_normals = batch
+                normals_gt = normals_gt.to(DEVICE) if normals_gt is not None else None
+                has_normals = has_normals.to(DEVICE) if has_normals is not None else None
+            else:
+                images, ages, batch_user_ids = batch
+                normals_gt = None
+                has_normals = None
             images, ages = images.to(DEVICE), ages.to(DEVICE)
             optimizer.zero_grad()
             outputs = model(images)
             z = None
+            pred_normals = None
             if isinstance(outputs, (tuple, list)):
-                if len(outputs) == 3:
+                if args.normals_aux and len(outputs) == 3:
+                    # (mean, log_var, pred_normals) — normals_aux without embed head
+                    pred_mean, pred_log_var, pred_normals = outputs
+                elif args.normals_aux and len(outputs) == 4:
+                    # (mean, log_var, z, pred_normals) — normals_aux with embed head
+                    pred_mean, pred_log_var, z, pred_normals = outputs
+                elif len(outputs) == 3:
                     pred_mean, pred_log_var, z = outputs
                 else:
                     pred_mean, pred_log_var = outputs
@@ -542,6 +634,10 @@ def main() -> None:
                 running_spread += spread_loss.item()
             else:
                 loss = base_loss
+            if pred_normals is not None and normals_gt is not None and args.loss_weight_normals > 0:
+                norm_loss = normals_reconstruction_loss(pred_normals, normals_gt, has_normals)
+                loss = loss + args.loss_weight_normals * norm_loss
+                running_normals += norm_loss.item()
             if z is not None:
                 if args.loss_weight_embed_var > 0:
                     embed_var_loss = embedding_variance_loss(
@@ -582,6 +678,7 @@ def main() -> None:
         train_emb_contrast = (
             running_embed_contrast / denom if args.loss_weight_embed_contrast > 0 else 0.0
         )
+        train_normals = running_normals / denom if args.normals_aux else 0.0
         model.eval()
         val_loss = 0.0
         val_mae = 0.0
@@ -600,7 +697,11 @@ def main() -> None:
                 outputs = model(images)
                 z = None
                 if isinstance(outputs, (tuple, list)):
-                    if len(outputs) == 3:
+                    if args.normals_aux and len(outputs) == 3:
+                        pred_mean, pred_log_var, _pred_normals = outputs
+                    elif args.normals_aux and len(outputs) == 4:
+                        pred_mean, pred_log_var, z, _pred_normals = outputs
+                    elif len(outputs) == 3:
                         pred_mean, pred_log_var, z = outputs
                     else:
                         pred_mean, pred_log_var = outputs
@@ -649,7 +750,8 @@ def main() -> None:
             f"Epoch {epoch}: "
             f"train_loss={train_loss:.4f}, train_mae={train_mae:.4f}, "
             f"train_mse={train_mse:.4f}, train_std={train_std:.4f}, train_spread={train_spread:.4f}, "
-            f"train_emb_var={train_emb_var:.4f}, train_emb_contrast={train_emb_contrast:.4f} | "
+            f"train_emb_var={train_emb_var:.4f}, train_emb_contrast={train_emb_contrast:.4f}, "
+            f"train_normals={train_normals:.4f} | "
             f"val_loss={val_loss:.4f}, val_mae={val_mae:.4f}, val_mse={val_mse:.4f}, "
             f"val_std={val_std:.4f}, val_spread={val_spread:.4f}, "
             f"val_emb_var={val_emb_var:.4f}, val_emb_contrast={val_emb_contrast:.4f}"
@@ -659,6 +761,7 @@ def main() -> None:
                 f"Epoch {epoch},train_loss={train_loss:.6f},train_mae={train_mae:.6f},train_mse={train_mse:.6f},"
                 f"train_std={train_std:.6f},train_spread={train_spread:.6f},"
                 f"train_emb_var={train_emb_var:.6f},train_emb_contrast={train_emb_contrast:.6f},"
+                f"train_normals={train_normals:.6f},"
                 f"val_loss={val_loss:.6f},val_mae={val_mae:.6f},val_mse={val_mse:.6f},"
                 f"val_std={val_std:.6f},val_spread={val_spread:.6f},"
                 f"val_emb_var={val_emb_var:.6f},val_emb_contrast={val_emb_contrast:.6f}\n"

@@ -89,6 +89,36 @@ def mae_loss(
     return _reduce_mean(torch.abs(pred_mean - target), sample_weights)
 
 
+def normals_reconstruction_loss(
+    pred: torch.Tensor,
+    target: torch.Tensor,
+    has_normals: torch.Tensor | None = None,
+) -> torch.Tensor:
+    """Cosine-similarity loss between predicted and GT surface normal maps.
+
+    pred, target: [B, 3, H, W] with values in [-1, 1].
+    has_normals: [B] boolean mask — only samples where True contribute to the loss.
+    Returns scalar loss (0.0 when no valid samples in the batch).
+    """
+    if has_normals is not None:
+        mask = has_normals.to(pred.device)
+        if not mask.any():
+            return pred.new_tensor(0.0)
+        pred = pred[mask]
+        target = target[mask]
+
+    # Flatten spatial dims: [B, 3, H*W]
+    pred_flat = pred.reshape(pred.shape[0], 3, -1)
+    target_flat = target.reshape(target.shape[0], 3, -1)
+
+    pred_norm = F.normalize(pred_flat, dim=1, eps=1e-6)
+    target_norm = F.normalize(target_flat, dim=1, eps=1e-6)
+
+    # cos_sim in [-1,1]; loss = 1 - cos_sim in [0,2], 0 when perfect.
+    cos_sim = (pred_norm * target_norm).sum(dim=1)  # [B, H*W]
+    return (1.0 - cos_sim).mean()
+
+
 def intra_user_spread_loss(
     pred_mean: torch.Tensor,
     user_ids: Sequence[object],

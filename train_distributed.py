@@ -398,6 +398,7 @@ def build_datasets(args: argparse.Namespace, seed: int, img_size: int):
         max_samples_per_age_bin=args.max_samples_per_age_bin or None,
     )
 
+    test_ids: set = set()
     if args.test_users_file:
         test_data = load_test_split(args.test_users_file)
         test_ids = {str(uid) for uid in test_data["test_user_ids"]}
@@ -446,28 +447,34 @@ def build_datasets(args: argparse.Namespace, seed: int, img_size: int):
         if len(train_meta) != before:
             print(f"[data] Oversampled train set from {before} to {len(train_meta)} samples.")
 
-    # Merge LUICIDHands into training (oversampled to hit --lucid-fraction).
-    if normals_transform is not None:
-        lucid_meta = filter_metadata(
-            load_lucid_metadata(root=active_root),
-            max_samples_per_user=args.max_samples_per_user or None,
+    # Merge LUICIDHands into training for both baseline and normals runs.
+    # Strip the "lucid_" prefix to map LUICIDHands user IDs back to their HandRGBD integer IDs,
+    # then exclude any whose raw ID appears in the val fold or held-out test split (leakage prevention).
+    lucid_meta = filter_metadata(
+        load_lucid_metadata(root=active_root),
+        max_samples_per_user=args.max_samples_per_user or None,
+    )
+    if not lucid_meta.empty:
+        excluded_ids = set(str(v) for v in val_ids) | test_ids
+        raw_ids = lucid_meta["user_id"].astype(str).str.replace("^lucid_", "", regex=True)
+        lucid_meta = lucid_meta[~raw_ids.isin(excluded_ids)].copy()
+    if not lucid_meta.empty:
+        frac = getattr(args, "lucid_fraction", 0.4)
+        n_target = int(round(len(train_meta) * frac / max(1.0 - frac, 1e-6)))
+        repeat = max(1, round(n_target / len(lucid_meta)))
+        lucid_over = pd.concat([lucid_meta] * repeat, ignore_index=True).head(n_target)
+        if normals_transform is None:
+            lucid_over = lucid_over.copy()
+            lucid_over["normals_path"] = None
+        if "normals_path" not in train_meta.columns:
+            train_meta["normals_path"] = None
+        train_meta = pd.concat([train_meta, lucid_over], ignore_index=True)
+        n_with_normals = int(lucid_over["normals_path"].notna().sum()) if "normals_path" in lucid_over.columns else 0
+        suffix = f", {n_with_normals} with normals" if normals_transform is not None else ""
+        print(
+            f"[lucid] LUICIDHands merged: {len(lucid_over)} samples "
+            f"({100 * len(lucid_over) / len(train_meta):.1f}% of combined train set{suffix})."
         )
-        if not lucid_meta.empty:
-            lucid_users = lucid_meta["user_id"].unique()
-            lucid_train_ids, _ = train_test_split(lucid_users, test_size=0.2, random_state=seed)
-            lucid_train = lucid_meta[lucid_meta["user_id"].isin(lucid_train_ids)].copy()
-            if not lucid_train.empty:
-                frac = getattr(args, "lucid_fraction", 0.4)
-                n_target = int(round(len(train_meta) * frac / max(1.0 - frac, 1e-6)))
-                repeat = max(1, round(n_target / len(lucid_train)))
-                lucid_over = pd.concat([lucid_train] * repeat, ignore_index=True).head(n_target)
-                if "normals_path" not in train_meta.columns:
-                    train_meta["normals_path"] = None
-                train_meta = pd.concat([train_meta, lucid_over], ignore_index=True)
-                print(
-                    f"[normals] LUICIDHands merged: {len(lucid_over)} samples "
-                    f"({100 * len(lucid_over) / len(train_meta):.1f}% of combined train set)."
-                )
 
     train_ds = AgeDataset(
         train_meta,

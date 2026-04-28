@@ -42,7 +42,7 @@ def get_default_efficientnet_weights(variant: str):
 class EfficientNetAgeRegressor(nn.Module):
     """EfficientNet backbone for age regression with optional auxiliary normals head."""
 
-    def __init__(self, variant: str, embed_dim: int = 0, normals_aux: bool = False):
+    def __init__(self, variant: str, embed_dim: int = 0, normals_aux: bool = False, normals_privileged: bool = False):
         super().__init__()
         variant = variant.lower()
         if variant not in EFFICIENTNET_IMG_SIZES:
@@ -81,11 +81,17 @@ class EfficientNetAgeRegressor(nn.Module):
             backbone.classifier = nn.Linear(in_feats, total_outputs)
         self.classifier = backbone.classifier
 
+        # Privileged normals input: expand first conv 3→6 channels (zero-init extra).
+        if normals_privileged:
+            from models import expand_first_conv_to_6ch
+            expand_first_conv_to_6ch(self)
+
         # Lightweight normals decoder attached to spatial features (Option A).
         if normals_aux:
             # Infer feature channels by probing features with a dummy tensor.
+            in_ch = 6 if normals_privileged else 3
             with torch.no_grad():
-                dummy = torch.zeros(1, 3, self.img_size, self.img_size)
+                dummy = torch.zeros(1, in_ch, self.img_size, self.img_size)
                 feat_channels = self.features(dummy).shape[1]
             self.normals_head: nn.Module | None = NormalsHead(feat_channels)
         else:

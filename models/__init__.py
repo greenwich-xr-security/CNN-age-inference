@@ -1,3 +1,5 @@
+import torch.nn as nn
+
 from .efficientnet_age import EFFICIENTNET_IMG_SIZES, EfficientNetAgeRegressor
 from .convnext_age import CONVNEXT_IMG_SIZES, ConvNeXtAgeRegressor
 from .mobilenet_age import MOBILENET_IMG_SIZES, MobileNetAgeRegressor
@@ -20,8 +22,42 @@ __all__ = [
     "SwinAgeRegressor",
     "VIT_IMG_SIZES",
     "ViTAgeRegressor",
+    "expand_first_conv_to_6ch",
     "resolve_model_builder",
 ]
+
+
+def expand_first_conv_to_6ch(model: nn.Module) -> None:
+    """Expand the first Conv2d from 3→6 input channels in-place.
+
+    The original RGB weights are copied to the first 3 channels.
+    The extra 3 channels (normals) are zero-initialized, so the model is
+    initially equivalent to a 3-channel model receiving zero-padded normals.
+    This supports privileged-information training: normals are supplied during
+    training and replaced with zeros at inference time.
+    """
+    import torch
+    for name, module in model.named_modules():
+        if isinstance(module, nn.Conv2d) and module.in_channels == 3:
+            new_conv = nn.Conv2d(
+                6, module.out_channels,
+                module.kernel_size, module.stride, module.padding,
+                dilation=module.dilation, groups=module.groups,
+                bias=module.bias is not None,
+                padding_mode=module.padding_mode,
+            )
+            with torch.no_grad():
+                new_conv.weight[:, :3] = module.weight
+                new_conv.weight[:, 3:] = 0.0
+                if module.bias is not None:
+                    new_conv.bias.copy_(module.bias)
+            parent = model
+            parts = name.split(".")
+            for part in parts[:-1]:
+                parent = getattr(parent, part)
+            setattr(parent, parts[-1], new_conv)
+            return
+    raise RuntimeError("expand_first_conv_to_6ch: no Conv2d with in_channels=3 found.")
 
 MODEL_ALIASES = {
     "cnt": "convnext_tiny",
@@ -55,11 +91,18 @@ MODEL_ALIASES = {
 }
 
 
-def resolve_model_builder(model_name: str, *, embed_dim: int = 0, normals_aux: bool = False):
+def resolve_model_builder(
+    model_name: str,
+    *,
+    embed_dim: int = 0,
+    normals_aux: bool = False,
+    normals_privileged: bool = False,
+):
     """
     Resolve a model name (including aliases) to a builder, default image size, display label, and normalized key.
 
-    normals_aux: attach a lightweight normal-map decoder to the backbone (EfficientNet only for now).
+    normals_aux: attach a lightweight normal-map decoder to the backbone (EfficientNet only).
+    normals_privileged: expand the first conv to 6 channels for privileged normals input at train time.
     """
     name = model_name.lower()
     name = MODEL_ALIASES.get(name, name)
@@ -67,7 +110,10 @@ def resolve_model_builder(model_name: str, *, embed_dim: int = 0, normals_aux: b
     if name in EFFICIENTNET_IMG_SIZES:
         size = EFFICIENTNET_IMG_SIZES[name]
         return (
-            lambda: EfficientNetAgeRegressor(name, embed_dim=embed_dim, normals_aux=normals_aux),
+            lambda: EfficientNetAgeRegressor(
+                name, embed_dim=embed_dim,
+                normals_aux=normals_aux, normals_privileged=normals_privileged,
+            ),
             size,
             f"EfficientNet-{name.upper()}",
             name,
@@ -79,7 +125,7 @@ def resolve_model_builder(model_name: str, *, embed_dim: int = 0, normals_aux: b
             raise ValueError(f"Unsupported ConvNeXt variant '{variant}'.")
         size = CONVNEXT_IMG_SIZES[variant]
         return (
-            lambda: ConvNeXtAgeRegressor(variant, embed_dim=embed_dim),
+            lambda: ConvNeXtAgeRegressor(variant, embed_dim=embed_dim, normals_privileged=normals_privileged),
             size,
             f"ConvNeXt-{variant}",
             name,
@@ -131,7 +177,7 @@ def resolve_model_builder(model_name: str, *, embed_dim: int = 0, normals_aux: b
             raise ValueError(f"Unsupported ViT variant '{variant}'.")
         size = VIT_IMG_SIZES[variant]
         return (
-            lambda: ViTAgeRegressor(variant, embed_dim=embed_dim),
+            lambda: ViTAgeRegressor(variant, embed_dim=embed_dim, normals_privileged=normals_privileged),
             size,
             f"ViT-{variant}",
             name,

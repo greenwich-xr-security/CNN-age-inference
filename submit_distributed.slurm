@@ -100,6 +100,9 @@ NO_HAGRID="${NO_HAGRID:-0}"                       # set >0 to exclude HaGRIDv2 f
 # Normals auxiliary prior experiment (set NORMALS_AUX=1 to enable; EfficientNet only)
 NORMALS_AUX="${NORMALS_AUX:-0}"
 LOSS_WEIGHT_NORMALS="${LOSS_WEIGHT_NORMALS:-0.1}"
+# Privileged normals input (set NORMALS_PRIVILEGED=1; expands first conv 3→6ch, zeros at test time)
+NORMALS_PRIVILEGED="${NORMALS_PRIVILEGED:-0}"
+NORMALS_DROPOUT="${NORMALS_DROPOUT:-0.5}"
 LUCID_FRACTION="${LUCID_FRACTION:-0.4}"
 # K-fold settings (set KFOLDS > 1 to enable).
 KFOLDS="${KFOLDS:-5}"
@@ -195,7 +198,8 @@ for USER_GROUP_SIZE in ${USER_GROUP_SIZES}; do
             --age-gate-threshold-min "${AGE_GATE_THRESHOLD_MIN}" \
             --age-gate-threshold-max "${AGE_GATE_THRESHOLD_MAX}" \
             --dist-backend nccl \
-            $( [[ "${NORMALS_AUX}" -gt 0 ]] && echo "--normals-aux --loss-weight-normals ${LOSS_WEIGHT_NORMALS} --lucid-fraction ${LUCID_FRACTION}" )
+            $( [[ "${NORMALS_AUX}" -gt 0 ]] && echo "--normals-aux --loss-weight-normals ${LOSS_WEIGHT_NORMALS} --lucid-fraction ${LUCID_FRACTION}" ) \
+          $( [[ "${NORMALS_PRIVILEGED}" -gt 0 ]] && echo "--normals-privileged --normals-dropout ${NORMALS_DROPOUT} --lucid-fraction ${LUCID_FRACTION}" )
           echo ">>> Training for ${MODEL_NAME} seed=${SEED_VAL} fold=${FOLD_IDX} complete. Artifacts in ${RUN_OUT}"
         done
 
@@ -252,7 +256,8 @@ for USER_GROUP_SIZE in ${USER_GROUP_SIZES}; do
           $( [[ -n "${AGE_OVERSAMPLE_TARGET}" ]] && echo "--age-oversample-target ${AGE_OVERSAMPLE_TARGET}" ) \
           --test-users-file "${TEST_SPLIT_FILE}" \
           --dist-backend nccl \
-          $( [[ "${NORMALS_AUX}" -gt 0 ]] && echo "--normals-aux --loss-weight-normals ${LOSS_WEIGHT_NORMALS} --lucid-fraction ${LUCID_FRACTION}" )
+          $( [[ "${NORMALS_AUX}" -gt 0 ]] && echo "--normals-aux --loss-weight-normals ${LOSS_WEIGHT_NORMALS} --lucid-fraction ${LUCID_FRACTION}" ) \
+          $( [[ "${NORMALS_PRIVILEGED}" -gt 0 ]] && echo "--normals-privileged --normals-dropout ${NORMALS_DROPOUT} --lucid-fraction ${LUCID_FRACTION}" )
         echo ">>> Training for ${MODEL_NAME} seed=${SEED_VAL} complete. Artifacts in ${RUN_OUT}"
       fi
     done

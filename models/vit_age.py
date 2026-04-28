@@ -25,7 +25,7 @@ class ViTAgeRegressor(nn.Module):
         output : (mean [B], log_var [B]) or (mean, log_var, z[B, K]) when embed_dim>0
     """
 
-    def __init__(self, variant: str = "tiny_384", embed_dim: int = 0):
+    def __init__(self, variant: str = "tiny_384", embed_dim: int = 0, normals_privileged: bool = False):
         super().__init__()
         variant = variant.lower()
         if variant not in VIT_IMG_SIZES:
@@ -44,6 +44,10 @@ class ViTAgeRegressor(nn.Module):
         self.variant = variant
         self.model_id = model_id
         self.embed_dim = int(embed_dim)
+
+        if normals_privileged:
+            from models import expand_first_conv_to_6ch
+            expand_first_conv_to_6ch(self)
 
     def forward(self, x: torch.Tensor):
         preds = self.backbone(x)

@@ -351,6 +351,19 @@ def parse_args() -> argparse.Namespace:
         help="Weight for the auxiliary normal map reconstruction loss (default: 0.1).",
     )
     parser.add_argument(
+        "--normals-privileged",
+        action="store_true",
+        help="Privileged normals input: expand first conv to 6 channels and supply normals during "
+             "training (zeros at val/test time). Requires LUICIDHands.",
+    )
+    parser.add_argument(
+        "--normals-dropout",
+        type=float,
+        default=0.5,
+        help="Probability of zeroing out normals channels for a LUICID sample during training, "
+             "teaching the model to work without normals (default: 0.5).",
+    )
+    parser.add_argument(
         "--lucid-fraction",
         type=float,
         default=0.4,
@@ -387,7 +400,8 @@ def build_datasets(args: argparse.Namespace, seed: int, img_size: int):
     active_root = get_dataset_root()
 
     train_transform, test_transform = build_transforms(img_size)
-    normals_transform = build_normals_transform(img_size) if getattr(args, "normals_aux", False) else None
+    _needs_normals = getattr(args, "normals_aux", False) or getattr(args, "normals_privileged", False)
+    normals_transform = build_normals_transform(img_size) if _needs_normals else None
 
     metadata = filter_metadata(
         load_combined_metadata(
@@ -600,7 +614,10 @@ def main() -> None:
     rank, world_size, local_rank, device = init_distributed(args)
     is_main = rank == 0
     model_builder, default_size, model_desc, model_key = resolve_model_builder(
-        args.model, embed_dim=args.embed_dim, normals_aux=getattr(args, "normals_aux", False)
+        args.model,
+        embed_dim=args.embed_dim,
+        normals_aux=getattr(args, "normals_aux", False),
+        normals_privileged=getattr(args, "normals_privileged", False),
     )
     img_size = args.img_size if args.img_size is not None else default_size
     if args.img_size is not None and args.img_size != default_size and is_main:
@@ -628,7 +645,7 @@ def main() -> None:
         has_normals = torch.tensor([n is not None for n in normals_list], dtype=torch.bool)
         return rgb_batch, age_batch, list(user_ids), normals_batch, has_normals
 
-    train_collate = _collate_with_normals if getattr(args, "normals_aux", False) else None
+    train_collate = _collate_with_normals if _needs_normals else None
 
     age_weight_map: dict[int, float] | None = None
     if args.age_reweight_loss:
@@ -724,6 +741,11 @@ def main() -> None:
             f"Spread: {args.loss_weight_spread:.3f}, "
             f"Normals: {getattr(args, 'loss_weight_normals', 0.0):.3f}"
         )
+        if getattr(args, "normals_privileged", False):
+            print(
+                f"Privileged normals input: ON | dropout={getattr(args, 'normals_dropout', 0.5):.2f} "
+                f"(normals zeroed at val/test time)"
+            )
         print(
             f"Eval aggregation group sizes: {eval_group_sizes} | "
             f"aggregation seed: {eval_agg_seed}"
@@ -741,7 +763,7 @@ def main() -> None:
         model,
         device_ids=[local_rank] if device.type == "cuda" else None,
         output_device=local_rank if device.type == "cuda" else None,
-        find_unused_parameters=args.find_unused_params or args.normals_aux,
+        find_unused_parameters=args.find_unused_params or getattr(args, "normals_aux", False),
     )
     optimizer = torch.optim.AdamW(
         ddp_model.parameters(),
@@ -770,6 +792,8 @@ def main() -> None:
         train_emb_contrast_sum = 0.0
         train_normals_sum = 0.0
         _normals_aux = getattr(args, "normals_aux", False)
+        _normals_privileged = getattr(args, "normals_privileged", False)
+        _normals_dropout = getattr(args, "normals_dropout", 0.5)
         _loss_weight_normals = getattr(args, "loss_weight_normals", 0.0)
 
         progress = tqdm(
@@ -778,7 +802,7 @@ def main() -> None:
             disable=not is_main,
         )
         for batch in progress:
-            if _normals_aux:
+            if _normals_aux or _normals_privileged:
                 images, ages, batch_user_ids, normals_gt, has_normals = batch
                 normals_gt = normals_gt.to(device, non_blocking=True) if normals_gt is not None else None
                 has_normals = has_normals.to(device, non_blocking=True) if has_normals is not None else None
@@ -789,6 +813,14 @@ def main() -> None:
             images = images.to(device, non_blocking=True)
             ages = ages.to(device, non_blocking=True)
             optimizer.zero_grad()
+            if _normals_privileged and normals_gt is not None:
+                # Apply per-sample dropout on LUICID normals: randomly zero them out
+                # so the model learns to handle zero-normals (matching val/test).
+                if _normals_dropout > 0 and has_normals is not None:
+                    drop = (torch.rand(has_normals.shape[0], device=device) < _normals_dropout) & has_normals
+                    normals_gt = normals_gt.clone()
+                    normals_gt[drop] = 0.0
+                images = torch.cat([images, normals_gt], dim=1)
             outputs = ddp_model(images)
             z = None
             pred_normals = None
@@ -901,6 +933,11 @@ def main() -> None:
             for images, ages, batch_user_ids in val_loader:
                 images = images.to(device, non_blocking=True)
                 ages = ages.to(device, non_blocking=True)
+                if _normals_privileged:
+                    zeros_n = torch.zeros(
+                        images.shape[0], 3, images.shape[2], images.shape[3], device=device
+                    )
+                    images = torch.cat([images, zeros_n], dim=1)
                 outputs = ddp_model(images)
                 z = None
                 if isinstance(outputs, (tuple, list)):
@@ -1409,6 +1446,11 @@ def main() -> None:
                 with torch.no_grad():
                     for images, ages, batch_user_ids in test_loader:
                         images = images.to(device)
+                        if getattr(args, "normals_privileged", False):
+                            zeros_n = torch.zeros(
+                                images.shape[0], 3, images.shape[2], images.shape[3], device=device
+                            )
+                            images = torch.cat([images, zeros_n], dim=1)
                         outputs = test_model(images)
                         if isinstance(outputs, (tuple, list)):
                             if len(outputs) == 3:

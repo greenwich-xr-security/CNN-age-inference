@@ -23,7 +23,7 @@ class ConvNeXtAgeRegressor(nn.Module):
         output : (mean [B], log_var [B]) or (mean, log_var, z[B, K]) when embed_dim>0
     """
 
-    def __init__(self, variant: str = "base", embed_dim: int = 0):
+    def __init__(self, variant: str = "base", embed_dim: int = 0, normals_privileged: bool = False):
         super().__init__()
         variant = variant.lower()
         model_name = f"convnext_{variant}"
@@ -41,6 +41,10 @@ class ConvNeXtAgeRegressor(nn.Module):
         self.backbone = timm.create_model(model_name, pretrained=True, num_classes=total_outputs)
         self.variant = variant
         self.embed_dim = int(embed_dim)
+
+        if normals_privileged:
+            from models import expand_first_conv_to_6ch
+            expand_first_conv_to_6ch(self)
 
     def forward(self, x: torch.Tensor):
         preds = self.backbone(x)

@@ -35,6 +35,7 @@ DECADE_COMPARE_BIN_STOP = 70.0
 MODEL_COLOR_OVERRIDES = {
     "RN50": "#4C78A8",
     "EffNetV2-M": "#F58518",
+    "EffNetV2-S": "#F58518",
     "SwinV2-T": "#72B7B2",
     "SwinV2-B": "#54A24B",
     "MobNetV3-L": "#E45756",
@@ -55,6 +56,9 @@ RUN_LABEL_OVERRIDES = {
     "efficientnet_v2_m": "EffNetV2-M",
     "efficientnetv2-m": "EffNetV2-M",
     "v2_m": "EffNetV2-M",
+    "efficientnet_v2_s": "EffNetV2-S",
+    "efficientnetv2-s": "EffNetV2-S",
+    "v2_s": "EffNetV2-S",
     "mobilenet_v3_large": "MobNetV3-L",
     "mobilenetv3-large": "MobNetV3-L",
     "swin_v2_tiny": "SwinV2-T",
@@ -331,6 +335,13 @@ def load_adult_gate_scores(path: Path) -> tuple[np.ndarray, np.ndarray]:
     targets = np.asarray(data["targets"], dtype=float)
     if "adult_prob" in data:
         adult_prob = np.asarray(data["adult_prob"], dtype=float)
+        # Binary adult_prob (age_threshold mode) gives a degenerate ROC — use
+        # pred_mean directly (normalised to [0,1]) to recover a proper ranking score.
+        unique_vals = np.unique(adult_prob[np.isfinite(adult_prob)])
+        if set(unique_vals.tolist()).issubset({0.0, 1.0}) and "pred_mean" in data:
+            pm = np.asarray(data["pred_mean"], dtype=float)
+            lo, hi = pm.min(), pm.max()
+            adult_prob = (pm - lo) / (hi - lo) if hi > lo else pm - lo
     elif "pred_mean" in data and "pred_log_var" in data:
         adult_prob = compute_adult_probabilities(
             np.asarray(data["pred_mean"], dtype=float),
@@ -1298,6 +1309,7 @@ def main() -> None:
     fig.tight_layout()
     overall_plot = output_dir / "overall_metrics_compare.png"
     fig.savefig(overall_plot, dpi=150)
+    fig.savefig(output_dir / "overall_metrics_compare.svg")
     plt.close(fig)
 
     if roc_fold_data:
@@ -1335,7 +1347,17 @@ def main() -> None:
                 ha="left",
                 va="bottom",
             )
-            for run_name in run_names:
+            def _mean_pauc(rn: str) -> float:
+                vals = [float(r.get("pauc_fpr_0_1", float("nan"))) for r in roc_fold_data.get(rn, [])]
+                finite = [v for v in vals if np.isfinite(v)]
+                return float(np.mean(finite)) if finite else float("-inf")
+
+            roc_run_names = sorted(
+                [rn for rn in run_names if roc_fold_data.get(rn)],
+                key=_mean_pauc,
+                reverse=True,
+            )
+            for run_name in roc_run_names:
                 curves = roc_fold_data.get(run_name, [])
                 if not curves:
                     continue
@@ -1413,8 +1435,11 @@ def main() -> None:
             fig.tight_layout()
             roc_plot = output_dir / "roc_adult_gate_compare.png"
             fig.savefig(roc_plot, dpi=150)
+            roc_plot_svg = output_dir / "roc_adult_gate_compare.svg"
+            fig.savefig(roc_plot_svg)
             plt.close(fig)
             print(f"Saved: {roc_plot}")
+            print(f"Saved: {roc_plot_svg}")
             print(f"Saved: {roc_csv}")
 
     rows = []
@@ -1467,6 +1492,7 @@ def main() -> None:
     fig.tight_layout()
     plot_path = output_dir / "mae_by_decade_compare.png"
     fig.savefig(plot_path, dpi=150)
+    fig.savefig(output_dir / "mae_by_decade_compare.svg")
     plt.close(fig)
 
     print(f"Saved: {overall_plot}")
@@ -1639,6 +1665,7 @@ def main() -> None:
             fig.subplots_adjust(bottom=0.42)
             skin_plot = output_dir / "mae_by_skin_color_compare.png"
             fig.savefig(skin_plot, dpi=150, bbox_extra_artists=(legend,))
+            fig.savefig(output_dir / "mae_by_skin_color_compare.svg", bbox_extra_artists=(legend,))
             plt.close(fig)
             print(f"Saved: {skin_plot}")
             print(f"Saved: {pairwise_csv}")
@@ -1793,6 +1820,7 @@ def main() -> None:
             fig.tight_layout()
             plot_path = output_dir / "intra_user_std_by_decade_compare.png"
             fig.savefig(plot_path, dpi=150)
+            fig.savefig(output_dir / "intra_user_std_by_decade_compare.svg")
             plt.close(fig)
 
             print(f"Saved: {plot_path}")

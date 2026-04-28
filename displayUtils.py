@@ -589,6 +589,61 @@ class DisplayUtils:
 
     # ------------------------------------------------------------------ #
     @staticmethod
+    def save_normals_reconstruction_grid(
+        rgbs: np.ndarray,
+        gt_normals: np.ndarray,
+        pred_normals: np.ndarray,
+        error_maps: np.ndarray,
+        cos_sims: np.ndarray,
+        save_path,
+        n_samples: int = 8,
+        title: str = "Normal Map Reconstruction",
+    ) -> None:
+        """Grid plot comparing GT vs predicted normal maps.
+
+        Args:
+            rgbs:         [N, H, W, 3] float32 in [0, 1] (display-ready RGB).
+            gt_normals:   [N, H, W, 3] float32 in [0, 1] (decoded from [-1,1]).
+            pred_normals: [N, H, W, 3] float32 in [0, 1] (decoded from [-1,1]).
+            error_maps:   [N, H, W] float32, per-pixel 1 − cos(θ).
+            cos_sims:     [N] float32, per-sample mean cosine similarity.
+        """
+        n = min(n_samples, len(rgbs))
+        rng = np.random.default_rng(seed=0)
+        idx = np.sort(rng.choice(len(rgbs), size=n, replace=False))
+
+        fig, axes = plt.subplots(n, 4, figsize=(16, n * 4))
+        if n == 1:
+            axes = axes[np.newaxis, :]
+
+        for j, col_title in enumerate(["RGB", "GT Normal", "Pred Normal", "Error (1 − cosθ)"]):
+            axes[0, j].set_title(col_title, fontsize=11, fontweight="bold")
+
+        err_vmax = float(np.percentile(error_maps, 95)) if error_maps.size > 0 else 1.0
+        im_err = None
+        for row, i in enumerate(idx):
+            axes[row, 0].imshow(np.clip(rgbs[i], 0.0, 1.0))
+            axes[row, 1].imshow(np.clip(gt_normals[i], 0.0, 1.0))
+            axes[row, 2].imshow(np.clip(pred_normals[i], 0.0, 1.0))
+            im_err = axes[row, 3].imshow(error_maps[i], cmap="hot", vmin=0.0, vmax=err_vmax)
+            axes[row, 0].set_ylabel(
+                f"cos={cos_sims[i]:.3f}", fontsize=9, rotation=0, labelpad=50, va="center"
+            )
+            for j in range(4):
+                axes[row, j].axis("off")
+
+        mean_cos = float(np.mean(cos_sims))
+        fig.suptitle(
+            f"{title}  |  mean cos-sim = {mean_cos:.4f}  (N={len(rgbs)})", fontsize=13
+        )
+        if im_err is not None:
+            plt.colorbar(im_err, ax=axes[:, 3], shrink=0.6, label="1 − cosθ")
+        plt.tight_layout(rect=[0, 0, 1, 0.96])
+        plt.savefig(Path(save_path), dpi=120, bbox_inches="tight")
+        plt.close(fig)
+
+    # ------------------------------------------------------------------ #
+    @staticmethod
     def _resize_to_max(img, max_dim):
         h, w = img.shape[:2]
         scale = 1.0

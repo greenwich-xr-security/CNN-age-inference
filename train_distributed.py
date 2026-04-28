@@ -721,7 +721,8 @@ def main() -> None:
         print(
             f"Loss weights -> NLL: {loss_weights.nll:.3f}, "
             f"MSE: {loss_weights.mse:.3f}, MAE: {loss_weights.mae:.3f}, "
-            f"Spread: {args.loss_weight_spread:.3f}"
+            f"Spread: {args.loss_weight_spread:.3f}, "
+            f"Normals: {getattr(args, 'loss_weight_normals', 0.0):.3f}"
         )
         print(
             f"Eval aggregation group sizes: {eval_group_sizes} | "
@@ -973,7 +974,8 @@ def main() -> None:
                 f"Epoch {epoch}: "
                 f"train_loss={train_loss:.4f}, train_mae={train_mae:.4f}, "
                 f"train_rmse={train_rmse:.4f}, train_std={train_std:.4f}, train_spread={train_spread:.4f}, "
-                f"train_emb_var={train_emb_var:.4f}, train_emb_contrast={train_emb_contrast:.4f} | "
+                f"train_emb_var={train_emb_var:.4f}, train_emb_contrast={train_emb_contrast:.4f}, "
+                f"train_normals={train_normals:.4f} | "
                 f"val_loss={val_loss:.4f}, val_mae={val_mae:.4f}, val_rmse={val_rmse:.4f}, "
                 f"val_std={val_std:.4f}, val_spread={val_spread:.4f}, "
                 f"val_emb_var={val_emb_var:.4f}, val_emb_contrast={val_emb_contrast:.4f}"
@@ -983,6 +985,7 @@ def main() -> None:
                     f"Epoch {epoch},train_loss={train_loss:.6f},train_mae={train_mae:.6f},train_rmse={train_rmse:.6f},"
                     f"train_std={train_std:.6f},train_spread={train_spread:.6f},"
                     f"train_emb_var={train_emb_var:.6f},train_emb_contrast={train_emb_contrast:.6f},"
+                    f"train_normals={train_normals:.6f},"
                     f"val_loss={val_loss:.6f},val_mae={val_mae:.6f},val_rmse={val_rmse:.6f},"
                     f"val_std={val_std:.6f},val_spread={val_spread:.6f},"
                     f"val_emb_var={val_emb_var:.6f},val_emb_contrast={val_emb_contrast:.6f}\n"
@@ -1578,6 +1581,112 @@ def main() -> None:
 
         elif args.test_users_file and not best_model_path.exists():
             print("[Rank 0] Best checkpoint not found; skipped test evaluation.")
+
+        # ── Normals reconstruction evaluation on LUICIDHands ─────────────────
+        if is_main and getattr(args, "normals_aux", False) and best_model_path.exists():
+            print("[Rank 0] Running normals reconstruction evaluation on LUICIDHands...")
+            try:
+                _, _test_tf = build_transforms(img_size)
+                luicid_meta = filter_metadata(load_lucid_metadata(root=active_root))
+                luicid_normals_meta = luicid_meta[luicid_meta["normals_path"].notna()].reset_index(drop=True)
+                if luicid_normals_meta.empty:
+                    print("[Rank 0] No LUICID normals found; skipping reconstruction evaluation.")
+                else:
+                    print(f"[Rank 0] LUICID normals samples: {len(luicid_normals_meta)}")
+                    recon_ds = AgeDataset(
+                        luicid_normals_meta,
+                        transform=_test_tf,
+                        normals_transform=normals_transform,
+                    )
+
+                    def _normals_collate(batch):
+                        imgs = torch.stack([b[0] for b in batch])
+                        ages = torch.stack([b[1] for b in batch])
+                        uids = [b[2] for b in batch]
+                        norms = [b[3] for b in batch]
+                        valid = [n for n in norms if n is not None]
+                        if valid:
+                            h, w = valid[0].shape[1], valid[0].shape[2]
+                            norms_t = torch.stack(
+                                [n if n is not None else torch.zeros(3, h, w) for n in norms]
+                            )
+                        else:
+                            norms_t = torch.zeros(len(batch), 3, 1, 1)
+                        has_n = torch.tensor([n is not None for n in norms], dtype=torch.bool)
+                        return imgs, ages, uids, norms_t, has_n
+
+                    recon_loader = DataLoader(
+                        recon_ds, batch_size=16, shuffle=False,
+                        num_workers=0, collate_fn=_normals_collate,
+                    )
+                    recon_model = model_builder()
+                    state = torch.load(best_model_path, map_location=device)
+                    recon_model.load_state_dict(state)
+                    recon_model = recon_model.to(device)
+                    recon_model.eval()
+
+                    all_rgbs, all_gt, all_pred = [], [], []
+                    with torch.no_grad():
+                        for imgs_b, _ages_b, _uids_b, gt_b, has_n_b in recon_loader:
+                            imgs_b = imgs_b.to(device)
+                            outputs = recon_model(imgs_b)
+                            if not isinstance(outputs, (tuple, list)) or len(outputs) < 3:
+                                print("[Rank 0] Model did not return normals output; aborting.")
+                                break
+                            pred_b = outputs[-1].cpu()  # pred_normals is last output
+                            mask = has_n_b
+                            if not mask.any():
+                                continue
+                            all_rgbs.append(imgs_b[mask].cpu())
+                            all_gt.append(gt_b[mask])
+                            all_pred.append(pred_b[mask])
+
+                    if all_rgbs:
+                        rgbs_t = torch.cat(all_rgbs, dim=0).numpy()    # [N, 3, H, W]
+                        gt_t = torch.cat(all_gt, dim=0).numpy()        # [N, 3, H, W] in [-1,1]
+                        pred_t = torch.cat(all_pred, dim=0).numpy()    # [N, 3, H, W] in [-1,1]
+
+                        # Per-sample cosine similarity and per-pixel error maps
+                        cos_sims_list, error_maps_list = [], []
+                        for i in range(len(rgbs_t)):
+                            p = pred_t[i].reshape(3, -1)   # [3, H*W]
+                            g = gt_t[i].reshape(3, -1)
+                            p_norm = p / (np.linalg.norm(p, axis=0, keepdims=True) + 1e-6)
+                            g_norm = g / (np.linalg.norm(g, axis=0, keepdims=True) + 1e-6)
+                            cos_map = (p_norm * g_norm).sum(axis=0)    # [H*W]
+                            h, w = pred_t[i].shape[1], pred_t[i].shape[2]
+                            cos_sims_list.append(float(cos_map.mean()))
+                            error_maps_list.append((1 - cos_map).reshape(h, w))
+
+                        cos_sims_arr = np.array(cos_sims_list, dtype=np.float32)
+                        error_maps_arr = np.stack(error_maps_list).astype(np.float32)
+
+                        # Convert to display-ready arrays
+                        _imnet_mean = np.array([0.485, 0.456, 0.406])
+                        _imnet_std = np.array([0.229, 0.224, 0.225])
+                        rgbs_disp = rgbs_t.transpose(0, 2, 3, 1) * _imnet_std + _imnet_mean
+                        gt_disp = (gt_t.transpose(0, 2, 3, 1) + 1.0) / 2.0
+                        pred_disp = (pred_t.transpose(0, 2, 3, 1) + 1.0) / 2.0
+
+                        cos_csv = output_dir / "luicid_normals_cosine_sim.csv"
+                        with cos_csv.open("w", encoding="utf-8") as fp:
+                            fp.write("sample_idx,cos_sim\n")
+                            for si, cs in enumerate(cos_sims_arr):
+                                fp.write(f"{si},{cs:.6f}\n")
+
+                        DisplayUtils.save_normals_reconstruction_grid(
+                            rgbs_disp, gt_disp, pred_disp, error_maps_arr, cos_sims_arr,
+                            save_path=output_dir / "luicid_normals_reconstruction.png",
+                            n_samples=8,
+                            title=f"LUICID Normal Reconstruction — {model_key}",
+                        )
+                        print(
+                            f"[Rank 0] Normals reconstruction: "
+                            f"mean cos-sim={cos_sims_arr.mean():.4f} ± {cos_sims_arr.std():.4f}"
+                        )
+                        print(f"[Rank 0] Saved: {cos_csv.name}, luicid_normals_reconstruction.png")
+            except Exception as _exc:
+                print(f"[Rank 0] Normals reconstruction evaluation failed: {_exc}")
 
         print("Distributed training complete. Best model saved based on validation improvement.")
     dist.destroy_process_group()

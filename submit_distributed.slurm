@@ -61,10 +61,10 @@ WEIGHT_DECAY="${WEIGHT_DECAY:-0.2}"
 IMG_SIZE="${IMG_SIZE:-}"
 EPOCHS="${EPOCHS:-240}"
 
-# Losses (mae-only branch: NLL=0, MAE=1)
-LOSS_WEIGHT_NLL="${LOSS_WEIGHT_NLL:-0}"
+# Losses (publication-compatible default: NLL only)
+LOSS_WEIGHT_NLL="${LOSS_WEIGHT_NLL:-1}"
 LOSS_WEIGHT_MSE="${LOSS_WEIGHT_MSE:-0}"
-LOSS_WEIGHT_MAE="${LOSS_WEIGHT_MAE:-1}"
+LOSS_WEIGHT_MAE="${LOSS_WEIGHT_MAE:-0}"
 LOSS_WEIGHT_SPREAD="${LOSS_WEIGHT_SPREAD:-0}"
 LOSS_WEIGHT_EMBED_VAR="${LOSS_WEIGHT_EMBED_VAR:-0}"
 LOSS_WEIGHT_EMBED_CONTRAST="${LOSS_WEIGHT_EMBED_CONTRAST:-0}"
@@ -96,8 +96,8 @@ EMBED_AGE_SLACK="${EMBED_AGE_SLACK:-5.0}"
 EMBED_CONTRAST_MARGIN="${EMBED_CONTRAST_MARGIN:-1.0}"
 EMBED_CONTRAST_AGE_THRESH="${EMBED_CONTRAST_AGE_THRESH:-5.0}"
 USE_MASKS="${USE_MASKS:-0}"                        # set >0 to apply dataset masks (black background)
-NO_HAGRID="${NO_HAGRID:-0}"                       # set >0 to exclude HaGRIDv2 from split generation and training
-# Normals auxiliary prior experiment (set NORMALS_AUX=1 to enable; EfficientNet only)
+NO_HAGRID="${NO_HAGRID:-1}"                       # exclude HaGRIDv2 from split generation and training by default
+# Normals auxiliary prior experiment (set NORMALS_AUX=1 to enable)
 NORMALS_AUX="${NORMALS_AUX:-0}"
 LOSS_WEIGHT_NORMALS="${LOSS_WEIGHT_NORMALS:-0.1}"
 # Privileged normals input (set NORMALS_PRIVILEGED=1; expands first conv 3→6ch, zeros at test time)

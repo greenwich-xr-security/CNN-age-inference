@@ -342,7 +342,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--normals-aux",
         action="store_true",
-        help="Attach auxiliary normal-map decoder to the backbone (EfficientNet only).",
+        help="Attach auxiliary normal-map decoder to the backbone.",
     )
     parser.add_argument(
         "--loss-weight-normals",
@@ -630,6 +630,7 @@ def main() -> None:
     train_dataset, val_dataset, active_root, train_len, val_len, fold_info, val_user_skin, normals_transform = build_datasets(
         args, args.seed, img_size
     )
+    needs_normals = getattr(args, "normals_aux", False) or getattr(args, "normals_privileged", False)
 
     def _collate_with_normals(batch):
         rgbs, ages, user_ids, normals_list = zip(*batch)
@@ -645,7 +646,7 @@ def main() -> None:
         has_normals = torch.tensor([n is not None for n in normals_list], dtype=torch.bool)
         return rgb_batch, age_batch, list(user_ids), normals_batch, has_normals
 
-    train_collate = _collate_with_normals if _needs_normals else None
+    train_collate = _collate_with_normals if needs_normals else None
 
     age_weight_map: dict[int, float] | None = None
     if args.age_reweight_loss:
@@ -813,7 +814,10 @@ def main() -> None:
             images = images.to(device, non_blocking=True)
             ages = ages.to(device, non_blocking=True)
             optimizer.zero_grad()
-            if _normals_privileged and normals_gt is not None:
+            if _normals_privileged:
+                if normals_gt is None:
+                    normals_gt = torch.zeros_like(images)
+                    has_normals = torch.zeros(images.shape[0], dtype=torch.bool, device=device)
                 # Apply per-sample dropout on LUICID normals: randomly zero them out
                 # so the model learns to handle zero-normals (matching val/test).
                 if _normals_dropout > 0 and has_normals is not None:
@@ -1336,6 +1340,11 @@ def main() -> None:
                 for images, ages, batch_user_ids in eval_loader:
                     images = images.to(device)
                     ages = ages.to(device)
+                    if getattr(args, "normals_privileged", False):
+                        zeros_n = torch.zeros(
+                            images.shape[0], 3, images.shape[2], images.shape[3], device=device
+                        )
+                        images = torch.cat([images, zeros_n], dim=1)
                     outputs = eval_model(images)
                     if isinstance(outputs, (tuple, list)):
                         if len(outputs) == 3:

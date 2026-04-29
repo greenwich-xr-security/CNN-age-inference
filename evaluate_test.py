@@ -76,6 +76,12 @@ def parse_args() -> argparse.Namespace:
         help="Embedding head dimension used during training (0 = disabled; must match checkpoint).",
     )
     parser.add_argument(
+        "--normals-privileged",
+        action="store_true",
+        default=False,
+        help="Model was trained with privileged normals input (6-ch first conv). Zeros are supplied at test time.",
+    )
+    parser.add_argument(
         "--data-root",
         type=str,
         default=None,
@@ -174,7 +180,8 @@ def main() -> None:
     print(f"Test samples: {len(test_meta)} | Test users found: {test_meta['user_id'].nunique()}")
 
     model_builder, default_size, model_desc, _ = resolve_model_builder(
-        args.model, embed_dim=args.embed_dim
+        args.model, embed_dim=args.embed_dim,
+        normals_privileged=getattr(args, "normals_privileged", False),
     )
     img_size = args.img_size if args.img_size is not None else default_size
     _, test_transform = build_transforms(img_size)
@@ -205,9 +212,13 @@ def main() -> None:
     all_log_vars: list[float] = []
     all_user_ids: list[str] = []
 
+    _normals_privileged = getattr(args, "normals_privileged", False)
     with torch.no_grad():
         for images, ages, batch_user_ids in test_loader:
             images = images.to(device, non_blocking=True)
+            if _normals_privileged:
+                zeros_n = torch.zeros(images.shape[0], 3, images.shape[2], images.shape[3], device=device)
+                images = torch.cat([images, zeros_n], dim=1)
             outputs = model(images)
             if isinstance(outputs, (tuple, list)):
                 pred_mean, pred_log_var = outputs[0], outputs[1]

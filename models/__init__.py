@@ -101,7 +101,7 @@ def resolve_model_builder(
     """
     Resolve a model name (including aliases) to a builder, default image size, display label, and normalized key.
 
-    normals_aux: attach a lightweight normal-map decoder to the backbone (EfficientNet only).
+    normals_aux: attach a lightweight normal-map decoder to the backbone.
     normals_privileged: expand the first conv to 6 channels for privileged normals input at train time.
     """
     name = model_name.lower()
@@ -138,7 +138,10 @@ def resolve_model_builder(
         size = MOBILENET_IMG_SIZES[variant]
         label = f"MobileNet-{variant.replace('_', '-').upper()}"
         return (
-            lambda: MobileNetAgeRegressor(variant, embed_dim=embed_dim),
+            lambda: MobileNetAgeRegressor(
+                variant, embed_dim=embed_dim,
+                normals_aux=normals_aux, normals_privileged=normals_privileged,
+            ),
             size,
             label,
             name,
@@ -151,7 +154,10 @@ def resolve_model_builder(
         size = RESNET_IMG_SIZES[variant]
         label = f"ResNet-{variant}"
         return (
-            lambda: ResNetAgeRegressor(variant, embed_dim=embed_dim),
+            lambda: ResNetAgeRegressor(
+                variant, embed_dim=embed_dim,
+                normals_aux=normals_aux, normals_privileged=normals_privileged,
+            ),
             size,
             label,
             name,
@@ -165,7 +171,10 @@ def resolve_model_builder(
         size = SWIN_IMG_SIZES[variant]
         label = f"Swin-{variant.replace('_', '-').upper()}"
         return (
-            lambda: SwinAgeRegressor(variant, embed_dim=embed_dim),
+            lambda: SwinAgeRegressor(
+                variant, embed_dim=embed_dim,
+                normals_aux=normals_aux, normals_privileged=normals_privileged,
+            ),
             size,
             label,
             name,

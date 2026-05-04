@@ -11,7 +11,7 @@ import torch
 import torch.nn.functional as F
 
 LOG_VAR_MIN = -10.0
-LOG_VAR_MAX = 10.0
+LOG_VAR_MAX = 15.0
 CHALLENGE_PROB_TAU = 0.5  # Probability threshold to auto-allow without document
 CHALLENGE_BINS: Tuple[Tuple[str, float, float], ...] = (
     ("10-12", 10.0, 12.0),

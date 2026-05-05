@@ -394,6 +394,21 @@ def init_distributed(args: argparse.Namespace) -> tuple[int, int, int, torch.dev
     return rank, world_size, local_rank, device
 
 
+def _normalise_subject_id(value) -> str:
+    uid = str(value).strip()
+    for prefix in ("handrgbd_", "lucid_"):
+        if uid.startswith(prefix):
+            uid = uid[len(prefix):]
+            break
+    try:
+        numeric = float(uid)
+    except ValueError:
+        return uid
+    if numeric.is_integer():
+        return str(int(numeric))
+    return uid
+
+
 def build_datasets(args: argparse.Namespace, seed: int, img_size: int):
     if args.data_root:
         set_dataset_root(args.data_root)
@@ -470,11 +485,8 @@ def build_datasets(args: argparse.Namespace, seed: int, img_size: int):
     )
     if not lucid_meta.empty:
         excluded_ids = set(str(v) for v in val_ids) | test_ids
-        excluded_raw = {
-            uid.replace("handrgbd_", "").replace("lucid_", "")
-            for uid in excluded_ids
-        }
-        raw_ids = lucid_meta["user_id"].astype(str).str.replace("^lucid_", "", regex=True)
+        excluded_raw = {_normalise_subject_id(uid) for uid in excluded_ids}
+        raw_ids = lucid_meta["user_id"].map(_normalise_subject_id)
         lucid_meta = lucid_meta[~raw_ids.isin(excluded_raw)].copy()
     if not lucid_meta.empty:
         frac = getattr(args, "lucid_fraction", 0.4)

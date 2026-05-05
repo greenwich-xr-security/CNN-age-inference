@@ -88,6 +88,21 @@ def _append_dataset_stats(config_path: Path, label: str, df: pd.DataFrame) -> No
             fp.write(f"{label}_{key}={stats[key]}\n")
 
 
+def _normalise_subject_id(value) -> str:
+    uid = str(value).strip()
+    for prefix in ("handrgbd_", "lucid_"):
+        if uid.startswith(prefix):
+            uid = uid[len(prefix):]
+            break
+    try:
+        numeric = float(uid)
+    except ValueError:
+        return uid
+    if numeric.is_integer():
+        return str(int(numeric))
+    return uid
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Train EfficientNet hand age regressor."
@@ -443,11 +458,8 @@ def main() -> None:
     # Strip "lucid_" prefix to get raw HandRGBD integer IDs, then exclude val/test users (leakage prevention).
     if not lucid_meta.empty:
         excluded_ids = set(str(v) for v in test_ids)
-        excluded_raw = {
-            uid.replace("handrgbd_", "").replace("lucid_", "")
-            for uid in excluded_ids
-        }
-        raw_ids = lucid_meta["user_id"].astype(str).str.replace("^lucid_", "", regex=True)
+        excluded_raw = {_normalise_subject_id(uid) for uid in excluded_ids}
+        raw_ids = lucid_meta["user_id"].map(_normalise_subject_id)
         lucid_meta = lucid_meta[~raw_ids.isin(excluded_raw)].copy()
     if not lucid_meta.empty:
         n_base = len(train_meta)

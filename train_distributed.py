@@ -470,8 +470,12 @@ def build_datasets(args: argparse.Namespace, seed: int, img_size: int):
     )
     if not lucid_meta.empty:
         excluded_ids = set(str(v) for v in val_ids) | test_ids
+        excluded_raw = {
+            uid.replace("handrgbd_", "").replace("lucid_", "")
+            for uid in excluded_ids
+        }
         raw_ids = lucid_meta["user_id"].astype(str).str.replace("^lucid_", "", regex=True)
-        lucid_meta = lucid_meta[~raw_ids.isin(excluded_ids)].copy()
+        lucid_meta = lucid_meta[~raw_ids.isin(excluded_raw)].copy()
     if not lucid_meta.empty:
         frac = getattr(args, "lucid_fraction", 0.4)
         n_target = int(round(len(train_meta) * frac / max(1.0 - frac, 1e-6)))

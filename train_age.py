@@ -443,8 +443,12 @@ def main() -> None:
     # Strip "lucid_" prefix to get raw HandRGBD integer IDs, then exclude val/test users (leakage prevention).
     if not lucid_meta.empty:
         excluded_ids = set(str(v) for v in test_ids)
+        excluded_raw = {
+            uid.replace("handrgbd_", "").replace("lucid_", "")
+            for uid in excluded_ids
+        }
         raw_ids = lucid_meta["user_id"].astype(str).str.replace("^lucid_", "", regex=True)
-        lucid_meta = lucid_meta[~raw_ids.isin(excluded_ids)].copy()
+        lucid_meta = lucid_meta[~raw_ids.isin(excluded_raw)].copy()
     if not lucid_meta.empty:
         n_base = len(train_meta)
         target_lucid_n = int(round(n_base * args.lucid_fraction / max(1.0 - args.lucid_fraction, 1e-6)))

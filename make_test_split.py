@@ -70,6 +70,12 @@ def parse_args() -> argparse.Namespace:
         help="Exclude the HaGRIDv2 stop_inverted dataset when building the split.",
     )
     parser.add_argument(
+        "--include-prolific",
+        action="store_true",
+        default=False,
+        help="Include the optional ProlificHands dataset when building the split.",
+    )
+    parser.add_argument(
         "--stratify-mode",
         type=str,
         default="age_bins",
@@ -118,6 +124,7 @@ def main() -> None:
         load_combined_metadata(
             root=get_dataset_root(),
             include_hagrid=not args.no_hagrid,
+            include_prolific=args.include_prolific,
         ),
         max_samples_per_user=args.max_samples_per_user,
     )

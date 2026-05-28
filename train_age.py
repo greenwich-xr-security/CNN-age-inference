@@ -206,6 +206,12 @@ def main() -> None:
         help="Apply dataset masks (if available) to black out backgrounds during loading.",
     )
     parser.add_argument(
+        "--include-prolific",
+        action="store_true",
+        default=False,
+        help="Include the optional ProlificHands dataset in the base age dataset.",
+    )
+    parser.add_argument(
         "--epochs",
         type=int,
         default=DEFAULT_EPOCHS,
@@ -413,7 +419,10 @@ def main() -> None:
 
     # Load base metadata (handRGBD + HaGRID etc.) without LUICIDHands.
     metadata = filter_metadata(
-        load_combined_metadata(root=active_root),
+        load_combined_metadata(
+            root=active_root,
+            include_prolific=args.include_prolific,
+        ),
         max_samples_per_user=args.max_samples_per_user,
     )
 

@@ -103,6 +103,8 @@ The decoder is intentionally shallow (~0.5 M params) so that geometric signal is
 
 LUICIDHands is oversampled in training (default 40% of each batch) to ensure consistent geometric supervision despite the size imbalance.
 
+The optional ProlificHands export can be included in split generation, training, and held-out evaluation with `--include-prolific` (or `INCLUDE_PROLIFIC=1` for the SLURM scripts). It is loaded from `HandsDatasets/ProlificHands/reference_prolific.csv`, uses masked RGB derivatives when present, and otherwise follows the same dorsal-image, known-age metadata filtering as the other age datasets.
+
 #### Training loss
 
 ```

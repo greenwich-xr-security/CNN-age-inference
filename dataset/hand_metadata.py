@@ -254,6 +254,18 @@ _HANDRGBD_IMAGE_SIZE = (1280, 600)
 _HANDRGBD_CENTERED_BBOX = (160, 0, 1120, 960)
 
 
+def _resolve_relative_path(base: Path, raw: object) -> Optional[Path]:
+    if raw is None or (isinstance(raw, float) and pd.isna(raw)):
+        return None
+    text = str(raw).strip()
+    if not text:
+        return None
+    path = Path(text.replace("\\", "/"))
+    if not path.is_absolute():
+        path = base / path
+    return path if path.is_file() else None
+
+
 def _ensure_bboxes(
     df: pd.DataFrame,
     image_path_col: str,
@@ -658,6 +670,96 @@ def load_hagrid_stop_inverted_metadata(root: Optional[PathLike] = None) -> pd.Da
     return df_out
 
 
+def load_prolific_metadata(root: Optional[PathLike] = None) -> pd.DataFrame:
+    """Load the ProlificHands export as an optional hand age source."""
+    dataset_root = _resolve_root(root)
+    prolific_root = dataset_root / "ProlificHands"
+    csv_path = prolific_root / "reference_prolific.csv"
+    rgb_masked_root = prolific_root / "rgb_masked"
+
+    empty_cols = [
+        "source",
+        "user_id",
+        "age",
+        "gender",
+        "aspect",
+        "image_path",
+        "mask_path",
+        "bbox",
+        "skin_color",
+        "skin_tone_self_reported",
+    ]
+    if not csv_path.exists():
+        print(f"[ProlificHands] CSV not found: {csv_path}")
+        return pd.DataFrame(columns=empty_cols)
+
+    raw_df = pd.read_csv(csv_path)
+    if raw_df.empty or "name" not in raw_df.columns or "participant_id" not in raw_df.columns:
+        return pd.DataFrame(columns=empty_cols)
+
+    working_df = raw_df.copy()
+    working_df["aspect_norm"] = working_df["aspect"].apply(_normalise_label)
+    working_df = working_df[working_df["aspect_norm"].notna()].copy()
+
+    def resolve_image(row) -> Optional[Path]:
+        name = str(row.get("name", "")).strip()
+        if name and rgb_masked_root.exists():
+            masked = rgb_masked_root / f"{name}.png"
+            if masked.is_file():
+                return masked
+        return _resolve_relative_path(prolific_root, row.get("rgb_path"))
+
+    working_df["image_path"] = working_df.apply(resolve_image, axis=1)
+    working_df = working_df[working_df["image_path"].notna()].copy()
+    if "mask_path" in working_df.columns:
+        working_df["mask_path_resolved"] = working_df["mask_path"].apply(
+            lambda value: _resolve_relative_path(prolific_root, value)
+        )
+    else:
+        working_df["mask_path_resolved"] = None
+    working_df["gender_norm"] = working_df["gender"].apply(_normalise_gender)
+    working_df["age_norm"] = working_df["age"].apply(
+        lambda a: int(round(float(a))) if pd.notna(a) else pd.NA
+    )
+    working_df["bbox_tuple"] = (
+        working_df["bbox"].apply(_parse_bbox)
+        if "bbox" in working_df.columns
+        else None
+    )
+
+    skin_color = (
+        working_df["skin_color"]
+        if "skin_color" in working_df.columns
+        else pd.Series(index=working_df.index, data=pd.NA)
+    )
+    skin_color = (
+        skin_color.astype("string")
+        .str.strip()
+        .str.lower()
+        .replace({"nan": pd.NA, "none": pd.NA, "": pd.NA})
+    )
+
+    df_out = pd.DataFrame(
+        {
+            "source": "prolific",
+            "user_id": working_df["participant_id"].apply(lambda uid: f"prolific_{uid}"),
+            "age": working_df["age_norm"],
+            "gender": working_df["gender_norm"],
+            "aspect": working_df["aspect_norm"],
+            "image_path": working_df["image_path"].apply(Path),
+            "mask_path": working_df["mask_path_resolved"],
+            "bbox": working_df["bbox_tuple"],
+            "skin_color": skin_color,
+            "skin_tone_self_reported": working_df.get("skin_tone_self_reported"),
+        }
+    )
+    df_out = df_out.reset_index(drop=True)
+    print(
+        f"ProlificHands -> users: {df_out['user_id'].nunique()} | images: {len(df_out)}"
+    )
+    return df_out
+
+
 def _limit_users_per_age(df: pd.DataFrame, *, max_users_per_year: int = 15) -> pd.DataFrame:
     """Cap unique users per age, preferring handRGBD/HaGRID when legacy sources are present."""
     required_cols = {"user_id", "age", "source"}
@@ -669,7 +771,7 @@ def _limit_users_per_age(df: pd.DataFrame, *, max_users_per_year: int = 15) -> p
         return df
 
     age_known["age_year"] = age_known["age"].astype(float).round().astype(int)
-    priority_map = {"handrgbd": 0, "hagrid": 1, "primary": 2, "archive": 3}
+    priority_map = {"handrgbd": 0, "hagrid": 1, "prolific": 2, "primary": 3, "archive": 4}
     age_known["priority"] = age_known["source"].map(priority_map).fillna(99).astype(int)
 
     keep_users: set[str] = set()
@@ -767,6 +869,7 @@ def load_combined_metadata(
     *,
     handrgbd_include_wall3: bool = False,
     include_hagrid: bool = True,
+    include_prolific: bool = False,
     include_primary: bool = False,
     include_archive: bool = False,
     max_users_per_year: Optional[int] = None,
@@ -781,6 +884,9 @@ def load_combined_metadata(
     if include_hagrid:
         hagrid_df = load_hagrid_stop_inverted_metadata(root=root)
         sources.append(hagrid_df)
+    if include_prolific:
+        prolific_df = load_prolific_metadata(root=root)
+        sources.append(prolific_df)
     combined = pd.concat(sources, ignore_index=True)
     combined = combined.drop_duplicates(subset="image_path")
     if max_users_per_year:
@@ -857,11 +963,18 @@ def _cli_main() -> None:
         default=False,
         help="Exclude the HaGRIDv2 stop_inverted dataset.",
     )
+    parser.add_argument(
+        "--include-prolific",
+        action="store_true",
+        default=False,
+        help="Include the optional ProlificHands dataset.",
+    )
     args = parser.parse_args()
 
     combined = load_combined_metadata(
         root=args.root,
         include_hagrid=not args.no_hagrid,
+        include_prolific=args.include_prolific,
         max_users_per_year=args.max_users_per_year or None,
     )
     filtered = filter_metadata(
@@ -898,6 +1011,7 @@ def _cli_main() -> None:
                 "archive": "#dd8452",
                 "handrgbd": "#55a868",
                 "hagrid": "#c44e52",
+                "prolific": "#8172b2",
             }
             palette = colour_map or default_colour_map
             stack_values = stack_series.fillna("unknown").astype(str)
@@ -959,6 +1073,7 @@ def _cli_main() -> None:
                 "archive": "#dd8452",
                 "handrgbd": "#55a868",
                 "hagrid": "#c44e52",
+                "prolific": "#8172b2",
             }
             skin_colour_map = {
                 "light": "#f2d2b6",

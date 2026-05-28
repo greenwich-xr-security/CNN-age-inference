@@ -97,6 +97,7 @@ EMBED_CONTRAST_MARGIN="${EMBED_CONTRAST_MARGIN:-1.0}"
 EMBED_CONTRAST_AGE_THRESH="${EMBED_CONTRAST_AGE_THRESH:-5.0}"
 USE_MASKS="${USE_MASKS:-0}"                        # set >0 to apply dataset masks (black background)
 NO_HAGRID="${NO_HAGRID:-1}"                       # exclude HaGRIDv2 from split generation and training by default
+INCLUDE_PROLIFIC="${INCLUDE_PROLIFIC:-0}"          # set >0 to include optional ProlificHands dataset
 # Normals auxiliary prior experiment (set NORMALS_AUX=1 to enable)
 NORMALS_AUX="${NORMALS_AUX:-0}"
 LOSS_WEIGHT_NORMALS="${LOSS_WEIGHT_NORMALS:-0.1}"
@@ -124,7 +125,8 @@ if [[ ! -f "${TEST_SPLIT_FILE}" ]]; then
     --seed "${SEED}" \
     --out-file "${TEST_SPLIT_FILE}" \
     --stratify-mode "${SPLIT_STRATIFY_MODE}" \
-    $( [[ "${NO_HAGRID}" -gt 0 ]] && echo "--no-hagrid" )
+    $( [[ "${NO_HAGRID}" -gt 0 ]] && echo "--no-hagrid" ) \
+    $( [[ "${INCLUDE_PROLIFIC}" -gt 0 ]] && echo "--include-prolific" )
 else
   echo ">>> Using existing test split: ${TEST_SPLIT_FILE}"
 fi
@@ -151,6 +153,7 @@ for USER_GROUP_SIZE in ${USER_GROUP_SIZES}; do
             --test-users-file "${TEST_SPLIT_FILE}" \
             --stratify-mode "${SPLIT_STRATIFY_MODE}" \
             $( [[ "${NO_HAGRID}" -gt 0 ]] && echo "--no-hagrid" ) \
+            $( [[ "${INCLUDE_PROLIFIC}" -gt 0 ]] && echo "--include-prolific" ) \
             $( [[ "${FOLD_OVERWRITE}" -gt 0 ]] && echo "--overwrite" )
         fi
         for ((FOLD_IDX=0; FOLD_IDX<KFOLDS; FOLD_IDX++)); do
@@ -188,6 +191,7 @@ for USER_GROUP_SIZE in ${USER_GROUP_SIZES}; do
             --embed-contrast-age-thresh "${EMBED_CONTRAST_AGE_THRESH}" \
             $( [[ "${USE_MASKS}" -gt 0 ]] && echo "--use-masks" ) \
             $( [[ "${NO_HAGRID}" -gt 0 ]] && echo "--no-hagrid" ) \
+            $( [[ "${INCLUDE_PROLIFIC}" -gt 0 ]] && echo "--include-prolific" ) \
             $( [[ "${AGE_REWEIGHT}" -gt 0 ]] && echo "--age-reweight-loss --age-weight-eps ${AGE_WEIGHT_EPS} --age-weight-power ${AGE_WEIGHT_POWER} --age-weight-min ${AGE_WEIGHT_MIN} --age-weight-max ${AGE_WEIGHT_MAX}" ) \
             $( [[ "${AGE_OVERSAMPLE}" -gt 0 ]] && echo "--age-oversample --age-oversample-max-multiplier ${AGE_OVERSAMPLE_MAX_MULT}" ) \
             $( [[ -n "${AGE_OVERSAMPLE_TARGET}" ]] && echo "--age-oversample-target ${AGE_OVERSAMPLE_TARGET}" ) \
@@ -251,6 +255,7 @@ for USER_GROUP_SIZE in ${USER_GROUP_SIZES}; do
           --embed-contrast-age-thresh "${EMBED_CONTRAST_AGE_THRESH}" \
           $( [[ "${USE_MASKS}" -gt 0 ]] && echo "--use-masks" ) \
           $( [[ "${NO_HAGRID}" -gt 0 ]] && echo "--no-hagrid" ) \
+          $( [[ "${INCLUDE_PROLIFIC}" -gt 0 ]] && echo "--include-prolific" ) \
           $( [[ "${AGE_REWEIGHT}" -gt 0 ]] && echo "--age-reweight-loss --age-weight-eps ${AGE_WEIGHT_EPS} --age-weight-power ${AGE_WEIGHT_POWER} --age-weight-min ${AGE_WEIGHT_MIN} --age-weight-max ${AGE_WEIGHT_MAX}" ) \
           $( [[ "${AGE_OVERSAMPLE}" -gt 0 ]] && echo "--age-oversample --age-oversample-max-multiplier ${AGE_OVERSAMPLE_MAX_MULT}" ) \
           $( [[ -n "${AGE_OVERSAMPLE_TARGET}" ]] && echo "--age-oversample-target ${AGE_OVERSAMPLE_TARGET}" ) \

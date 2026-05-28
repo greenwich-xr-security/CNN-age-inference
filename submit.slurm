@@ -26,6 +26,7 @@ AGG_LABEL=${AGG_SIZES// /-}
 NORMALS_AUX="${NORMALS_AUX:-0}"
 LOSS_WEIGHT_NORMALS="${LOSS_WEIGHT_NORMALS:-0.1}"
 LUCID_FRACTION="${LUCID_FRACTION:-0.4}"
+INCLUDE_PROLIFIC="${INCLUDE_PROLIFIC:-0}" # set >0 to include optional ProlificHands dataset
 
 for MODEL_NAME in ${MODELS}; do
     NORMALS_SUFFIX=""
@@ -48,6 +49,7 @@ for MODEL_NAME in ${MODELS}; do
         --loss-weight-mae "${LOSS_WEIGHT_MAE}" \
         --eval-aggregation-sizes ${AGG_SIZES} \
         --eval-aggregation-seed "${AGG_SEED}" \
+        $( [[ "${INCLUDE_PROLIFIC}" -gt 0 ]] && echo "--include-prolific" ) \
         $( [[ "${NORMALS_AUX}" -gt 0 ]] && echo "--normals-aux --loss-weight-normals ${LOSS_WEIGHT_NORMALS} --lucid-fraction ${LUCID_FRACTION}" )
     echo ">>> Finished training for model ${MODEL_NAME}"
 done

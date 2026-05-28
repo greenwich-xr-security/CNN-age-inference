@@ -36,7 +36,7 @@ def dataset_composition_stats(df: pd.DataFrame) -> dict[str, int]:
     return stats
 
 
-_SOURCE_PRIORITY = {"handrgbd": 0, "hagrid": 1, "primary": 2, "archive": 3}
+_SOURCE_PRIORITY = {"handrgbd": 0, "hagrid": 1, "prolific": 2, "primary": 3, "archive": 4}
 
 
 def _prepare_sample_selection_frame(df: pd.DataFrame) -> pd.DataFrame:

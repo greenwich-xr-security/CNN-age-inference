@@ -190,6 +190,12 @@ def parse_args() -> argparse.Namespace:
         help="Exclude the HaGRIDv2 stop_inverted dataset from training.",
     )
     parser.add_argument(
+        "--include-prolific",
+        action="store_true",
+        default=False,
+        help="Include the optional ProlificHands dataset in training/validation/test metadata.",
+    )
+    parser.add_argument(
         "--epochs",
         type=int,
         default=DEFAULT_EPOCHS,
@@ -422,6 +428,7 @@ def build_datasets(args: argparse.Namespace, seed: int, img_size: int):
         load_combined_metadata(
             root=active_root,
             include_hagrid=not getattr(args, "no_hagrid", False),
+            include_prolific=getattr(args, "include_prolific", False),
         ),
         max_samples_per_user=args.max_samples_per_user or None,
         max_samples_per_age_bin=args.max_samples_per_age_bin or None,
@@ -526,6 +533,7 @@ def load_filtered_test_metadata(args: argparse.Namespace, active_root) -> pd.Dat
         load_combined_metadata(
             root=active_root,
             include_hagrid=not getattr(args, "no_hagrid", False),
+            include_prolific=getattr(args, "include_prolific", False),
         ),
         max_samples_per_user=args.max_samples_per_user or None,
         max_samples_per_age_bin=args.max_samples_per_age_bin or None,

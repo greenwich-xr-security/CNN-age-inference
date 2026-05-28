@@ -27,7 +27,16 @@ class AgeDataset(Dataset):
         use_masks: bool = False,
         normals_transform=None,
     ):
-        self.records = records.reset_index(drop=True)
+        self.records = records.copy()
+        if "aspect" in self.records.columns:
+            dorsal_mask = self.records["aspect"].astype(str).str.contains(
+                "dorsal", case=False, na=False
+            )
+            dropped = int((~dorsal_mask).sum())
+            if dropped:
+                print(f"[AgeDataset] Dropped {dropped} non-dorsal samples before loading.")
+            self.records = self.records[dorsal_mask]
+        self.records = self.records.reset_index(drop=True)
         self.transform = transform
         self.use_masks = bool(use_masks)
         self.normals_transform = normals_transform

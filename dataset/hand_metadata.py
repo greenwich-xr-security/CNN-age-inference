@@ -1,6 +1,7 @@
 """Utility helpers for loading and normalising hand datasets."""
 from __future__ import annotations
 
+import ast
 import os
 import re
 from pathlib import Path
@@ -183,6 +184,95 @@ def _parse_bbox(raw: object) -> Optional[Tuple[int, int, int, int]]:
     return values  # xmin, ymin, xmax, ymax
 
 
+def _parse_landmarks(raw: object, *, expected_points: int = 21) -> Optional[Tuple[Tuple[float, float], ...]]:
+    """Parse a 2D landmark list into a stable tuple of xy pairs."""
+    if raw is None or (isinstance(raw, float) and pd.isna(raw)):
+        return None
+
+    value = raw
+    if isinstance(raw, str):
+        text = raw.strip()
+        if not text or text.lower() in {"[]", "nan", "none", "null"}:
+            return None
+        try:
+            value = ast.literal_eval(text)
+        except (SyntaxError, ValueError):
+            return None
+
+    if not isinstance(value, (list, tuple)) or len(value) != expected_points:
+        return None
+
+    parsed = []
+    for point in value:
+        if not isinstance(point, (list, tuple)) or len(point) < 2:
+            return None
+        try:
+            x = float(point[0])
+            y = float(point[1])
+        except (TypeError, ValueError):
+            return None
+        if not np.isfinite(x) or not np.isfinite(y):
+            return None
+        parsed.append((x, y))
+    return tuple(parsed)
+
+
+def _extract_landmarks(df: pd.DataFrame, column: str) -> pd.Series:
+    if column in df.columns:
+        return df[column].apply(_parse_landmarks)
+    return pd.Series(index=df.index, data=[None] * len(df), dtype="object")
+
+
+def _landmarks_to_tight_bbox(
+    landmarks: Optional[Tuple[Tuple[float, float], ...]]
+) -> Optional[Tuple[int, int, int, int]]:
+    """Compute a tight xyxy bbox from landmark coordinates."""
+    if not landmarks:
+        return None
+    xs = [p[0] for p in landmarks]
+    ys = [p[1] for p in landmarks]
+    x1, x2 = int(np.floor(min(xs))), int(np.ceil(max(xs)))
+    y1, y2 = int(np.floor(min(ys))), int(np.ceil(max(ys)))
+    if x2 <= x1 or y2 <= y1:
+        return None
+    return x1, y1, x2, y2
+
+
+def _hagrid_landmarks_to_crop(row) -> Optional[Tuple[Tuple[float, float], ...]]:
+    """Convert HaGRID normalized source-image landmarks into loaded crop pixels."""
+    landmarks = _parse_landmarks(row.get("hand_landmarks"))
+    bbox = _parse_bbox(row.get("square_crop_xyxy_px"))
+    if landmarks is None or bbox is None:
+        return None
+    try:
+        source_w = float(row.get("source_img_w"))
+        source_h = float(row.get("source_img_h"))
+        side = float(row.get("square_side_px"))
+    except (TypeError, ValueError):
+        return None
+    if not np.isfinite(source_w) or not np.isfinite(source_h) or not np.isfinite(side) or side <= 0:
+        return None
+
+    crop_size = 500.0
+    x1, y1, _x2, _y2 = bbox
+    converted = []
+    for x_norm, y_norm in landmarks:
+        x = ((x_norm * source_w) - x1) * (crop_size / side)
+        y = ((y_norm * source_h) - y1) * (crop_size / side)
+        if not np.isfinite(x) or not np.isfinite(y):
+            return None
+        converted.append((x, y))
+    return tuple(converted)
+
+
+def _drop_invalid_landmarks(df: pd.DataFrame, *, source_label: str) -> pd.DataFrame:
+    missing_mask = df["landmarks"].isna()
+    dropped = int(missing_mask.sum())
+    if dropped:
+        print(f"[{source_label}] Dropped {dropped} samples with missing/invalid landmarks.")
+    return df[~missing_mask].copy()
+
+
 def _bbox_to_string(bbox: Optional[Tuple[int, int, int, int]]) -> str:
     if bbox is None:
         return ""
@@ -247,11 +337,6 @@ def _center_square_bbox(width: int, height: int) -> Tuple[int, int, int, int]:
     x2 = x1 + side
     y2 = y1 + side
     return x1, y1, x2, y2
-
-
-# Constant bbox for HandRGBD frames (images are always 1280x600).
-_HANDRGBD_IMAGE_SIZE = (1280, 600)
-_HANDRGBD_CENTERED_BBOX = (160, 0, 1120, 960)
 
 
 def _resolve_relative_path(base: Path, raw: object) -> Optional[Path]:
@@ -437,7 +522,7 @@ def load_handrgbd_metadata(
             rgb_root = alt_root
     if not rgb_root.exists():
         print(f"[handRGBD] RGB folder not found (tried 'rgb_jpg' and 'rgb' under {hand_root})")
-        return pd.DataFrame(columns=["source", "user_id", "age", "gender", "aspect", "image_path", "bbox"])
+        return pd.DataFrame(columns=["source", "user_id", "age", "gender", "aspect", "image_path", "bbox", "landmarks"])
     metadata_csv = dataset_root / "handRGBD" / "reference_table.csv"
 
     empty_cols = [
@@ -448,6 +533,7 @@ def load_handrgbd_metadata(
         "aspect",
         "image_path",
         "bbox",
+        "landmarks",
         "wall_label",
         "lights_label",
         "skin_color",
@@ -569,7 +655,10 @@ def load_handrgbd_metadata(
     else:
         working_df["age_norm"] = pd.NA
 
-    working_df["bbox_tuple"] = [tuple(_HANDRGBD_CENTERED_BBOX) for _ in range(len(working_df))]
+    working_df["landmarks"] = _extract_landmarks(working_df, "rgb_landmarks")
+    working_df = _drop_invalid_landmarks(working_df, source_label="handRGBD")
+    working_df["bbox_tuple"] = working_df["landmarks"].apply(_landmarks_to_tight_bbox)
+    working_df = working_df[working_df["bbox_tuple"].notna()].copy()
 
     df_out = pd.DataFrame(
         {
@@ -580,6 +669,7 @@ def load_handrgbd_metadata(
             "aspect": working_df["aspect_norm"],
             "image_path": working_df["image_path"].apply(Path),
             "bbox": working_df["bbox_tuple"],
+            "landmarks": working_df["landmarks"],
             "wall_label": working_df["wall_label"],
             "lights_label": working_df["lights_label"],
             "skin_color": working_df["skin_color"],
@@ -607,7 +697,7 @@ def load_hagrid_stop_inverted_metadata(root: Optional[PathLike] = None) -> pd.Da
     rgb_masked_root = hagrid_root / "rgb_masked"
     rgb_root = hagrid_root / "rgb"
 
-    empty_cols = ["source", "user_id", "age", "gender", "aspect", "image_path"]
+    empty_cols = ["source", "user_id", "age", "gender", "aspect", "image_path", "bbox", "landmarks"]
     if not csv_path.exists():
         print(f"[HaGRID] CSV not found: {csv_path}")
         return pd.DataFrame(columns=empty_cols)
@@ -639,6 +729,10 @@ def load_hagrid_stop_inverted_metadata(root: Optional[PathLike] = None) -> pd.Da
 
     working_df["image_path"] = working_df["name"].apply(resolve_path)
     working_df = working_df[working_df["image_path"].notna()]
+    working_df["landmarks"] = working_df.apply(_hagrid_landmarks_to_crop, axis=1)
+    working_df = _drop_invalid_landmarks(working_df, source_label="HaGRID")
+    working_df["bbox_tuple"] = working_df["landmarks"].apply(_landmarks_to_tight_bbox)
+    working_df = working_df[working_df["bbox_tuple"].notna()].copy()
 
     # Normalise gender: HaGRID uses "F" / "M"
     gender_map = {"f": "female", "m": "male"}
@@ -661,6 +755,8 @@ def load_hagrid_stop_inverted_metadata(root: Optional[PathLike] = None) -> pd.Da
             "gender": working_df["gender_norm"],
             "aspect": "dorsal",
             "image_path": working_df["image_path"].apply(Path),
+            "bbox": working_df["bbox_tuple"],
+            "landmarks": working_df["landmarks"],
         }
     )
     df_out = df_out.reset_index(drop=True)
@@ -686,6 +782,7 @@ def load_prolific_metadata(root: Optional[PathLike] = None) -> pd.DataFrame:
         "image_path",
         "mask_path",
         "bbox",
+        "landmarks",
         "skin_color",
         "skin_tone_self_reported",
     ]
@@ -721,11 +818,10 @@ def load_prolific_metadata(root: Optional[PathLike] = None) -> pd.DataFrame:
     working_df["age_norm"] = working_df["age"].apply(
         lambda a: int(round(float(a))) if pd.notna(a) else pd.NA
     )
-    working_df["bbox_tuple"] = (
-        working_df["bbox"].apply(_parse_bbox)
-        if "bbox" in working_df.columns
-        else None
-    )
+    working_df["landmarks"] = _extract_landmarks(working_df, "rgb_landmarks")
+    working_df = _drop_invalid_landmarks(working_df, source_label="ProlificHands")
+    working_df["bbox_tuple"] = working_df["landmarks"].apply(_landmarks_to_tight_bbox)
+    working_df = working_df[working_df["bbox_tuple"].notna()].copy()
 
     skin_color = (
         working_df["skin_color"]
@@ -749,6 +845,7 @@ def load_prolific_metadata(root: Optional[PathLike] = None) -> pd.DataFrame:
             "image_path": working_df["image_path"].apply(Path),
             "mask_path": working_df["mask_path_resolved"],
             "bbox": working_df["bbox_tuple"],
+            "landmarks": working_df["landmarks"],
             "skin_color": skin_color,
             "skin_tone_self_reported": working_df.get("skin_tone_self_reported"),
         }

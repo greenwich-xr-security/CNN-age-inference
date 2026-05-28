@@ -151,8 +151,8 @@ def main() -> None:
     parser.add_argument(
         "--max-samples-per-user",
         type=int,
-        default=16,
-        help="Maximum samples per user after dorsal filtering (default: 16; set 0 to disable).",
+        default=20,
+        help="Maximum samples per user after dorsal filtering (default: 20; set 0 to disable).",
     )
     parser.add_argument(
         "--age-reweight-loss",

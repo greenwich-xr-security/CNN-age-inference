@@ -4,7 +4,7 @@
 #SBATCH --ntasks-per-node=1               # torchrun will launch local ranks
 #SBATCH --partition=gpu-beast             # GPU partition
 #SBATCH --gres=gpu:6                      # Request 6 GPUs on the node
-#SBATCH --cpus-per-task=16                # CPU cores available to each task
+#SBATCH --cpus-per-task=2                 # CPU cores available to each task
 #SBATCH --output=logs/%x-%j.log           # Stdout/stderr log file
 #SBATCH --mail-type=FAIL                  # Email on failure only
 #SBATCH --mail-user=rb3434w@gre.ac.uk
@@ -53,36 +53,37 @@ fi
 
 export MASTER_ADDR MASTER_PORT
 
-BATCH_SIZE="${BATCH_SIZE:-8}"
+BATCH_SIZE="${BATCH_SIZE:-32}"
 SEED="${SEED:-42}"
 LR="${LR:-2e-4}"
 WEIGHT_DECAY="${WEIGHT_DECAY:-0.2}"
 # Leave empty to use the canonical input size for the selected model.
-IMG_SIZE="${IMG_SIZE:-}"
+IMG_SIZE="${IMG_SIZE:-480}"
 EPOCHS="${EPOCHS:-240}"
 
-# Losses (publication-compatible default: NLL only)
-LOSS_WEIGHT_NLL="${LOSS_WEIGHT_NLL:-1}"
-LOSS_WEIGHT_MSE="${LOSS_WEIGHT_MSE:-0}"
-LOSS_WEIGHT_MAE="${LOSS_WEIGHT_MAE:-0}"
-LOSS_WEIGHT_SPREAD="${LOSS_WEIGHT_SPREAD:-0}"
-LOSS_WEIGHT_EMBED_VAR="${LOSS_WEIGHT_EMBED_VAR:-0}"
-LOSS_WEIGHT_EMBED_CONTRAST="${LOSS_WEIGHT_EMBED_CONTRAST:-0}"
+# Losses copied from the best saved run (v2_medium_newdata_ug4_dark_128_wd02_embed08).
+LOSS_WEIGHT_NLL="${LOSS_WEIGHT_NLL:-0.6}"
+LOSS_WEIGHT_MSE="${LOSS_WEIGHT_MSE:-0.4}"
+LOSS_WEIGHT_MAE="${LOSS_WEIGHT_MAE:-0.9}"
+LOSS_WEIGHT_SPREAD="${LOSS_WEIGHT_SPREAD:-0.5}"
+LOSS_WEIGHT_EMBED_VAR="${LOSS_WEIGHT_EMBED_VAR:-0.8}"
+LOSS_WEIGHT_EMBED_CONTRAST="${LOSS_WEIGHT_EMBED_CONTRAST:-0.8}"
 # Age-gate evaluation mode (age_threshold: classify adult if pred_mean >= tau_age)
 EVAL_AGE_GATE_MODE="${EVAL_AGE_GATE_MODE:-age_threshold}"
 AGE_GATE_THRESHOLD_MIN="${AGE_GATE_THRESHOLD_MIN:-10}"
 AGE_GATE_THRESHOLD_MAX="${AGE_GATE_THRESHOLD_MAX:-30}"
 
-USER_GROUP_SIZES="${USER_GROUP_SIZES:-1}"
+USER_GROUP_SIZES="${USER_GROUP_SIZES:-4}"
 PATIENCE="${PATIENCE:-10}"
 MODELS="${MODELS:-${MODEL:-v2_m}}" # choices: b0-b7, v2_{s,m,l}, convnext_{tiny,small,base,large,xlarge}, resnet50, swin_{tiny,small,base,large,v2_tiny,v2_tiny_384,v2_tiny_512,v2_small,v2_base,v2_base_384,v2_large}, vit_{tiny_384,small_384}; aliases: cnt,cns,cnb,cnl,cnx,rn50,sw2t,sw2t384,sw2t512,sw2s,sw2b,sw2b384,sw2l,vtt,vts,age_vit,age_vit_small
-AGG_SIZES="${AGG_SIZES:-${EVAL_AGG_SIZES:-1}}"   # space-separated list, e.g., "1 2 3"
+AGG_SIZES="${AGG_SIZES:-${EVAL_AGG_SIZES:-1 2 3 4}}"   # space-separated list, e.g., "1 2 3"
 AGG_SEED="${AGG_SEED:-${EVAL_AGG_SEED:-${SEED}}}"
-NUM_WORKERS="${NUM_WORKERS:-8}"
+NUM_WORKERS="${NUM_WORKERS:-2}"
 # Optional override; when empty the script derives a model-specific run name.
-RUN_NAME="${RUN_NAME:-}"
+RUN_NAME="${RUN_NAME:-v2_medium_newdata_ug4_dark_128_wd02_embed08_prolific}"
 # Age imbalance controls
-AGE_REWEIGHT="${AGE_REWEIGHT:-1}"                     # enabled by default for HandRGBD-only age balancing
+MAX_SAMPLES_PER_USER="${MAX_SAMPLES_PER_USER:-20}"    # keep current project default; best saved run used 16
+AGE_REWEIGHT="${AGE_REWEIGHT:-0}"
 AGE_WEIGHT_EPS="${AGE_WEIGHT_EPS:-1.0}"
 AGE_WEIGHT_POWER="${AGE_WEIGHT_POWER:-1.0}"
 AGE_WEIGHT_MIN="${AGE_WEIGHT_MIN:-0.25}"
@@ -91,13 +92,13 @@ AGE_OVERSAMPLE="${AGE_OVERSAMPLE:-0}"                 # set >0 to oversample rar
 AGE_OVERSAMPLE_TARGET="${AGE_OVERSAMPLE_TARGET:-}"    # optional explicit target per age (int)
 AGE_OVERSAMPLE_MAX_MULT="${AGE_OVERSAMPLE_MAX_MULT:-3.0}"
 # Embedding head / losses (default disabled)
-EMBED_DIM="${EMBED_DIM:-0}"
+EMBED_DIM="${EMBED_DIM:-128}"
 EMBED_AGE_SLACK="${EMBED_AGE_SLACK:-5.0}"
 EMBED_CONTRAST_MARGIN="${EMBED_CONTRAST_MARGIN:-1.0}"
 EMBED_CONTRAST_AGE_THRESH="${EMBED_CONTRAST_AGE_THRESH:-5.0}"
 USE_MASKS="${USE_MASKS:-0}"                        # set >0 to apply dataset masks (black background)
-NO_HAGRID="${NO_HAGRID:-1}"                       # exclude HaGRIDv2 from split generation and training by default
-INCLUDE_PROLIFIC="${INCLUDE_PROLIFIC:-0}"          # set >0 to include optional ProlificHands dataset
+NO_HAGRID=1                                       # always exclude HaGRIDv2 from split generation and training
+INCLUDE_PROLIFIC=1                                # always include optional ProlificHands dataset
 # Normals auxiliary prior experiment (set NORMALS_AUX=1 to enable)
 NORMALS_AUX="${NORMALS_AUX:-0}"
 LOSS_WEIGHT_NORMALS="${LOSS_WEIGHT_NORMALS:-0.1}"
@@ -124,8 +125,9 @@ if [[ ! -f "${TEST_SPLIT_FILE}" ]]; then
     --test-size "${TEST_SPLIT_SIZE}" \
     --seed "${SEED}" \
     --out-file "${TEST_SPLIT_FILE}" \
+    --max-samples-per-user "${MAX_SAMPLES_PER_USER}" \
     --stratify-mode "${SPLIT_STRATIFY_MODE}" \
-    $( [[ "${NO_HAGRID}" -gt 0 ]] && echo "--no-hagrid" ) \
+    --no-hagrid \
     $( [[ "${INCLUDE_PROLIFIC}" -gt 0 ]] && echo "--include-prolific" )
 else
   echo ">>> Using existing test split: ${TEST_SPLIT_FILE}"
@@ -151,8 +153,9 @@ for USER_GROUP_SIZE in ${USER_GROUP_SIZES}; do
             --seed "${FOLD_SEED}" \
             --out-file "${FOLD_FILE}" \
             --test-users-file "${TEST_SPLIT_FILE}" \
+            --max-samples-per-user "${MAX_SAMPLES_PER_USER}" \
             --stratify-mode "${SPLIT_STRATIFY_MODE}" \
-            $( [[ "${NO_HAGRID}" -gt 0 ]] && echo "--no-hagrid" ) \
+            --no-hagrid \
             $( [[ "${INCLUDE_PROLIFIC}" -gt 0 ]] && echo "--include-prolific" ) \
             $( [[ "${FOLD_OVERWRITE}" -gt 0 ]] && echo "--overwrite" )
         fi
@@ -176,6 +179,7 @@ for USER_GROUP_SIZE in ${USER_GROUP_SIZES}; do
             --num-workers "${NUM_WORKERS}" \
             --seed "${SEED_VAL}" \
             --patience "${PATIENCE}" \
+            --max-samples-per-user "${MAX_SAMPLES_PER_USER}" \
             --loss-weight-nll "${LOSS_WEIGHT_NLL}" \
             --loss-weight-mse "${LOSS_WEIGHT_MSE}" \
             --loss-weight-mae "${LOSS_WEIGHT_MAE}" \
@@ -190,7 +194,7 @@ for USER_GROUP_SIZE in ${USER_GROUP_SIZES}; do
             --embed-contrast-margin "${EMBED_CONTRAST_MARGIN}" \
             --embed-contrast-age-thresh "${EMBED_CONTRAST_AGE_THRESH}" \
             $( [[ "${USE_MASKS}" -gt 0 ]] && echo "--use-masks" ) \
-            $( [[ "${NO_HAGRID}" -gt 0 ]] && echo "--no-hagrid" ) \
+            --no-hagrid \
             $( [[ "${INCLUDE_PROLIFIC}" -gt 0 ]] && echo "--include-prolific" ) \
             $( [[ "${AGE_REWEIGHT}" -gt 0 ]] && echo "--age-reweight-loss --age-weight-eps ${AGE_WEIGHT_EPS} --age-weight-power ${AGE_WEIGHT_POWER} --age-weight-min ${AGE_WEIGHT_MIN} --age-weight-max ${AGE_WEIGHT_MAX}" ) \
             $( [[ "${AGE_OVERSAMPLE}" -gt 0 ]] && echo "--age-oversample --age-oversample-max-multiplier ${AGE_OVERSAMPLE_MAX_MULT}" ) \
@@ -240,6 +244,7 @@ for USER_GROUP_SIZE in ${USER_GROUP_SIZES}; do
           --num-workers "${NUM_WORKERS}" \
           --seed "${SEED_VAL}" \
           --patience "${PATIENCE}" \
+          --max-samples-per-user "${MAX_SAMPLES_PER_USER}" \
           --loss-weight-nll "${LOSS_WEIGHT_NLL}" \
           --loss-weight-mse "${LOSS_WEIGHT_MSE}" \
           --loss-weight-mae "${LOSS_WEIGHT_MAE}" \
@@ -254,7 +259,7 @@ for USER_GROUP_SIZE in ${USER_GROUP_SIZES}; do
           --embed-contrast-margin "${EMBED_CONTRAST_MARGIN}" \
           --embed-contrast-age-thresh "${EMBED_CONTRAST_AGE_THRESH}" \
           $( [[ "${USE_MASKS}" -gt 0 ]] && echo "--use-masks" ) \
-          $( [[ "${NO_HAGRID}" -gt 0 ]] && echo "--no-hagrid" ) \
+          --no-hagrid \
           $( [[ "${INCLUDE_PROLIFIC}" -gt 0 ]] && echo "--include-prolific" ) \
           $( [[ "${AGE_REWEIGHT}" -gt 0 ]] && echo "--age-reweight-loss --age-weight-eps ${AGE_WEIGHT_EPS} --age-weight-power ${AGE_WEIGHT_POWER} --age-weight-min ${AGE_WEIGHT_MIN} --age-weight-max ${AGE_WEIGHT_MAX}" ) \
           $( [[ "${AGE_OVERSAMPLE}" -gt 0 ]] && echo "--age-oversample --age-oversample-max-multiplier ${AGE_OVERSAMPLE_MAX_MULT}" ) \

@@ -26,7 +26,24 @@ AGG_LABEL=${AGG_SIZES// /-}
 NORMALS_AUX="${NORMALS_AUX:-0}"
 LOSS_WEIGHT_NORMALS="${LOSS_WEIGHT_NORMALS:-0.1}"
 LUCID_FRACTION="${LUCID_FRACTION:-0.4}"
-INCLUDE_PROLIFIC="${INCLUDE_PROLIFIC:-0}" # set >0 to include optional ProlificHands dataset
+INCLUDE_HANDRGBD="${INCLUDE_HANDRGBD:-1}"
+INCLUDE_HAGRID="${INCLUDE_HAGRID:-0}"
+INCLUDE_PROLIFIC="${INCLUDE_PROLIFIC:-0}"
+INCLUDE_PRIMARY="${INCLUDE_PRIMARY:-0}"
+INCLUDE_ARCHIVE="${INCLUDE_ARCHIVE:-0}"
+INCLUDE_LUCID="${INCLUDE_LUCID:-1}"
+
+DATASET_ARGS=()
+[[ "${INCLUDE_HANDRGBD}" -gt 0 ]] && DATASET_ARGS+=(--include-handrgbd)
+[[ "${INCLUDE_HAGRID}" -gt 0 ]] && DATASET_ARGS+=(--include-hagrid)
+[[ "${INCLUDE_PROLIFIC}" -gt 0 ]] && DATASET_ARGS+=(--include-prolific)
+[[ "${INCLUDE_PRIMARY}" -gt 0 ]] && DATASET_ARGS+=(--include-primary)
+[[ "${INCLUDE_ARCHIVE}" -gt 0 ]] && DATASET_ARGS+=(--include-archive)
+[[ "${INCLUDE_LUCID}" -gt 0 ]] && DATASET_ARGS+=(--include-lucid)
+if [[ "${INCLUDE_HANDRGBD}" -le 0 && "${INCLUDE_HAGRID}" -le 0 && "${INCLUDE_PROLIFIC}" -le 0 && "${INCLUDE_PRIMARY}" -le 0 && "${INCLUDE_ARCHIVE}" -le 0 ]]; then
+    echo "ERROR: enable at least one base dataset with INCLUDE_HANDRGBD, INCLUDE_HAGRID, INCLUDE_PROLIFIC, INCLUDE_PRIMARY, or INCLUDE_ARCHIVE." >&2
+    exit 1
+fi
 
 for MODEL_NAME in ${MODELS}; do
     NORMALS_SUFFIX=""
@@ -49,7 +66,7 @@ for MODEL_NAME in ${MODELS}; do
         --loss-weight-mae "${LOSS_WEIGHT_MAE}" \
         --eval-aggregation-sizes ${AGG_SIZES} \
         --eval-aggregation-seed "${AGG_SEED}" \
-        $( [[ "${INCLUDE_PROLIFIC}" -gt 0 ]] && echo "--include-prolific" ) \
+        "${DATASET_ARGS[@]}" \
         $( [[ "${NORMALS_AUX}" -gt 0 ]] && echo "--normals-aux --loss-weight-normals ${LOSS_WEIGHT_NORMALS} --lucid-fraction ${LUCID_FRACTION}" )
     echo ">>> Finished training for model ${MODEL_NAME}"
 done

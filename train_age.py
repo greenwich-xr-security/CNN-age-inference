@@ -206,10 +206,40 @@ def main() -> None:
         help="Apply dataset masks (if available) to black out backgrounds during loading.",
     )
     parser.add_argument(
+        "--include-handrgbd",
+        action="store_true",
+        default=False,
+        help="Include the HandRGBD dataset in the base age dataset.",
+    )
+    parser.add_argument(
+        "--include-hagrid",
+        action="store_true",
+        default=False,
+        help="Include the HaGRIDv2 stop_inverted dataset in the base age dataset.",
+    )
+    parser.add_argument(
         "--include-prolific",
         action="store_true",
         default=False,
         help="Include the optional ProlificHands dataset in the base age dataset.",
+    )
+    parser.add_argument(
+        "--include-primary",
+        action="store_true",
+        default=False,
+        help="Include the 11kHands primary dataset in the base age dataset.",
+    )
+    parser.add_argument(
+        "--include-archive",
+        action="store_true",
+        default=False,
+        help="Include the archive dataset in the base age dataset.",
+    )
+    parser.add_argument(
+        "--include-lucid",
+        action="store_true",
+        default=False,
+        help="Merge LUICIDHands into the training split after leakage filtering.",
     )
     parser.add_argument(
         "--epochs",
@@ -421,16 +451,15 @@ def main() -> None:
     metadata = filter_metadata(
         load_combined_metadata(
             root=active_root,
+            include_handrgbd=args.include_handrgbd,
+            include_hagrid=args.include_hagrid,
             include_prolific=args.include_prolific,
+            include_primary=args.include_primary,
+            include_archive=args.include_archive,
         ),
         max_samples_per_user=args.max_samples_per_user,
     )
 
-    # Load LUICIDHands for both baseline and normals runs (age supervision from RGB in both cases).
-    lucid_meta = filter_metadata(
-        load_lucid_metadata(root=active_root),
-        max_samples_per_user=args.max_samples_per_user,
-    )
     _append_dataset_stats(config_path, "dataset", metadata)
     fold_info = None
     if args.fold_file:
@@ -463,31 +492,35 @@ def main() -> None:
     train_meta = metadata[metadata["user_id"].isin(train_ids)].copy()
     test_meta = metadata[metadata["user_id"].isin(test_ids)].copy()
 
-    # Merge LUICIDHands into training for both baseline and normals runs.
-    # Strip "lucid_" prefix to get raw HandRGBD integer IDs, then exclude val/test users (leakage prevention).
-    if not lucid_meta.empty:
-        excluded_ids = set(str(v) for v in test_ids)
-        excluded_raw = {_normalise_subject_id(uid) for uid in excluded_ids}
-        raw_ids = lucid_meta["user_id"].map(_normalise_subject_id)
-        lucid_meta = lucid_meta[~raw_ids.isin(excluded_raw)].copy()
-    if not lucid_meta.empty:
-        n_base = len(train_meta)
-        target_lucid_n = int(round(n_base * args.lucid_fraction / max(1.0 - args.lucid_fraction, 1e-6)))
-        repeat = max(1, round(target_lucid_n / len(lucid_meta)))
-        lucid_oversampled = pd.concat([lucid_meta] * repeat, ignore_index=True).head(target_lucid_n)
-        if normals_transform is None:
-            lucid_oversampled = lucid_oversampled.copy()
-            lucid_oversampled["normals_path"] = None
-        if "normals_path" not in train_meta.columns:
-            train_meta = train_meta.copy()
-            train_meta["normals_path"] = None
-        train_meta = pd.concat([train_meta, lucid_oversampled], ignore_index=True)
-        n_with_normals = int(lucid_oversampled["normals_path"].notna().sum()) if "normals_path" in lucid_oversampled.columns else 0
-        suffix = f", {n_with_normals} with normals" if normals_transform is not None else ""
-        print(
-            f"[lucid] LUICIDHands merged: {len(lucid_oversampled)} samples "
-            f"({100 * len(lucid_oversampled) / len(train_meta):.1f}% of combined train set{suffix})."
+    if args.include_lucid:
+        # Strip "lucid_" to compare against raw HandRGBD IDs, then exclude val/test users.
+        lucid_meta = filter_metadata(
+            load_lucid_metadata(root=active_root),
+            max_samples_per_user=args.max_samples_per_user,
         )
+        if not lucid_meta.empty:
+            excluded_ids = set(str(v) for v in test_ids)
+            excluded_raw = {_normalise_subject_id(uid) for uid in excluded_ids}
+            raw_ids = lucid_meta["user_id"].map(_normalise_subject_id)
+            lucid_meta = lucid_meta[~raw_ids.isin(excluded_raw)].copy()
+        if not lucid_meta.empty:
+            n_base = len(train_meta)
+            target_lucid_n = int(round(n_base * args.lucid_fraction / max(1.0 - args.lucid_fraction, 1e-6)))
+            repeat = max(1, round(target_lucid_n / len(lucid_meta)))
+            lucid_oversampled = pd.concat([lucid_meta] * repeat, ignore_index=True).head(target_lucid_n)
+            if normals_transform is None:
+                lucid_oversampled = lucid_oversampled.copy()
+                lucid_oversampled["normals_path"] = None
+            if "normals_path" not in train_meta.columns:
+                train_meta = train_meta.copy()
+                train_meta["normals_path"] = None
+            train_meta = pd.concat([train_meta, lucid_oversampled], ignore_index=True)
+            n_with_normals = int(lucid_oversampled["normals_path"].notna().sum()) if "normals_path" in lucid_oversampled.columns else 0
+            suffix = f", {n_with_normals} with normals" if normals_transform is not None else ""
+            print(
+                f"[lucid] LUICIDHands merged: {len(lucid_oversampled)} samples "
+                f"({100 * len(lucid_oversampled) / len(train_meta):.1f}% of combined train set{suffix})."
+            )
 
     if args.age_oversample:
         before = len(train_meta)

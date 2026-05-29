@@ -184,16 +184,40 @@ def parse_args() -> argparse.Namespace:
         help="Apply dataset masks (if available) to black out backgrounds during loading.",
     )
     parser.add_argument(
-        "--no-hagrid",
+        "--include-handrgbd",
         action="store_true",
         default=False,
-        help="Exclude the HaGRIDv2 stop_inverted dataset from training.",
+        help="Include the HandRGBD dataset in training/validation/test metadata.",
+    )
+    parser.add_argument(
+        "--include-hagrid",
+        action="store_true",
+        default=False,
+        help="Include the HaGRIDv2 stop_inverted dataset in training/validation/test metadata.",
     )
     parser.add_argument(
         "--include-prolific",
         action="store_true",
         default=False,
         help="Include the optional ProlificHands dataset in training/validation/test metadata.",
+    )
+    parser.add_argument(
+        "--include-primary",
+        action="store_true",
+        default=False,
+        help="Include the 11kHands primary dataset in training/validation/test metadata.",
+    )
+    parser.add_argument(
+        "--include-archive",
+        action="store_true",
+        default=False,
+        help="Include the archive dataset in training/validation/test metadata.",
+    )
+    parser.add_argument(
+        "--include-lucid",
+        action="store_true",
+        default=False,
+        help="Merge LUICIDHands into the training split after leakage filtering.",
     )
     parser.add_argument(
         "--epochs",
@@ -427,8 +451,11 @@ def build_datasets(args: argparse.Namespace, seed: int, img_size: int):
     metadata = filter_metadata(
         load_combined_metadata(
             root=active_root,
-            include_hagrid=not getattr(args, "no_hagrid", False),
+            include_handrgbd=getattr(args, "include_handrgbd", False),
+            include_hagrid=getattr(args, "include_hagrid", False),
             include_prolific=getattr(args, "include_prolific", False),
+            include_primary=getattr(args, "include_primary", False),
+            include_archive=getattr(args, "include_archive", False),
         ),
         max_samples_per_user=args.max_samples_per_user or None,
         max_samples_per_age_bin=args.max_samples_per_age_bin or None,
@@ -483,35 +510,35 @@ def build_datasets(args: argparse.Namespace, seed: int, img_size: int):
         if len(train_meta) != before:
             print(f"[data] Oversampled train set from {before} to {len(train_meta)} samples.")
 
-    # Merge LUICIDHands into training for both baseline and normals runs.
-    # Strip the "lucid_" prefix to map LUICIDHands user IDs back to their HandRGBD integer IDs,
-    # then exclude any whose raw ID appears in the val fold or held-out test split (leakage prevention).
-    lucid_meta = filter_metadata(
-        load_lucid_metadata(root=active_root),
-        max_samples_per_user=args.max_samples_per_user or None,
-    )
-    if not lucid_meta.empty:
-        excluded_ids = set(str(v) for v in val_ids) | test_ids
-        excluded_raw = {_normalise_subject_id(uid) for uid in excluded_ids}
-        raw_ids = lucid_meta["user_id"].map(_normalise_subject_id)
-        lucid_meta = lucid_meta[~raw_ids.isin(excluded_raw)].copy()
-    if not lucid_meta.empty:
-        frac = getattr(args, "lucid_fraction", 0.4)
-        n_target = int(round(len(train_meta) * frac / max(1.0 - frac, 1e-6)))
-        repeat = max(1, round(n_target / len(lucid_meta)))
-        lucid_over = pd.concat([lucid_meta] * repeat, ignore_index=True).head(n_target)
-        if normals_transform is None:
-            lucid_over = lucid_over.copy()
-            lucid_over["normals_path"] = None
-        if "normals_path" not in train_meta.columns:
-            train_meta["normals_path"] = None
-        train_meta = pd.concat([train_meta, lucid_over], ignore_index=True)
-        n_with_normals = int(lucid_over["normals_path"].notna().sum()) if "normals_path" in lucid_over.columns else 0
-        suffix = f", {n_with_normals} with normals" if normals_transform is not None else ""
-        print(
-            f"[lucid] LUICIDHands merged: {len(lucid_over)} samples "
-            f"({100 * len(lucid_over) / len(train_meta):.1f}% of combined train set{suffix})."
+    if getattr(args, "include_lucid", False):
+        # Strip the "lucid_" prefix to map LUICIDHands user IDs back to their
+        # HandRGBD integer IDs, then exclude any whose raw ID appears in val/test.
+        lucid_meta = filter_metadata(
+            load_lucid_metadata(root=active_root),
+            max_samples_per_user=args.max_samples_per_user or None,
         )
+        if not lucid_meta.empty:
+            excluded_ids = set(str(v) for v in val_ids) | test_ids
+            excluded_raw = {_normalise_subject_id(uid) for uid in excluded_ids}
+            raw_ids = lucid_meta["user_id"].map(_normalise_subject_id)
+            lucid_meta = lucid_meta[~raw_ids.isin(excluded_raw)].copy()
+        if not lucid_meta.empty:
+            frac = getattr(args, "lucid_fraction", 0.4)
+            n_target = int(round(len(train_meta) * frac / max(1.0 - frac, 1e-6)))
+            repeat = max(1, round(n_target / len(lucid_meta)))
+            lucid_over = pd.concat([lucid_meta] * repeat, ignore_index=True).head(n_target)
+            if normals_transform is None:
+                lucid_over = lucid_over.copy()
+                lucid_over["normals_path"] = None
+            if "normals_path" not in train_meta.columns:
+                train_meta["normals_path"] = None
+            train_meta = pd.concat([train_meta, lucid_over], ignore_index=True)
+            n_with_normals = int(lucid_over["normals_path"].notna().sum()) if "normals_path" in lucid_over.columns else 0
+            suffix = f", {n_with_normals} with normals" if normals_transform is not None else ""
+            print(
+                f"[lucid] LUICIDHands merged: {len(lucid_over)} samples "
+                f"({100 * len(lucid_over) / len(train_meta):.1f}% of combined train set{suffix})."
+            )
 
     train_ds = AgeDataset(
         train_meta,
@@ -532,8 +559,11 @@ def load_filtered_test_metadata(args: argparse.Namespace, active_root) -> pd.Dat
     all_meta = filter_metadata(
         load_combined_metadata(
             root=active_root,
-            include_hagrid=not getattr(args, "no_hagrid", False),
+            include_handrgbd=getattr(args, "include_handrgbd", False),
+            include_hagrid=getattr(args, "include_hagrid", False),
             include_prolific=getattr(args, "include_prolific", False),
+            include_primary=getattr(args, "include_primary", False),
+            include_archive=getattr(args, "include_archive", False),
         ),
         max_samples_per_user=args.max_samples_per_user or None,
         max_samples_per_age_bin=args.max_samples_per_age_bin or None,
@@ -1662,7 +1692,7 @@ def main() -> None:
             print("[Rank 0] Best checkpoint not found; skipped test evaluation.")
 
         # ── Normals reconstruction evaluation on LUICIDHands ─────────────────
-        if is_main and getattr(args, "normals_aux", False) and best_model_path.exists():
+        if is_main and getattr(args, "include_lucid", False) and getattr(args, "normals_aux", False) and best_model_path.exists():
             print("[Rank 0] Running normals reconstruction evaluation on LUICIDHands...")
             try:
                 _, _test_tf = build_transforms(img_size)

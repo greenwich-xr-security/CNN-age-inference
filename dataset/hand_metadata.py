@@ -964,15 +964,17 @@ def load_lucid_metadata(root: Optional[PathLike] = None) -> pd.DataFrame:
 def load_combined_metadata(
     root: Optional[PathLike] = None,
     *,
+    include_handrgbd: bool = True,
     handrgbd_include_wall3: bool = False,
-    include_hagrid: bool = True,
+    include_hagrid: bool = False,
     include_prolific: bool = False,
     include_primary: bool = False,
     include_archive: bool = False,
     max_users_per_year: Optional[int] = None,
 ) -> pd.DataFrame:
-    handrgbd_df = load_handrgbd_metadata(root=root, include_wall3=handrgbd_include_wall3)
-    sources = [handrgbd_df]
+    sources = []
+    if include_handrgbd:
+        sources.append(load_handrgbd_metadata(root=root, include_wall3=handrgbd_include_wall3))
     if include_primary:
         sources.insert(0, load_primary_metadata(root=root))
     if include_archive:
@@ -984,6 +986,8 @@ def load_combined_metadata(
     if include_prolific:
         prolific_df = load_prolific_metadata(root=root)
         sources.append(prolific_df)
+    if not sources:
+        raise ValueError("At least one dataset must be included.")
     combined = pd.concat(sources, ignore_index=True)
     combined = combined.drop_duplicates(subset="image_path")
     if max_users_per_year:
@@ -1055,10 +1059,16 @@ def _cli_main() -> None:
         help="Maximum users per age year (default: 0 = disabled).",
     )
     parser.add_argument(
-        "--no-hagrid",
+        "--include-handrgbd",
         action="store_true",
         default=False,
-        help="Exclude the HaGRIDv2 stop_inverted dataset.",
+        help="Include the HandRGBD dataset.",
+    )
+    parser.add_argument(
+        "--include-hagrid",
+        action="store_true",
+        default=False,
+        help="Include the HaGRIDv2 stop_inverted dataset.",
     )
     parser.add_argument(
         "--include-prolific",
@@ -1066,12 +1076,27 @@ def _cli_main() -> None:
         default=False,
         help="Include the optional ProlificHands dataset.",
     )
+    parser.add_argument(
+        "--include-primary",
+        action="store_true",
+        default=False,
+        help="Include the 11kHands primary dataset.",
+    )
+    parser.add_argument(
+        "--include-archive",
+        action="store_true",
+        default=False,
+        help="Include the archive dataset.",
+    )
     args = parser.parse_args()
 
     combined = load_combined_metadata(
         root=args.root,
-        include_hagrid=not args.no_hagrid,
+        include_handrgbd=args.include_handrgbd,
+        include_hagrid=args.include_hagrid,
         include_prolific=args.include_prolific,
+        include_primary=args.include_primary,
+        include_archive=args.include_archive,
         max_users_per_year=args.max_users_per_year or None,
     )
     filtered = filter_metadata(

@@ -143,7 +143,12 @@ def _load_metadata(data_root: str | None, aspect_filter: str | None) -> pd.DataF
     if data_root:
         set_dataset_root(data_root)
     active_root = get_dataset_root()
-    df = load_combined_metadata(root=active_root, handrgbd_include_wall3=True)
+    df = load_combined_metadata(
+        root=active_root,
+        include_handrgbd=True,
+        handrgbd_include_wall3=True,
+        include_hagrid=True,
+    )
     df = df.copy()
     df["user_id"] = df["user_id"].astype(str)
     df["source"] = df["source"].astype(str).str.lower()

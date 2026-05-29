@@ -38,7 +38,7 @@ def _load_metadata(source: str):
         return load_archive_metadata()
     if source == "handrgbd":
         return load_handrgbd_metadata()
-    return load_combined_metadata()
+    return load_combined_metadata(include_handrgbd=True, include_hagrid=True)
 
 
 def _parse_args() -> argparse.Namespace:

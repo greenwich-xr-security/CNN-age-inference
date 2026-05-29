@@ -101,9 +101,20 @@ The decoder is intentionally shallow (~0.5 M params) so that geometric signal is
 | handRGBD | 6,791 | — | age loss only |
 | LUICIDHands | 1,714 | paired JPEGs in `normals/` | age loss + normals loss |
 
-LUICIDHands is oversampled in training (default 40% of each batch) to ensure consistent geometric supervision despite the size imbalance.
+LUICIDHands is oversampled in training (default 40% of each batch) to ensure consistent geometric supervision despite the size imbalance. It is controlled separately from split creation because it is merged into the training split only, after matching LUICID/HandRGBD user IDs to avoid leakage.
 
-The optional ProlificHands export can be included in split generation, training, and held-out evaluation with `--include-prolific` (or `INCLUDE_PROLIFIC=1` for the SLURM scripts). It is loaded from `HandsDatasets/ProlificHands/reference_prolific.csv`, uses masked RGB derivatives when present, and otherwise follows the same dorsal-image, known-age metadata filtering as the other age datasets.
+Dataset selection uses positive include flags consistently:
+
+| Dataset | CLI flag | SLURM env var |
+|---|---|---|
+| HandRGBD | `--include-handrgbd` | `INCLUDE_HANDRGBD=1` |
+| HaGRIDv2 stop_inverted | `--include-hagrid` | `INCLUDE_HAGRID=1` |
+| ProlificHands | `--include-prolific` | `INCLUDE_PROLIFIC=1` |
+| 11kHands primary | `--include-primary` | `INCLUDE_PRIMARY=1` |
+| Archive | `--include-archive` | `INCLUDE_ARCHIVE=1` |
+| LUICIDHands training merge | `--include-lucid` | `INCLUDE_LUCID=1` |
+
+The distributed SLURM defaults are `INCLUDE_HANDRGBD=1`, `INCLUDE_PROLIFIC=1`, `INCLUDE_LUCID=1`, with HaGRID/primary/archive disabled unless explicitly enabled. ProlificHands is loaded from `HandsDatasets/ProlificHands/reference_prolific.csv`, uses masked RGB derivatives when present, and otherwise follows the same dorsal-image, known-age metadata filtering as the other age datasets.
 
 #### Training loss
 
@@ -120,10 +131,13 @@ total_loss = age_loss  +  λ_normals × normals_loss
 
 ```bash
 # Baseline — no normals head (run on the same seed for a fair comparison)
-python train_age.py --model b4 --seed 42 --output-dir runs/b4_baseline
+python train_age.py --model b4 --seed 42 --output-dir runs/b4_baseline \
+    --include-handrgbd
 
 # Experiment — with normals auxiliary head
 python train_age.py --model b4 --seed 42 --output-dir runs/b4_normals \
+    --include-handrgbd \
+    --include-lucid \
     --normals-aux \
     --loss-weight-normals 0.1 \
     --lucid-fraction 0.4
@@ -149,6 +163,12 @@ NORMALS_AUX=1 LOSS_WEIGHT_NORMALS=0.05 MODELS="b4" sbatch submit_distributed.slu
 | `NORMALS_AUX` | `0` | Set to `1` to enable auxiliary normals head |
 | `LOSS_WEIGHT_NORMALS` | `0.1` | λ for normals reconstruction loss |
 | `LUCID_FRACTION` | `0.4` | Target fraction of each batch from LUICIDHands |
+| `INCLUDE_HANDRGBD` | `1` | Include HandRGBD in SLURM splits/training |
+| `INCLUDE_HAGRID` | `0` | Include HaGRIDv2 stop_inverted in SLURM splits/training |
+| `INCLUDE_PROLIFIC` | `1` | Include ProlificHands in distributed SLURM splits/training |
+| `INCLUDE_PRIMARY` | `0` | Include 11kHands primary in SLURM splits/training |
+| `INCLUDE_ARCHIVE` | `0` | Include archive dataset in SLURM splits/training |
+| `INCLUDE_LUCID` | `1` | Merge LUICIDHands into SLURM training folds |
 
 > **Note:** the normals head is currently implemented for EfficientNet backbones only. Other architectures (Swin, ConvNeXt, etc.) will ignore `--normals-aux` unless extended in `models/`.
 

@@ -200,14 +200,20 @@ def _discover_run_dirs(publication_root: Path, run_names: list[str] | None) -> l
 
 
 def _load_filtered_metadata(config: dict[str, str], data_root: Path) -> pd.DataFrame:
-    include_hagrid = not _as_bool(config.get("no_hagrid"), default=False)
+    include_handrgbd = _as_bool(config.get("include_handrgbd"), default=True)
+    include_hagrid = _as_bool(config.get("include_hagrid"), default=False)
     include_prolific = _as_bool(config.get("include_prolific"), default=False)
+    include_primary = _as_bool(config.get("include_primary"), default=False)
+    include_archive = _as_bool(config.get("include_archive"), default=False)
     max_samples_per_user = _as_optional_int(config.get("max_samples_per_user"))
     max_samples_per_age_bin = _as_optional_int(config.get("max_samples_per_age_bin"))
     metadata = load_combined_metadata(
         root=data_root,
+        include_handrgbd=include_handrgbd,
         include_hagrid=include_hagrid,
         include_prolific=include_prolific,
+        include_primary=include_primary,
+        include_archive=include_archive,
     )
     filtered = filter_metadata(
         metadata,

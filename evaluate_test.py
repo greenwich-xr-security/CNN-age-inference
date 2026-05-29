@@ -105,16 +105,34 @@ def parse_args() -> argparse.Namespace:
         help="Apply dataset masks (black out backgrounds) during loading.",
     )
     parser.add_argument(
-        "--no-hagrid",
+        "--include-handrgbd",
         action="store_true",
         default=False,
-        help="Exclude the HaGRIDv2 stop_inverted dataset from evaluation.",
+        help="Include the HandRGBD dataset when resolving held-out test users.",
+    )
+    parser.add_argument(
+        "--include-hagrid",
+        action="store_true",
+        default=False,
+        help="Include the HaGRIDv2 stop_inverted dataset when resolving held-out test users.",
     )
     parser.add_argument(
         "--include-prolific",
         action="store_true",
         default=False,
         help="Include the optional ProlificHands dataset when resolving held-out test users.",
+    )
+    parser.add_argument(
+        "--include-primary",
+        action="store_true",
+        default=False,
+        help="Include the 11kHands primary dataset when resolving held-out test users.",
+    )
+    parser.add_argument(
+        "--include-archive",
+        action="store_true",
+        default=False,
+        help="Include the archive dataset when resolving held-out test users.",
     )
     parser.add_argument(
         "--batch-size",
@@ -173,8 +191,11 @@ def main() -> None:
     metadata = filter_metadata(
         load_combined_metadata(
             root=get_dataset_root(),
-            include_hagrid=not getattr(args, "no_hagrid", False),
+            include_handrgbd=getattr(args, "include_handrgbd", False),
+            include_hagrid=getattr(args, "include_hagrid", False),
             include_prolific=getattr(args, "include_prolific", False),
+            include_primary=getattr(args, "include_primary", False),
+            include_archive=getattr(args, "include_archive", False),
         ),
         max_samples_per_user=args.max_samples_per_user or None,
         max_samples_per_age_bin=args.max_samples_per_age_bin or None,

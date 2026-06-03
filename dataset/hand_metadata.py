@@ -917,6 +917,8 @@ def load_lucid_metadata(root: Optional[PathLike] = None) -> pd.DataFrame:
     # Keep only detected samples.
     working_df = raw_df[raw_df["has_detection"].astype(str).str.lower() == "true"].copy()
 
+    mask_root = lucid_root / "mask"
+
     def resolve_rgb(name: object) -> Optional[Path]:
         if name is None or (isinstance(name, float) and pd.isna(name)):
             return None
@@ -929,8 +931,15 @@ def load_lucid_metadata(root: Optional[PathLike] = None) -> pd.DataFrame:
         p = normals_root / f"{name}.jpg"
         return p if p.is_file() else None
 
+    def resolve_mask(name: object) -> Optional[Path]:
+        if name is None or (isinstance(name, float) and pd.isna(name)):
+            return None
+        p = mask_root / f"{name}.png"
+        return p if p.is_file() else None
+
     working_df["image_path"] = working_df["name"].apply(resolve_rgb)
     working_df["normals_path"] = working_df["name"].apply(resolve_normals)
+    working_df["mask_path"] = working_df["name"].apply(resolve_mask)
     working_df = working_df[working_df["image_path"].notna()].copy()
 
     working_df["aspect_norm"] = working_df["aspect"].apply(_normalise_label)
@@ -950,13 +959,17 @@ def load_lucid_metadata(root: Optional[PathLike] = None) -> pd.DataFrame:
             "normals_path": working_df["normals_path"].apply(
                 lambda p: Path(p) if p is not None else None
             ),
+            "mask_path": working_df["mask_path"].apply(
+                lambda p: Path(p) if p is not None else None
+            ),
         }
     )
     df_out = df_out.reset_index(drop=True)
     n_with_normals = df_out["normals_path"].notna().sum()
+    n_with_masks = df_out["mask_path"].notna().sum()
     print(
         f"LUICIDHands -> users: {df_out['user_id'].nunique()} | "
-        f"images: {len(df_out)} | with normals: {n_with_normals}"
+        f"images: {len(df_out)} | with normals: {n_with_normals} | with masks: {n_with_masks}"
     )
     return df_out
 

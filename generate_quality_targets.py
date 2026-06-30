@@ -49,6 +49,18 @@ def parse_args() -> argparse.Namespace:
         help="Lower bound for age-bin MAE when computing normalised error.",
     )
     parser.add_argument(
+        "--min-age-bin-uncertainty",
+        type=float,
+        default=0.25,
+        help="Lower bound for age-bin mean predicted std when computing normalised uncertainty.",
+    )
+    parser.add_argument(
+        "--min-age-bin-consistency",
+        type=float,
+        default=0.05,
+        help="Lower bound for age-bin mean TTA std when computing normalised consistency.",
+    )
+    parser.add_argument(
         "--error-scale",
         type=float,
         default=1.0,
@@ -57,14 +69,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--uncertainty-scale",
         type=float,
-        default=5.0,
-        help="Predicted std scale in years used when mapping uncertainty to quality score.",
+        default=1.0,
+        help="Scale for normalised predicted std when mapping uncertainty to quality score.",
     )
     parser.add_argument(
         "--consistency-scale",
         type=float,
-        default=2.0,
-        help="TTA std scale in years used when mapping consistency to quality score.",
+        default=1.0,
+        help="Scale for normalised TTA std when mapping consistency to quality score.",
     )
     return parser.parse_args()
 
@@ -149,36 +161,50 @@ def collapse_duplicate_predictions(df: pd.DataFrame) -> pd.DataFrame:
 def add_quality_columns(df: pd.DataFrame, args: argparse.Namespace) -> pd.DataFrame:
     out = df.copy()
     log_var = np.clip(out["age_pred_log_var"].to_numpy(dtype=float), LOG_VAR_MIN, LOG_VAR_MAX)
-    pred_std = np.exp(0.5 * log_var)
+    pred_std_raw = np.exp(0.5 * log_var)
     ages = out["age"].to_numpy(dtype=float)
     abs_error_raw = np.abs(out["age_pred_mean"].to_numpy(dtype=float) - ages)
     bin_width = max(float(args.age_bin_width), 1e-6)
     age_bin = np.floor(ages / bin_width) * bin_width
     out["age_bin"] = age_bin
     out["raw_abs_error"] = abs_error_raw
+    out["raw_pred_std"] = pred_std_raw
     age_bin_mae = out.groupby("age_bin")["raw_abs_error"].transform("mean").to_numpy(dtype=float)
     age_bin_mae = np.maximum(age_bin_mae, float(args.min_age_bin_mae))
     normalised_abs_error = abs_error_raw / age_bin_mae
     sq_error = normalised_abs_error ** 2
     true_adult = out["age"].to_numpy(dtype=float) >= args.age_threshold
     pred_adult = out["age_pred_mean"].to_numpy(dtype=float) >= args.age_threshold
-    consistency = out.get("tta_pred_std", pd.Series(np.zeros(len(out)), index=out.index)).fillna(0.0).to_numpy(float)
+    consistency_raw = out.get("tta_pred_std", pd.Series(np.zeros(len(out)), index=out.index)).fillna(0.0).to_numpy(float)
+    out["raw_consistency_score"] = consistency_raw
+
+    age_bin_uncertainty = out.groupby("age_bin")["raw_pred_std"].transform("mean").to_numpy(dtype=float)
+    age_bin_uncertainty = np.maximum(age_bin_uncertainty, float(args.min_age_bin_uncertainty))
+    normalised_uncertainty = pred_std_raw / age_bin_uncertainty
+
+    age_bin_consistency = out.groupby("age_bin")["raw_consistency_score"].transform("mean").to_numpy(dtype=float)
+    age_bin_consistency = np.maximum(age_bin_consistency, float(args.min_age_bin_consistency))
+    normalised_consistency = consistency_raw / age_bin_consistency
 
     out["age_bin_mae"] = age_bin_mae
     out["normalized_abs_error"] = normalised_abs_error
+    out["age_bin_uncertainty"] = age_bin_uncertainty
+    out["normalized_uncertainty"] = normalised_uncertainty
+    out["age_bin_consistency"] = age_bin_consistency
+    out["normalized_consistency"] = normalised_consistency
     out["abs_error"] = normalised_abs_error
     out["squared_error"] = sq_error
-    out["pred_std"] = pred_std
-    out["uncertainty_score"] = pred_std
+    out["pred_std"] = normalised_uncertainty
+    out["uncertainty_score"] = normalised_uncertainty
     out["boundary_error"] = (true_adult != pred_adult).astype(int)
     out["boundary_margin"] = np.abs(out["age_pred_mean"].to_numpy(dtype=float) - args.age_threshold)
     out["true_boundary_margin"] = np.abs(out["age"].to_numpy(dtype=float) - args.age_threshold)
     out["near_boundary"] = (out["true_boundary_margin"] <= args.boundary_window).astype(int)
-    out["consistency_score"] = consistency
+    out["consistency_score"] = normalised_consistency
     penalty = (
         (normalised_abs_error / max(args.error_scale, 1e-6))
-        + (pred_std / max(args.uncertainty_scale, 1e-6))
-        + (consistency / max(args.consistency_scale, 1e-6))
+        + (normalised_uncertainty / max(args.uncertainty_scale, 1e-6))
+        + (normalised_consistency / max(args.consistency_scale, 1e-6))
     )
     out["quality_score"] = 1.0 / (1.0 + penalty)
     out["usefulness_score"] = out["quality_score"]

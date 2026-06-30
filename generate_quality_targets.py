@@ -94,6 +94,46 @@ def load_fold_predictions(path: Path, fold_index: int) -> pd.DataFrame:
     )
 
 
+def collapse_duplicate_predictions(df: pd.DataFrame) -> pd.DataFrame:
+    duplicates = df["image_path"].duplicated(keep=False)
+    if not duplicates.any():
+        return df
+
+    dup_df = df.loc[duplicates].copy()
+    cross_fold = dup_df.groupby("image_path")["fold_index"].nunique()
+    cross_fold = cross_fold[cross_fold > 1]
+    if not cross_fold.empty:
+        examples = cross_fold.head(10).index.tolist()
+        raise ValueError(
+            "Duplicate image_path entries span multiple folds, which violates OOF isolation. "
+            f"Examples: {examples}"
+        )
+
+    for column in ("user_id", "age"):
+        inconsistent = dup_df.groupby("image_path")[column].nunique(dropna=False)
+        inconsistent = inconsistent[inconsistent > 1]
+        if not inconsistent.empty:
+            examples = inconsistent.head(10).index.tolist()
+            raise ValueError(f"Duplicate image_path entries disagree on {column}. Examples: {examples}")
+
+    before = len(df)
+    grouped = (
+        df.groupby("image_path", as_index=False)
+        .agg(
+            fold_index=("fold_index", "first"),
+            user_id=("user_id", "first"),
+            age=("age", "first"),
+            age_pred_mean=("age_pred_mean", "mean"),
+            age_pred_log_var=("age_pred_log_var", "mean"),
+        )
+        .sort_values(["fold_index", "user_id", "image_path"], kind="stable")
+        .reset_index(drop=True)
+    )
+    removed = before - len(grouped)
+    print(f"Collapsed {removed} duplicate OOF prediction rows by image_path within folds.")
+    return grouped
+
+
 def add_quality_columns(df: pd.DataFrame, args: argparse.Namespace) -> pd.DataFrame:
     out = df.copy()
     log_var = np.clip(out["age_pred_log_var"].to_numpy(dtype=float), LOG_VAR_MIN, LOG_VAR_MAX)
@@ -134,10 +174,7 @@ def main() -> None:
     df["image_path"] = df["image_path"].astype(str)
     if df["image_path"].eq("").any():
         raise ValueError("Some predictions have empty image_path identifiers.")
-    duplicates = df["image_path"].duplicated(keep=False)
-    if duplicates.any():
-        dupes = df.loc[duplicates, "image_path"].head(10).tolist()
-        raise ValueError(f"Duplicate image_path entries found in OOF predictions, examples: {dupes}")
+    df = collapse_duplicate_predictions(df)
 
     if args.consistency_file:
         consistency_df = pd.read_csv(args.consistency_file)

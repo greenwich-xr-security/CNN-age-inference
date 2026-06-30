@@ -109,7 +109,28 @@ def mae_interval(
     }
 
 
-def plot_quality_histogram(merged: pd.DataFrame, output_dir: Path) -> None:
+def bootstrap_mean_interval(values: np.ndarray, *, bootstrap_samples: int, seed: int) -> tuple[float, float]:
+    values = np.asarray(values, dtype=float)
+    values = values[np.isfinite(values)]
+    if values.size == 0:
+        return float("nan"), float("nan")
+    mean_value = float(np.mean(values))
+    if values.size == 1 or bootstrap_samples <= 0:
+        return mean_value, mean_value
+
+    rng = np.random.default_rng(seed)
+    sample_idx = rng.integers(0, values.size, size=(int(bootstrap_samples), values.size))
+    boot_means = values[sample_idx].mean(axis=1)
+    return float(np.quantile(boot_means, 0.025)), float(np.quantile(boot_means, 0.975))
+
+
+def plot_quality_histogram(
+    merged: pd.DataFrame,
+    output_dir: Path,
+    *,
+    bootstrap_samples: int,
+    seed: int,
+) -> None:
     quality = merged["pred_quality_score"].to_numpy(float)
     abs_error = np.abs(merged["age_pred_mean"].to_numpy(float) - merged["age"].to_numpy(float))
     bins = np.linspace(float(np.min(quality)), float(np.max(quality)), 16)
@@ -119,12 +140,20 @@ def plot_quality_histogram(merged: pd.DataFrame, output_dir: Path) -> None:
     bin_ids = np.digitize(quality, bins[1:-1], right=False)
     bin_centers = (bins[:-1] + bins[1:]) / 2.0
     mean_errors = np.full(len(bin_centers), np.nan, dtype=float)
+    error_low = np.full(len(bin_centers), np.nan, dtype=float)
+    error_high = np.full(len(bin_centers), np.nan, dtype=float)
     counts = np.zeros(len(bin_centers), dtype=int)
     for idx in range(len(bin_centers)):
         mask = bin_ids == idx
         counts[idx] = int(np.sum(mask))
         if counts[idx] > 0:
-            mean_errors[idx] = float(np.mean(abs_error[mask]))
+            bin_errors = abs_error[mask]
+            mean_errors[idx] = float(np.mean(bin_errors))
+            error_low[idx], error_high[idx] = bootstrap_mean_interval(
+                bin_errors,
+                bootstrap_samples=bootstrap_samples,
+                seed=seed + idx,
+            )
 
     fig, axes = plt.subplots(2, 1, figsize=(8, 8), dpi=150, sharex=True)
     axes[0].hist(quality, bins=30, color="#2f6f8f", edgecolor="white")
@@ -132,9 +161,21 @@ def plot_quality_histogram(merged: pd.DataFrame, output_dir: Path) -> None:
     axes[0].set_title("Held-out Test Quality Score Distribution")
     axes[0].grid(axis="y", alpha=0.25)
 
-    axes[1].plot(bin_centers, mean_errors, marker="o", color="#a23b3b", linewidth=2)
+    lower = np.where(np.isfinite(error_low), np.maximum(0.0, mean_errors - error_low), 0.0)
+    upper = np.where(np.isfinite(error_high), np.maximum(0.0, error_high - mean_errors), 0.0)
+    axes[1].errorbar(
+        bin_centers,
+        mean_errors,
+        yerr=np.vstack([lower, upper]),
+        marker="o",
+        color="#a23b3b",
+        ecolor="#5f5f5f",
+        elinewidth=1.2,
+        capsize=3,
+        linewidth=2,
+    )
     axes[1].set_xlabel("Predicted quality score")
-    axes[1].set_ylabel("Mean absolute age error")
+    axes[1].set_ylabel("Mean absolute age error (95% CI)")
     axes[1].grid(alpha=0.25)
     for x, y, count in zip(bin_centers, mean_errors, counts):
         if np.isfinite(y):
@@ -256,7 +297,12 @@ def main() -> None:
 
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
-    plot_quality_histogram(merged, output_dir)
+    plot_quality_histogram(
+        merged,
+        output_dir,
+        bootstrap_samples=args.mae_bootstrap_samples,
+        seed=args.bootstrap_seed + 20000,
+    )
     plot_quality_gate_metrics(rows, output_dir / "quality_age_gate_metrics.png", "Quality Filtering Age-Gate Metrics")
     plot_quality_gate_metrics(
         near_rows,

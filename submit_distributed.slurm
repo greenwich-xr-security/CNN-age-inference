@@ -3,7 +3,7 @@
 #SBATCH --nodes=1                         # Single node on gpu-beast
 #SBATCH --ntasks-per-node=1               # torchrun will launch local ranks
 #SBATCH --partition=gpu-beast             # GPU partition
-#SBATCH --gres=gpu:2                      # Request 2 GPUs on the node
+#SBATCH --gres=gpu:8                      # Request 8 GPUs on the node
 #SBATCH --cpus-per-task=2                 # CPU cores available to each task
 #SBATCH --output=logs/%x-%j.log           # Stdout/stderr log file
 #SBATCH --mail-type=FAIL                  # Email on failure only

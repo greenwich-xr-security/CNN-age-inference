@@ -78,12 +78,36 @@ def gate_metrics(df: pd.DataFrame, age_threshold: float, decision_threshold: flo
 
 
 def plot_quality_histogram(merged: pd.DataFrame, output_dir: Path) -> None:
-    fig, ax = plt.subplots(figsize=(8, 5), dpi=150)
-    ax.hist(merged["pred_quality_score"].to_numpy(float), bins=30, color="#2f6f8f", edgecolor="white")
-    ax.set_xlabel("Predicted quality score")
-    ax.set_ylabel("Frequency")
-    ax.set_title("Held-out Test Quality Score Distribution")
-    ax.grid(axis="y", alpha=0.25)
+    quality = merged["pred_quality_score"].to_numpy(float)
+    abs_error = np.abs(merged["age_pred_mean"].to_numpy(float) - merged["age"].to_numpy(float))
+    bins = np.linspace(float(np.min(quality)), float(np.max(quality)), 16)
+    if np.unique(bins).size < 2:
+        bins = np.linspace(0.0, 1.0, 16)
+
+    bin_ids = np.digitize(quality, bins[1:-1], right=False)
+    bin_centers = (bins[:-1] + bins[1:]) / 2.0
+    mean_errors = np.full(len(bin_centers), np.nan, dtype=float)
+    counts = np.zeros(len(bin_centers), dtype=int)
+    for idx in range(len(bin_centers)):
+        mask = bin_ids == idx
+        counts[idx] = int(np.sum(mask))
+        if counts[idx] > 0:
+            mean_errors[idx] = float(np.mean(abs_error[mask]))
+
+    fig, axes = plt.subplots(2, 1, figsize=(8, 8), dpi=150, sharex=True)
+    axes[0].hist(quality, bins=30, color="#2f6f8f", edgecolor="white")
+    axes[0].set_ylabel("Frequency")
+    axes[0].set_title("Held-out Test Quality Score Distribution")
+    axes[0].grid(axis="y", alpha=0.25)
+
+    axes[1].plot(bin_centers, mean_errors, marker="o", color="#a23b3b", linewidth=2)
+    axes[1].set_xlabel("Predicted quality score")
+    axes[1].set_ylabel("Mean absolute age error")
+    axes[1].grid(alpha=0.25)
+    for x, y, count in zip(bin_centers, mean_errors, counts):
+        if np.isfinite(y):
+            axes[1].annotate(str(count), (x, y), textcoords="offset points", xytext=(0, 5), ha="center", fontsize=7)
+
     fig.tight_layout()
     fig.savefig(output_dir / "quality_score_histogram.png")
     plt.close(fig)

@@ -37,10 +37,22 @@ def parse_args() -> argparse.Namespace:
         help="Samples within this many years of the threshold are marked near-boundary.",
     )
     parser.add_argument(
+        "--age-bin-width",
+        type=float,
+        default=1.0,
+        help="Age-bin width in years for normalising absolute error by OOF age-bin MAE.",
+    )
+    parser.add_argument(
+        "--min-age-bin-mae",
+        type=float,
+        default=0.25,
+        help="Lower bound for age-bin MAE when computing normalised error.",
+    )
+    parser.add_argument(
         "--error-scale",
         type=float,
-        default=5.0,
-        help="Error scale in years used when mapping error to quality score.",
+        default=1.0,
+        help="Scale for normalised error when mapping error to quality score.",
     )
     parser.add_argument(
         "--uncertainty-scale",
@@ -138,13 +150,23 @@ def add_quality_columns(df: pd.DataFrame, args: argparse.Namespace) -> pd.DataFr
     out = df.copy()
     log_var = np.clip(out["age_pred_log_var"].to_numpy(dtype=float), LOG_VAR_MIN, LOG_VAR_MAX)
     pred_std = np.exp(0.5 * log_var)
-    abs_error = np.abs(out["age_pred_mean"].to_numpy(dtype=float) - out["age"].to_numpy(dtype=float))
-    sq_error = abs_error ** 2
+    ages = out["age"].to_numpy(dtype=float)
+    abs_error_raw = np.abs(out["age_pred_mean"].to_numpy(dtype=float) - ages)
+    bin_width = max(float(args.age_bin_width), 1e-6)
+    age_bin = np.floor(ages / bin_width) * bin_width
+    out["age_bin"] = age_bin
+    out["raw_abs_error"] = abs_error_raw
+    age_bin_mae = out.groupby("age_bin")["raw_abs_error"].transform("mean").to_numpy(dtype=float)
+    age_bin_mae = np.maximum(age_bin_mae, float(args.min_age_bin_mae))
+    normalised_abs_error = abs_error_raw / age_bin_mae
+    sq_error = normalised_abs_error ** 2
     true_adult = out["age"].to_numpy(dtype=float) >= args.age_threshold
     pred_adult = out["age_pred_mean"].to_numpy(dtype=float) >= args.age_threshold
     consistency = out.get("tta_pred_std", pd.Series(np.zeros(len(out)), index=out.index)).fillna(0.0).to_numpy(float)
 
-    out["abs_error"] = abs_error
+    out["age_bin_mae"] = age_bin_mae
+    out["normalized_abs_error"] = normalised_abs_error
+    out["abs_error"] = normalised_abs_error
     out["squared_error"] = sq_error
     out["pred_std"] = pred_std
     out["uncertainty_score"] = pred_std
@@ -154,7 +176,7 @@ def add_quality_columns(df: pd.DataFrame, args: argparse.Namespace) -> pd.DataFr
     out["near_boundary"] = (out["true_boundary_margin"] <= args.boundary_window).astype(int)
     out["consistency_score"] = consistency
     penalty = (
-        (abs_error / max(args.error_scale, 1e-6))
+        (normalised_abs_error / max(args.error_scale, 1e-6))
         + (pred_std / max(args.uncertainty_scale, 1e-6))
         + (consistency / max(args.consistency_scale, 1e-6))
     )

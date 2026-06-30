@@ -33,6 +33,26 @@ def load_predictions(args: argparse.Namespace) -> pd.DataFrame:
     return pd.concat(frames, ignore_index=True)
 
 
+def drop_ddp_padding_duplicates(df: pd.DataFrame) -> pd.DataFrame:
+    if "image_path" not in df.columns:
+        return df
+    duplicates = df["image_path"].duplicated(keep=False)
+    if not duplicates.any():
+        return df
+
+    if "fold" in df.columns:
+        cross_fold = df.loc[duplicates].groupby("image_path")["fold"].nunique()
+        cross_fold = cross_fold[cross_fold > 1]
+        if not cross_fold.empty:
+            examples = cross_fold.head(10).index.tolist()
+            raise ValueError(f"Duplicate image_path entries span multiple quality folds: {examples}")
+
+    before = len(df)
+    deduped = df.drop_duplicates(subset=["image_path"], keep="first").reset_index(drop=True)
+    print(f"Dropped {before - len(deduped)} duplicate prediction rows by image_path before evaluation.")
+    return deduped
+
+
 def safe_corr(a: pd.Series, b: pd.Series) -> float:
     if len(a) < 2 or a.nunique(dropna=True) < 2 or b.nunique(dropna=True) < 2:
         return float("nan")
@@ -47,7 +67,7 @@ def safe_auc(y_true: pd.Series, y_score: pd.Series) -> float:
 
 def main() -> None:
     args = parse_args()
-    df = load_predictions(args)
+    df = drop_ddp_padding_duplicates(load_predictions(args))
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 

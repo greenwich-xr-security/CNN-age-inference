@@ -81,6 +81,21 @@ def gather_objects(local_values: list) -> list:
     return merged
 
 
+def drop_duplicate_prediction_rows(rows: list[dict[str, object]]) -> list[dict[str, object]]:
+    seen: set[str] = set()
+    deduped: list[dict[str, object]] = []
+    for row in rows:
+        image_path = str(row.get("image_path", ""))
+        if image_path in seen:
+            continue
+        seen.add(image_path)
+        deduped.append(row)
+    removed = len(rows) - len(deduped)
+    if removed:
+        print(f"[quality] dropped {removed} duplicate validation prediction rows from DDP padding.")
+    return deduped
+
+
 def quality_loss(outputs: torch.Tensor, targets: torch.Tensor, args: argparse.Namespace) -> torch.Tensor:
     pred_error = F.softplus(outputs[:, 0])
     pred_uncertainty = F.softplus(outputs[:, 1])
@@ -238,7 +253,9 @@ def main() -> None:
                 stale_epochs = 0
                 to_save = model.module if isinstance(model, DistributedDataParallel) else model
                 torch.save(to_save.state_dict(), best_path)
-                pd.DataFrame(gathered_rows).to_csv(output_dir / "quality_predictions_val.csv", index=False)
+                pd.DataFrame(drop_duplicate_prediction_rows(gathered_rows)).to_csv(
+                    output_dir / "quality_predictions_val.csv", index=False
+                )
                 print(f"[quality] saved best checkpoint to {best_path}")
             else:
                 stale_epochs += 1

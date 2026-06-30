@@ -511,7 +511,7 @@ def load_archive_metadata(root: Optional[PathLike] = None) -> pd.DataFrame:
 def load_handrgbd_metadata(
     root: Optional[PathLike] = None,
     *,
-    include_wall3: bool = False,
+    include_wall3: bool = True,
 ) -> pd.DataFrame:
     dataset_root = _resolve_root(root)
     hand_root = dataset_root / "handRGBD"
@@ -978,7 +978,7 @@ def load_combined_metadata(
     root: Optional[PathLike] = None,
     *,
     include_handrgbd: bool = True,
-    handrgbd_include_wall3: bool = False,
+    handrgbd_include_wall3: bool = True,
     include_hagrid: bool = False,
     include_prolific: bool = False,
     include_primary: bool = False,

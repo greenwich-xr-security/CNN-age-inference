@@ -47,12 +47,6 @@ def _prepare_sample_selection_frame(df: pd.DataFrame) -> pd.DataFrame:
     else:
         work["_source_priority"] = 99
 
-    if "wall_label" in work.columns:
-        wall_numeric = pd.to_numeric(work["wall_label"], errors="coerce")
-        work["_wall_penalty"] = wall_numeric.eq(3).fillna(False).astype(int)
-    else:
-        work["_wall_penalty"] = 0
-
     if "lights_label" in work.columns:
         lights_text = work["lights_label"].fillna("").astype(str).str.strip().str.lower()
         work["_lights_penalty"] = lights_text.eq("off").astype(int)
@@ -81,7 +75,7 @@ def _limit_samples_per_user(
 
     work = _prepare_sample_selection_frame(df)
     work = work.sort_values(
-        ["user_id", "_source_priority", "_wall_penalty", "_lights_penalty", "_selection_order"],
+        ["user_id", "_source_priority", "_lights_penalty", "_selection_order"],
         kind="stable",
     )
     limited = work.groupby("user_id", sort=False).head(max_samples)
@@ -91,9 +85,9 @@ def _limit_samples_per_user(
         print(
             f"Per-user sample cap applied ({max_samples} samples/user): "
             f"dropped {dropped} samples from {over_count} users while "
-            f"penalising wall 3 / lights off when available."
+            f"penalising lights off when available."
         )
-    drop_cols = ["_source_priority", "_wall_penalty", "_lights_penalty", "_selection_order"]
+    drop_cols = ["_source_priority", "_lights_penalty", "_selection_order"]
     limited = limited.drop(columns=[col for col in drop_cols if col in limited.columns])
     return limited.reset_index(drop=True)
 
@@ -107,7 +101,7 @@ def _limit_samples_per_age_bin(
     Selection strategy inside each age bin:
     - keep one best-quality sample per user before taking a second from any user
     - prefer higher-priority sources
-    - penalise wall 3 and lights off when those labels are present
+    - penalise lights off when those labels are present
     - preserve original row order as the final tiebreaker
     """
     if max_samples_per_age is None:
@@ -126,17 +120,17 @@ def _limit_samples_per_age_bin(
 
     if "user_id" in work.columns:
         work = work.sort_values(
-            ["_age_bin", "user_id", "_source_priority", "_wall_penalty", "_lights_penalty", "_selection_order"],
+            ["_age_bin", "user_id", "_source_priority", "_lights_penalty", "_selection_order"],
             kind="stable",
         )
         work["_user_round"] = work.groupby(["_age_bin", "user_id"], sort=False).cumcount()
         work = work.sort_values(
-            ["_age_bin", "_user_round", "_source_priority", "_wall_penalty", "_lights_penalty", "_selection_order"],
+            ["_age_bin", "_user_round", "_source_priority", "_lights_penalty", "_selection_order"],
             kind="stable",
         )
     else:
         work = work.sort_values(
-            ["_age_bin", "_source_priority", "_wall_penalty", "_lights_penalty", "_selection_order"],
+            ["_age_bin", "_source_priority", "_lights_penalty", "_selection_order"],
             kind="stable",
         )
 
@@ -146,12 +140,11 @@ def _limit_samples_per_age_bin(
         print(
             f"Per-age-bin sample cap applied ({max_s} samples/year): "
             f"dropped {dropped} samples while preserving user diversity and "
-            f"penalising wall 3 / lights off when available."
+            f"penalising lights off when available."
         )
     drop_cols = [
         "_age_bin",
         "_source_priority",
-        "_wall_penalty",
         "_lights_penalty",
         "_selection_order",
         "_user_round",

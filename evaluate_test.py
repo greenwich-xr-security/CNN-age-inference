@@ -214,7 +214,12 @@ def main() -> None:
     img_size = args.img_size if args.img_size is not None else default_size
     _, test_transform = build_transforms(img_size)
 
-    test_ds = AgeDataset(test_meta, transform=test_transform, use_masks=args.use_masks)
+    test_ds = AgeDataset(
+        test_meta,
+        transform=test_transform,
+        use_masks=args.use_masks,
+        return_image_path=True,
+    )
     test_user_skin = build_user_skin_color_series(test_meta)
     test_loader = DataLoader(
         test_ds,
@@ -239,10 +244,16 @@ def main() -> None:
     all_preds: list[float] = []
     all_log_vars: list[float] = []
     all_user_ids: list[str] = []
+    all_image_paths: list[str] = []
 
     _normals_privileged = getattr(args, "normals_privileged", False)
     with torch.no_grad():
-        for images, ages, batch_user_ids in test_loader:
+        for batch in test_loader:
+            if len(batch) == 4:
+                images, ages, batch_user_ids, batch_image_paths = batch
+            else:
+                images, ages, batch_user_ids = batch
+                batch_image_paths = [""] * len(batch_user_ids)
             images = images.to(device, non_blocking=True)
             if _normals_privileged:
                 zeros_n = torch.zeros(images.shape[0], 3, images.shape[2], images.shape[3], device=device)
@@ -257,6 +268,7 @@ def main() -> None:
             all_preds.extend(pred_mean.detach().cpu().tolist())
             all_log_vars.extend(pred_log_var.detach().cpu().tolist())
             all_user_ids.extend(list(batch_user_ids))
+            all_image_paths.extend([str(p) for p in batch_image_paths])
 
     targets_arr = np.asarray(all_targets, dtype=float)
     preds_arr = np.asarray(all_preds, dtype=float)
@@ -277,6 +289,7 @@ def main() -> None:
         pred_mean=preds_arr,
         pred_log_var=log_vars_arr,
         user_ids=np.asarray(all_user_ids, dtype=str),
+        image_path=np.asarray(all_image_paths, dtype=str),
         skin_color=map_user_series_to_array(all_user_ids, test_user_skin),
     )
     print(f"Saved raw predictions: {raw_path}")
@@ -294,6 +307,7 @@ def main() -> None:
             log_vars_arr,
             group_size=group_size,
             rng=agg_rng,
+            sample_ids=all_image_paths,
         )
         agg_targets = aggregated["targets"]
         agg_preds = aggregated["pred_mean"]
@@ -326,6 +340,7 @@ def main() -> None:
             pred_log_var=agg_log_vars,
             adult_prob=gate_results["adult_prob"],
             user_ids=aggregated["user_ids"],
+            image_path=aggregated.get("sample_ids", np.asarray([], dtype=str)),
             skin_color=map_user_series_to_array(aggregated["user_ids"], test_user_skin),
             group_size=group_size,
         )

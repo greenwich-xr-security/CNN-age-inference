@@ -120,6 +120,25 @@ TEST_SPLIT_FILE="${TEST_SPLIT_FILE:-${OUTPUT_ROOT}/test_users.json}"
 TEST_SPLIT_SIZE="${TEST_SPLIT_SIZE:-0.15}"
 SPLIT_STRATIFY_MODE="${SPLIT_STRATIFY_MODE:-age_bins}"  # age_bins | age_bins_skin_color | adult | none
 RUN_TEST_EVAL="${RUN_TEST_EVAL:-1}"
+PIPELINE_STAGE="${PIPELINE_STAGE:-age}"  # age | quality_targets | quality | quality_eval | all
+QUALITY_MODEL="${QUALITY_MODEL:-b0}"
+QUALITY_BATCH_SIZE="${QUALITY_BATCH_SIZE:-${BATCH_SIZE}}"
+QUALITY_EPOCHS="${QUALITY_EPOCHS:-40}"
+QUALITY_LR="${QUALITY_LR:-3e-4}"
+QUALITY_WEIGHT_DECAY="${QUALITY_WEIGHT_DECAY:-1e-4}"
+QUALITY_RUN_NAME="${QUALITY_RUN_NAME:-${RUN_NAME}_quality}"
+AGE_RUN_ROOT="${AGE_RUN_ROOT:-${OUTPUT_ROOT}/${RUN_NAME}}"
+QUALITY_RUN_ROOT="${QUALITY_RUN_ROOT:-${OUTPUT_ROOT}/${QUALITY_RUN_NAME}}"
+QUALITY_TARGETS_FILE="${QUALITY_TARGETS_FILE:-${QUALITY_RUN_ROOT}/quality_targets.csv}"
+QUALITY_AGG_DIR="${QUALITY_AGG_DIR:-${QUALITY_RUN_ROOT}/aggregate}"
+QUALITY_TEST_PREDICTIONS="${QUALITY_TEST_PREDICTIONS:-${QUALITY_RUN_ROOT}/quality_predictions_test.csv}"
+AGE_TEST_PREDICTIONS="${AGE_TEST_PREDICTIONS:-${AGE_RUN_ROOT}/fold_0/test_predictions_raw_ddp.npz}"
+QUALITY_CHECKPOINT="${QUALITY_CHECKPOINT:-${QUALITY_RUN_ROOT}/fold_0/${QUALITY_MODEL}_quality_assessor_ddp.pth}"
+
+stage_enabled() {
+  local requested="$1"
+  [[ "${PIPELINE_STAGE}" == "${requested}" || "${PIPELINE_STAGE}" == "all" ]]
+}
 
 DATASET_ARGS=()
 [[ "${INCLUDE_HANDRGBD}" -gt 0 ]] && DATASET_ARGS+=(--include-handrgbd)
@@ -150,9 +169,10 @@ else
   echo ">>> Using existing test split: ${TEST_SPLIT_FILE}"
 fi
 
-for USER_GROUP_SIZE in ${USER_GROUP_SIZES}; do
-  for MODEL_NAME in ${MODELS}; do
-    for SEED_VAL in ${SEED}; do
+if stage_enabled age; then
+  for USER_GROUP_SIZE in ${USER_GROUP_SIZES}; do
+    for MODEL_NAME in ${MODELS}; do
+      for SEED_VAL in ${SEED}; do
       AGG_SEED_EFF="${AGG_SEED:-${SEED_VAL}}"
       DEFAULT_RUN_NAME="${MODEL_NAME}"
       if [[ -n "${IMG_SIZE}" ]]; then
@@ -284,6 +304,75 @@ for USER_GROUP_SIZE in ${USER_GROUP_SIZES}; do
           $( [[ "${NORMALS_PRIVILEGED}" -gt 0 ]] && echo "--normals-privileged --normals-dropout ${NORMALS_DROPOUT} --lucid-fraction ${LUCID_FRACTION}" )
         echo ">>> Training for ${MODEL_NAME} seed=${SEED_VAL} complete. Artifacts in ${RUN_OUT}"
       fi
+      done
     done
   done
-done
+fi
+
+if stage_enabled quality_targets; then
+  mkdir -p "${QUALITY_RUN_ROOT}"
+  echo ">>> Generating quality targets from age OOF predictions in ${AGE_RUN_ROOT}"
+  python "${PROJECT_ROOT}/generate_quality_targets.py" \
+    --kfold-root "${AGE_RUN_ROOT}" \
+    --output-file "${QUALITY_TARGETS_FILE}"
+fi
+
+if stage_enabled quality; then
+  if [[ ! -f "${QUALITY_TARGETS_FILE}" ]]; then
+    echo "ERROR: Missing quality targets: ${QUALITY_TARGETS_FILE}" >&2
+    echo "Run PIPELINE_STAGE=quality_targets first, or PIPELINE_STAGE=all." >&2
+    exit 1
+  fi
+  for ((FOLD_IDX=0; FOLD_IDX<KFOLDS; FOLD_IDX++)); do
+    QUALITY_OUT="${QUALITY_RUN_ROOT}/fold_${FOLD_IDX}"
+    echo ">>> Training quality assessor fold=${FOLD_IDX} (output: ${QUALITY_OUT})"
+    torchrun \
+      --nnodes="${NNODES}" \
+      --nproc_per_node="${GPUS_PER_NODE}" \
+      --rdzv_backend=c10d \
+      --rdzv_endpoint="${MASTER_ADDR}:${MASTER_PORT}" \
+      "${PROJECT_ROOT}/train_quality_distributed.py" \
+      --quality-targets "${QUALITY_TARGETS_FILE}" \
+      --output-dir "${QUALITY_OUT}" \
+      --model "${QUALITY_MODEL}" \
+      --batch-size "${QUALITY_BATCH_SIZE}" \
+      --epochs "${QUALITY_EPOCHS}" \
+      --lr "${QUALITY_LR}" \
+      --weight-decay "${QUALITY_WEIGHT_DECAY}" \
+      --num-workers "${NUM_WORKERS}" \
+      --seed "${SEED}" \
+      --patience "${PATIENCE}" \
+      --fold-index "${FOLD_IDX}" \
+      $( [[ -n "${IMG_SIZE}" ]] && echo "--img-size ${IMG_SIZE}" ) \
+      $( [[ "${USE_MASKS}" -gt 0 ]] && echo "--use-masks" ) \
+      --dist-backend nccl
+  done
+fi
+
+if stage_enabled quality_eval; then
+  mkdir -p "${QUALITY_AGG_DIR}"
+  echo ">>> Evaluating quality assessor validation predictions in ${QUALITY_RUN_ROOT}"
+  python "${PROJECT_ROOT}/evaluate_quality.py" \
+    --quality-root "${QUALITY_RUN_ROOT}" \
+    --output-dir "${QUALITY_AGG_DIR}"
+
+  if [[ -f "${AGE_TEST_PREDICTIONS}" && -f "${QUALITY_CHECKPOINT}" ]]; then
+    echo ">>> Predicting held-out test quality scores"
+    python "${PROJECT_ROOT}/predict_quality.py" \
+      --checkpoint "${QUALITY_CHECKPOINT}" \
+      --model "${QUALITY_MODEL}" \
+      --age-predictions "${AGE_TEST_PREDICTIONS}" \
+      --output-file "${QUALITY_TEST_PREDICTIONS}" \
+      --batch-size "${QUALITY_BATCH_SIZE}" \
+      --num-workers "${NUM_WORKERS}" \
+      $( [[ -n "${IMG_SIZE}" ]] && echo "--img-size ${IMG_SIZE}" ) \
+      $( [[ "${USE_MASKS}" -gt 0 ]] && echo "--use-masks" )
+
+    python "${PROJECT_ROOT}/evaluate_quality_age_gate.py" \
+      --age-predictions "${AGE_TEST_PREDICTIONS}" \
+      --quality-predictions "${QUALITY_TEST_PREDICTIONS}" \
+      --output-dir "${QUALITY_AGG_DIR}"
+  else
+    echo ">>> Skipping held-out quality age-gate reassessment; missing ${AGE_TEST_PREDICTIONS} or ${QUALITY_CHECKPOINT}"
+  fi
+fi

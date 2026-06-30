@@ -8,6 +8,7 @@ from .hand_metadata import (
     set_dataset_root,
 )
 from .age import AgeDataset
+from .quality import QUALITY_TARGET_COLUMNS, QualityDataset
 from .transforms import build_transforms
 from .utils import filter_metadata
 
@@ -19,6 +20,8 @@ __all__ = [
     "load_primary_metadata",
     "set_dataset_root",
     "AgeDataset",
+    "QUALITY_TARGET_COLUMNS",
+    "QualityDataset",
     "build_transforms",
     "filter_metadata",
 ]

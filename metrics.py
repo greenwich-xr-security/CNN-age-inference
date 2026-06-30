@@ -261,6 +261,7 @@ def aggregate_predictions_by_user(
     *,
     group_size: int,
     rng: random.Random | None = None,
+    sample_ids: Sequence[object] | None = None,
 ) -> dict:
     """
     Aggregate per-sample predictions into random per-user groups of size *group_size*.
@@ -274,38 +275,46 @@ def aggregate_predictions_by_user(
     if rng is None:
         rng = random.Random()
 
-    user_buckets: dict[str, list[tuple[float, float, float]]] = {}
-    for uid, tgt, mean, log_var in zip(user_ids, targets, pred_means, pred_log_vars):
+    if sample_ids is None:
+        sample_ids_iter: Sequence[object] = [""] * len(user_ids)
+    else:
+        sample_ids_iter = sample_ids
+
+    user_buckets: dict[str, list[tuple[float, float, float, str]]] = {}
+    for uid, tgt, mean, log_var, sample_id in zip(user_ids, targets, pred_means, pred_log_vars, sample_ids_iter):
         key = str(uid)
-        user_buckets.setdefault(key, []).append((float(tgt), float(mean), float(log_var)))
+        user_buckets.setdefault(key, []).append((float(tgt), float(mean), float(log_var), str(sample_id)))
 
     agg_targets: list[float] = []
     agg_means: list[float] = []
     agg_log_vars: list[float] = []
     agg_user_ids: list[str] = []
+    agg_sample_ids: list[str] = []
 
     for uid, samples in user_buckets.items():
         if group_size == 1:
-            for tgt, mean, log_var in samples:
+            for tgt, mean, log_var, sample_id in samples:
                 clamped_lv = float(np.clip(log_var, LOG_VAR_MIN, LOG_VAR_MAX))
                 agg_targets.append(tgt)
                 agg_means.append(mean)
                 agg_log_vars.append(clamped_lv)
                 agg_user_ids.append(uid)
+                agg_sample_ids.append(sample_id)
             continue
 
         rng.shuffle(samples)
         full_groups, remainder = divmod(len(samples), group_size)
         cursor = 0
 
-        def _append_group(chunk: Sequence[tuple[float, float, float]]):
-            tgt_vals, mean_vals, lv_vals = zip(*chunk)
+        def _append_group(chunk: Sequence[tuple[float, float, float, str]]):
+            tgt_vals, mean_vals, lv_vals, sample_id_vals = zip(*chunk)
             var_vals = [float(np.exp(np.clip(lv, LOG_VAR_MIN, LOG_VAR_MAX))) for lv in lv_vals]
             mean_var = float(np.mean(var_vals))
             agg_targets.append(float(np.mean(tgt_vals)))
             agg_means.append(float(np.mean(mean_vals)))
             agg_log_vars.append(float(np.log(max(mean_var, 1e-12))))
             agg_user_ids.append(uid)
+            agg_sample_ids.append("||".join(sample_id_vals))
 
         for _ in range(full_groups):
             chunk = samples[cursor : cursor + group_size]
@@ -315,12 +324,15 @@ def aggregate_predictions_by_user(
             chunk = samples[cursor:]
             _append_group(chunk)
 
-    return {
+    result = {
         "targets": np.asarray(agg_targets, dtype=float),
         "pred_mean": np.asarray(agg_means, dtype=float),
         "pred_log_var": np.asarray(agg_log_vars, dtype=float),
         "user_ids": np.asarray(agg_user_ids, dtype=str),
     }
+    if sample_ids is not None:
+        result["sample_ids"] = np.asarray(agg_sample_ids, dtype=str)
+    return result
 
 
 # ---------------------------------------------------------------------------

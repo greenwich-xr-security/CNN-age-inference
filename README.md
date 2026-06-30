@@ -172,3 +172,66 @@ NORMALS_AUX=1 LOSS_WEIGHT_NORMALS=0.05 MODELS="b4" sbatch submit_distributed.slu
 
 > **Note:** the normals head is currently implemented for EfficientNet backbones only. Other architectures (Swin, ConvNeXt, etc.) will ignore `--normals-aux` unless extended in `models/`.
 
+---
+
+### 6. Hand image quality assessment for age regression
+
+The quality-assessment pipeline trains the age regressor first, then trains a
+second CNN to estimate how useful each hand image is for age prediction.
+
+The important guardrail is that quality targets must come from out-of-fold age
+predictions. A quality label for a sample must be produced by an age CNN that did
+not train on that sample.
+
+#### Unified distributed pipeline
+
+`submit_distributed.slurm` is controlled by `PIPELINE_STAGE`:
+
+```bash
+# Existing age-regression k-fold training
+PIPELINE_STAGE=age sbatch submit_distributed.slurm
+
+# Build quality_targets.csv from age fold validation predictions
+PIPELINE_STAGE=quality_targets sbatch submit_distributed.slurm
+
+# Train quality CNN folds
+PIPELINE_STAGE=quality sbatch submit_distributed.slurm
+
+# Evaluate quality predictions and quality-aware adult gate
+PIPELINE_STAGE=quality_eval sbatch submit_distributed.slurm
+
+# Run the complete sequence
+PIPELINE_STAGE=all sbatch submit_distributed.slurm
+```
+
+`KFOLDS` remains configurable and supports any value `>= 2`; no stage assumes a
+fixed number of folds.
+
+#### Main artifacts
+
+| Artifact | Purpose |
+|---|---|
+| `val_predictions_raw_ddp.npz` | Out-of-fold age predictions with `image_path` identifiers |
+| `quality_targets.csv` | Error, uncertainty, consistency and quality labels |
+| `quality_predictions_val.csv` | Quality model validation predictions per fold |
+| `quality_summary.csv` | Correlation, error and AUC summary for the quality CNN |
+| `quality_age_gate_reassessment.csv` | Adult/minor gate metrics after quality filtering |
+
+#### Standalone commands
+
+```bash
+python generate_quality_targets.py \
+    --kfold-root runs/my_age_run \
+    --output-file runs/my_quality_run/quality_targets.csv
+
+torchrun --nproc_per_node=2 train_quality_distributed.py \
+    --quality-targets runs/my_quality_run/quality_targets.csv \
+    --output-dir runs/my_quality_run/fold_0 \
+    --fold-index 0 \
+    --model b0
+
+python evaluate_quality.py \
+    --quality-root runs/my_quality_run \
+    --output-dir runs/my_quality_run/aggregate
+```
+

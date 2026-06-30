@@ -545,7 +545,12 @@ def build_datasets(args: argparse.Namespace, seed: int, img_size: int):
         transform=train_transform,
         normals_transform=normals_transform,
     )
-    val_ds = AgeDataset(val_meta, transform=test_transform, use_masks=args.use_masks)
+    val_ds = AgeDataset(
+        val_meta,
+        transform=test_transform,
+        use_masks=args.use_masks,
+        return_image_path=True,
+    )
     val_user_skin = build_user_skin_color_series(val_meta)
     return train_ds, val_ds, active_root, len(train_meta), len(val_meta), fold_info, val_user_skin, normals_transform
 
@@ -990,9 +995,15 @@ def main() -> None:
         val_predictions = []
         val_log_vars = []
         val_user_ids = []
+        val_image_paths = []
 
         with torch.no_grad():
-            for images, ages, batch_user_ids in val_loader:
+            for batch in val_loader:
+                if len(batch) == 4:
+                    images, ages, batch_user_ids, batch_image_paths = batch
+                else:
+                    images, ages, batch_user_ids = batch
+                    batch_image_paths = [""] * len(batch_user_ids)
                 images = images.to(device, non_blocking=True)
                 ages = ages.to(device, non_blocking=True)
                 if _normals_privileged:
@@ -1045,6 +1056,7 @@ def main() -> None:
                 val_predictions.extend(pred_mean.detach().cpu().tolist())
                 val_log_vars.extend(pred_log_var.detach().cpu().tolist())
                 val_user_ids.extend(list(batch_user_ids))
+                val_image_paths.extend([str(p) for p in batch_image_paths])
 
         val_totals = all_reduce_metrics(
             device,
@@ -1119,6 +1131,7 @@ def main() -> None:
             preds_all = gather_all_lists(val_predictions, world_size)
             log_vars_all = gather_all_lists(val_log_vars, world_size)
             user_ids_all = gather_all_lists(val_user_ids, world_size)
+            image_paths_all = gather_all_lists(val_image_paths, world_size)
 
         if save_best and is_main:
             model_to_save = ddp_model.module
@@ -1129,6 +1142,7 @@ def main() -> None:
             preds_arr = np.asarray(preds_all, dtype=float)
             log_vars_arr = np.asarray(log_vars_all, dtype=float)
             user_ids_list = list(user_ids_all)
+            image_paths_arr = np.asarray(image_paths_all, dtype=str)
 
             raw_preds_path = output_dir / "val_predictions_raw_ddp.npz"
             raw_skin_colors = map_user_series_to_array(user_ids_list, val_user_skin)
@@ -1138,6 +1152,7 @@ def main() -> None:
                 pred_mean=preds_arr,
                 pred_log_var=log_vars_arr,
                 user_ids=np.asarray(user_ids_list, dtype=str),
+                image_path=image_paths_arr,
                 skin_color=raw_skin_colors,
                 epoch=epoch,
             )
@@ -1152,6 +1167,7 @@ def main() -> None:
                     log_vars_arr,
                     group_size=group_size,
                     rng=agg_rng,
+                    sample_ids=image_paths_arr,
                 )
                 suffix = f"n{group_size}_ddp"
                 if args.eval_age_gate_mode == "age_threshold":
@@ -1198,6 +1214,7 @@ def main() -> None:
                     pred_log_var=aggregated["pred_log_var"],
                     adult_prob=gate_results["adult_prob"],
                     user_ids=aggregated["user_ids"],
+                    image_path=aggregated.get("sample_ids", np.asarray([], dtype=str)),
                     skin_color=agg_skin_colors,
                     epoch=epoch,
                     group_size=group_size,
@@ -1395,7 +1412,11 @@ def main() -> None:
             all_log_vars: list[float] = []
             all_user_ids: list = []
             with torch.no_grad():
-                for images, ages, batch_user_ids in eval_loader:
+                for batch in eval_loader:
+                    if len(batch) == 4:
+                        images, ages, batch_user_ids, _batch_image_paths = batch
+                    else:
+                        images, ages, batch_user_ids = batch
                     images = images.to(device)
                     ages = ages.to(device)
                     if getattr(args, "normals_privileged", False):
@@ -1491,7 +1512,12 @@ def main() -> None:
                 print("[Rank 0] No test samples found after filtering; skipping test evaluation.")
             else:
                 print(f"[Rank 0] Test set: {test_meta['user_id'].nunique()} users, {len(test_meta)} samples.")
-                test_dataset = AgeDataset(test_meta, transform=test_transform, use_masks=args.use_masks)
+                test_dataset = AgeDataset(
+                    test_meta,
+                    transform=test_transform,
+                    use_masks=args.use_masks,
+                    return_image_path=True,
+                )
                 test_loader = DataLoader(
                     test_dataset,
                     batch_size=args.batch_size,
@@ -1510,8 +1536,14 @@ def main() -> None:
                 t_means: list[float] = []
                 t_log_vars: list[float] = []
                 t_user_ids: list = []
+                t_image_paths: list[str] = []
                 with torch.no_grad():
-                    for images, ages, batch_user_ids in test_loader:
+                    for batch in test_loader:
+                        if len(batch) == 4:
+                            images, ages, batch_user_ids, batch_image_paths = batch
+                        else:
+                            images, ages, batch_user_ids = batch
+                            batch_image_paths = [""] * len(batch_user_ids)
                         images = images.to(device)
                         if getattr(args, "normals_privileged", False):
                             zeros_n = torch.zeros(
@@ -1530,6 +1562,7 @@ def main() -> None:
                         t_means.extend(mean.cpu().tolist())
                         t_log_vars.extend(log_var.cpu().tolist())
                         t_user_ids.extend(list(batch_user_ids))
+                        t_image_paths.extend([str(p) for p in batch_image_paths])
 
                 t_targets_arr = np.asarray(t_targets, dtype=float)
                 t_means_arr = np.asarray(t_means, dtype=float)
@@ -1541,6 +1574,7 @@ def main() -> None:
                     pred_mean=t_means_arr,
                     pred_log_var=t_log_vars_arr,
                     user_ids=np.asarray(t_user_ids, dtype=str),
+                    image_path=np.asarray(t_image_paths, dtype=str),
                     skin_color=map_user_series_to_array(t_user_ids, test_user_skin),
                 )
 
@@ -1561,6 +1595,7 @@ def main() -> None:
                     aggregated = aggregate_predictions_by_user(
                         t_user_ids, t_targets_arr, t_means_arr, t_log_vars_arr,
                         group_size=group_size, rng=agg_rng,
+                        sample_ids=t_image_paths,
                     )
                     suffix = f"n{group_size}_ddp"
                     if args.eval_age_gate_mode == "age_threshold":
@@ -1595,6 +1630,7 @@ def main() -> None:
                         pred_log_var=aggregated["pred_log_var"],
                         adult_prob=gate_results["adult_prob"],
                         user_ids=aggregated["user_ids"],
+                        image_path=aggregated.get("sample_ids", np.asarray([], dtype=str)),
                         skin_color=map_user_series_to_array(aggregated["user_ids"], test_user_skin),
                         group_size=group_size,
                     )

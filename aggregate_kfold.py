@@ -102,6 +102,7 @@ def load_predictions(run_dir: Path, group_size: int, *, split: str = "val") -> d
         "pred_mean": data["pred_mean"].astype(float),
         "pred_log_var": data["pred_log_var"].astype(float),
         "user_ids": data["user_ids"].astype(str) if "user_ids" in data.files else None,
+        "image_path": data["image_path"].astype(str) if "image_path" in data.files else None,
         "skin_color": data["skin_color"].astype(str) if "skin_color" in data.files else None,
     }
 
@@ -115,6 +116,7 @@ def load_raw_predictions(run_dir: Path, *, split: str = "val") -> dict | None:
         "targets": data["targets"].astype(float),
         "pred_mean": data["pred_mean"].astype(float),
         "user_ids": data["user_ids"].astype(str),
+        "image_path": data["image_path"].astype(str) if "image_path" in data.files else None,
     }
 
 

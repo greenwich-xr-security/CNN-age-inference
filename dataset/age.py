@@ -26,6 +26,7 @@ class AgeDataset(Dataset):
         transform=None,
         use_masks: bool = False,
         normals_transform=None,
+        return_image_path: bool = False,
     ):
         self.records = records.copy()
         if "aspect" in self.records.columns:
@@ -40,6 +41,7 @@ class AgeDataset(Dataset):
         self.transform = transform
         self.use_masks = bool(use_masks)
         self.normals_transform = normals_transform
+        self.return_image_path = bool(return_image_path)
         self._has_normals_col = "normals_path" in self.records.columns
 
     def __len__(self):
@@ -144,7 +146,10 @@ class AgeDataset(Dataset):
             image = self.transform(image)
 
         if self.normals_transform is None or not self._has_normals_col:
-            return image, torch.tensor(age, dtype=torch.float32), row["user_id"]
+            base = (image, torch.tensor(age, dtype=torch.float32), row["user_id"])
+            if self.return_image_path:
+                return (*base, str(image_path))
+            return base
 
         # Load paired normal map if available.
         normals_tensor = None
@@ -157,4 +162,7 @@ class AgeDataset(Dataset):
             except Exception:
                 normals_tensor = None
 
-        return image, torch.tensor(age, dtype=torch.float32), row["user_id"], normals_tensor
+        base = (image, torch.tensor(age, dtype=torch.float32), row["user_id"], normals_tensor)
+        if self.return_image_path:
+            return (*base, str(image_path))
+        return base

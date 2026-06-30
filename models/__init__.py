@@ -4,6 +4,11 @@ from .efficientnet_age import EFFICIENTNET_IMG_SIZES, EfficientNetAgeRegressor
 from .convnext_age import CONVNEXT_IMG_SIZES, ConvNeXtAgeRegressor
 from .mobilenet_age import MOBILENET_IMG_SIZES, MobileNetAgeRegressor
 from .normals_head import NormalsHead
+from .quality_assessment import (
+    EfficientNetQualityAssessor,
+    QUALITY_OUTPUT_NAMES,
+    resolve_quality_model_builder,
+)
 from .resnet_age import RESNET_IMG_SIZES, ResNetAgeRegressor
 from .swin_age import SWIN_IMG_SIZES, SwinAgeRegressor
 from .vit_age import VIT_IMG_SIZES, ViTAgeRegressor
@@ -16,6 +21,8 @@ __all__ = [
     "MOBILENET_IMG_SIZES",
     "MobileNetAgeRegressor",
     "NormalsHead",
+    "EfficientNetQualityAssessor",
+    "QUALITY_OUTPUT_NAMES",
     "RESNET_IMG_SIZES",
     "ResNetAgeRegressor",
     "SWIN_IMG_SIZES",
@@ -24,6 +31,7 @@ __all__ = [
     "ViTAgeRegressor",
     "expand_first_conv_to_6ch",
     "resolve_model_builder",
+    "resolve_quality_model_builder",
 ]
 
 

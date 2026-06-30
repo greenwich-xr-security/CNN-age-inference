@@ -5,8 +5,13 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
+import matplotlib
+
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from sklearn.metrics import roc_auc_score
 
 
 def parse_args() -> argparse.Namespace:
@@ -44,6 +49,12 @@ def load_age_predictions(path: Path) -> pd.DataFrame:
     )
 
 
+def safe_auc(y_true: np.ndarray, y_score: np.ndarray) -> float:
+    if len(y_true) < 2 or np.unique(y_true).size < 2:
+        return float("nan")
+    return float(roc_auc_score(y_true.astype(int), y_score.astype(float)))
+
+
 def gate_metrics(df: pd.DataFrame, age_threshold: float, decision_threshold: float) -> dict[str, float]:
     true_adult = df["age"].to_numpy(float) >= age_threshold
     pred_adult = df["age_pred_mean"].to_numpy(float) >= decision_threshold
@@ -61,8 +72,21 @@ def gate_metrics(df: pd.DataFrame, age_threshold: float, decision_threshold: flo
         "fnr": fn / max(1.0, fn + tp),
         "tpr": tp / max(1.0, fn + tp),
         "tnr": tn / max(1.0, fp + tn),
+        "auc_adult_gate": safe_auc(true_adult, df["age_pred_mean"].to_numpy(float)),
         "mae": float(np.mean(np.abs(df["age_pred_mean"].to_numpy(float) - df["age"].to_numpy(float)))),
     }
+
+
+def plot_quality_histogram(merged: pd.DataFrame, output_dir: Path) -> None:
+    fig, ax = plt.subplots(figsize=(8, 5), dpi=150)
+    ax.hist(merged["pred_quality_score"].to_numpy(float), bins=30, color="#2f6f8f", edgecolor="white")
+    ax.set_xlabel("Predicted quality score")
+    ax.set_ylabel("Frequency")
+    ax.set_title("Held-out Test Quality Score Distribution")
+    ax.grid(axis="y", alpha=0.25)
+    fig.tight_layout()
+    fig.savefig(output_dir / "quality_score_histogram.png")
+    plt.close(fig)
 
 
 def main() -> None:
@@ -114,6 +138,7 @@ def main() -> None:
 
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
+    plot_quality_histogram(merged, output_dir)
     pd.DataFrame(rows).to_csv(output_dir / "quality_age_gate_reassessment.csv", index=False)
     pd.DataFrame(near_rows).to_csv(output_dir / "quality_age_gate_near_boundary.csv", index=False)
     merged.to_csv(output_dir / "quality_age_gate_joined_predictions.csv", index=False)

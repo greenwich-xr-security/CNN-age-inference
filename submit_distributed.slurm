@@ -135,6 +135,7 @@ QUALITY_AGG_DIR="${QUALITY_AGG_DIR:-${QUALITY_RUN_ROOT}/aggregate}"
 QUALITY_TEST_PREDICTIONS="${QUALITY_TEST_PREDICTIONS:-${QUALITY_RUN_ROOT}/quality_predictions_test.csv}"
 AGE_TEST_PREDICTIONS="${AGE_TEST_PREDICTIONS:-${AGE_RUN_ROOT}/fold_0/test_predictions_raw_ddp.npz}"
 QUALITY_CHECKPOINT="${QUALITY_CHECKPOINT:-${QUALITY_RUN_ROOT}/fold_0/${QUALITY_MODEL}_quality_assessor_ddp.pth}"
+QUALITY_CHECKPOINTS="${QUALITY_CHECKPOINTS:-}"
 
 stage_enabled() {
   local requested="$1"
@@ -357,13 +358,28 @@ if stage_enabled quality_eval; then
     --quality-root "${QUALITY_RUN_ROOT}" \
     --output-dir "${QUALITY_AGG_DIR}"
 
-  if [[ -f "${AGE_TEST_PREDICTIONS}" && -f "${QUALITY_CHECKPOINT}" ]]; then
-    echo ">>> Predicting held-out test quality scores"
+  QUALITY_CHECKPOINT_ARGS=()
+  if [[ -n "${QUALITY_CHECKPOINTS}" ]]; then
+    read -r -a QUALITY_CHECKPOINT_ARGS <<< "${QUALITY_CHECKPOINTS}"
+  elif [[ "${KFOLDS}" -gt 1 ]]; then
+    for ((FOLD_IDX=0; FOLD_IDX<KFOLDS; FOLD_IDX++)); do
+      FOLD_CHECKPOINT="${QUALITY_RUN_ROOT}/fold_${FOLD_IDX}/${QUALITY_MODEL}_quality_assessor_ddp.pth"
+      if [[ -f "${FOLD_CHECKPOINT}" ]]; then
+        QUALITY_CHECKPOINT_ARGS+=("${FOLD_CHECKPOINT}")
+      fi
+    done
+  elif [[ -f "${QUALITY_CHECKPOINT}" ]]; then
+    QUALITY_CHECKPOINT_ARGS+=("${QUALITY_CHECKPOINT}")
+  fi
+
+  if [[ -f "${AGE_TEST_PREDICTIONS}" && "${#QUALITY_CHECKPOINT_ARGS[@]}" -gt 0 ]]; then
+    echo ">>> Predicting held-out test quality scores with ${#QUALITY_CHECKPOINT_ARGS[@]} checkpoint(s)"
     python "${PROJECT_ROOT}/predict_quality.py" \
-      --checkpoint "${QUALITY_CHECKPOINT}" \
+      --checkpoint "${QUALITY_CHECKPOINT_ARGS[@]}" \
       --model "${QUALITY_MODEL}" \
       --age-predictions "${AGE_TEST_PREDICTIONS}" \
       --output-file "${QUALITY_TEST_PREDICTIONS}" \
+      --per-checkpoint-output-dir "${QUALITY_RUN_ROOT}/test_fold_predictions" \
       --batch-size "${QUALITY_BATCH_SIZE}" \
       --num-workers "${NUM_WORKERS}" \
       $( [[ -n "${IMG_SIZE}" ]] && echo "--img-size ${IMG_SIZE}" ) \
@@ -374,6 +390,6 @@ if stage_enabled quality_eval; then
       --quality-predictions "${QUALITY_TEST_PREDICTIONS}" \
       --output-dir "${QUALITY_AGG_DIR}"
   else
-    echo ">>> Skipping held-out quality age-gate reassessment; missing ${AGE_TEST_PREDICTIONS} or ${QUALITY_CHECKPOINT}"
+    echo ">>> Skipping held-out quality age-gate reassessment; missing ${AGE_TEST_PREDICTIONS} or quality checkpoints"
   fi
 fi

@@ -22,6 +22,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--age-threshold", type=float, default=18.0)
     parser.add_argument("--decision-threshold", type=float, default=18.0)
     parser.add_argument(
+        "--mae-bootstrap-samples",
+        type=int,
+        default=2000,
+        help="Bootstrap resamples for MAE 95%% confidence intervals (0 disables).",
+    )
+    parser.add_argument("--bootstrap-seed", type=int, default=42)
+    parser.add_argument(
         "--quality-quantiles",
         type=float,
         nargs="+",
@@ -77,6 +84,31 @@ def gate_metrics(df: pd.DataFrame, age_threshold: float, decision_threshold: flo
     }
 
 
+def mae_interval(
+    df: pd.DataFrame,
+    *,
+    bootstrap_samples: int,
+    seed: int,
+) -> dict[str, float]:
+    abs_error = np.abs(df["age_pred_mean"].to_numpy(float) - df["age"].to_numpy(float))
+    if abs_error.size == 0:
+        return {"mae_se": float("nan"), "mae_ci_low": float("nan"), "mae_ci_high": float("nan")}
+
+    if abs_error.size == 1 or bootstrap_samples <= 0:
+        se = float(np.std(abs_error, ddof=1) / np.sqrt(abs_error.size)) if abs_error.size > 1 else 0.0
+        mae = float(np.mean(abs_error))
+        return {"mae_se": se, "mae_ci_low": mae - 1.96 * se, "mae_ci_high": mae + 1.96 * se}
+
+    rng = np.random.default_rng(seed)
+    sample_idx = rng.integers(0, abs_error.size, size=(int(bootstrap_samples), abs_error.size))
+    boot_mae = abs_error[sample_idx].mean(axis=1)
+    return {
+        "mae_se": float(np.std(boot_mae, ddof=1)),
+        "mae_ci_low": float(np.quantile(boot_mae, 0.025)),
+        "mae_ci_high": float(np.quantile(boot_mae, 0.975)),
+    }
+
+
 def plot_quality_histogram(merged: pd.DataFrame, output_dir: Path) -> None:
     quality = merged["pred_quality_score"].to_numpy(float)
     abs_error = np.abs(merged["age_pred_mean"].to_numpy(float) - merged["age"].to_numpy(float))
@@ -113,6 +145,54 @@ def plot_quality_histogram(merged: pd.DataFrame, output_dir: Path) -> None:
     plt.close(fig)
 
 
+def plot_quality_gate_metrics(rows: list[dict[str, float]], output_path: Path, title: str) -> None:
+    if not rows:
+        return
+    frame = pd.DataFrame(rows).sort_values("reject_fraction")
+    if frame.empty:
+        return
+
+    x = frame["reject_fraction"].to_numpy(float)
+    mae = frame["mae"].to_numpy(float)
+    ci_low = frame.get("mae_ci_low", pd.Series(np.full(len(frame), np.nan))).to_numpy(float)
+    ci_high = frame.get("mae_ci_high", pd.Series(np.full(len(frame), np.nan))).to_numpy(float)
+    lower = np.where(np.isfinite(ci_low), np.maximum(0.0, mae - ci_low), 0.0)
+    upper = np.where(np.isfinite(ci_high), np.maximum(0.0, ci_high - mae), 0.0)
+
+    fig, axes = plt.subplots(2, 1, figsize=(8, 7), dpi=150, sharex=True)
+    axes[0].errorbar(
+        x,
+        mae,
+        yerr=np.vstack([lower, upper]),
+        marker="o",
+        capsize=4,
+        linewidth=2,
+        color="#2f6f8f",
+        label="MAE (95% bootstrap CI)",
+    )
+    axes[0].set_ylabel("MAE (years)")
+    axes[0].set_title(title)
+    axes[0].grid(alpha=0.25)
+    axes[0].legend(loc="best")
+
+    for metric, label, color in [
+        ("auc_adult_gate", "AUC", "#2f6f8f"),
+        ("fpr", "FPR", "#a23b3b"),
+        ("fnr", "FNR", "#7a5aa6"),
+    ]:
+        if metric in frame.columns:
+            axes[1].plot(x, frame[metric].to_numpy(float), marker="o", linewidth=2, label=label, color=color)
+    axes[1].set_xlabel("Rejected lowest-quality fraction")
+    axes[1].set_ylabel("Age-gate metric")
+    axes[1].set_ylim(0.0, 1.02)
+    axes[1].grid(alpha=0.25)
+    axes[1].legend(loc="best", ncol=3)
+
+    fig.tight_layout()
+    fig.savefig(output_path)
+    plt.close(fig)
+
+
 def main() -> None:
     args = parse_args()
     age_df = load_age_predictions(Path(args.age_predictions))
@@ -134,6 +214,13 @@ def main() -> None:
         admitted = merged[merged["pred_quality_score"] >= cutoff].copy()
         metrics = gate_metrics(admitted, args.age_threshold, args.decision_threshold)
         metrics.update(
+            mae_interval(
+                admitted,
+                bootstrap_samples=args.mae_bootstrap_samples,
+                seed=args.bootstrap_seed + int(round(reject_fraction * 1000)),
+            )
+        )
+        metrics.update(
             {
                 "rule": "quality_score_filter",
                 "reject_fraction": reject_fraction,
@@ -151,6 +238,13 @@ def main() -> None:
             admitted = near[near["pred_quality_score"] >= cutoff]
             metrics = gate_metrics(admitted, args.age_threshold, args.decision_threshold)
             metrics.update(
+                mae_interval(
+                    admitted,
+                    bootstrap_samples=args.mae_bootstrap_samples,
+                    seed=args.bootstrap_seed + 10000 + int(round(reject_fraction * 1000)),
+                )
+            )
+            metrics.update(
                 {
                     "rule": "near_boundary_quality_score_filter",
                     "reject_fraction": reject_fraction,
@@ -163,6 +257,12 @@ def main() -> None:
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     plot_quality_histogram(merged, output_dir)
+    plot_quality_gate_metrics(rows, output_dir / "quality_age_gate_metrics.png", "Quality Filtering Age-Gate Metrics")
+    plot_quality_gate_metrics(
+        near_rows,
+        output_dir / "quality_age_gate_near_boundary_metrics.png",
+        "Near-Boundary Quality Filtering Age-Gate Metrics",
+    )
     pd.DataFrame(rows).to_csv(output_dir / "quality_age_gate_reassessment.csv", index=False)
     pd.DataFrame(near_rows).to_csv(output_dir / "quality_age_gate_near_boundary.csv", index=False)
     merged.to_csv(output_dir / "quality_age_gate_joined_predictions.csv", index=False)

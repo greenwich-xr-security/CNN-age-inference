@@ -4,7 +4,8 @@
 #SBATCH --ntasks-per-node=1               # torchrun will launch local ranks
 #SBATCH --partition=gpu-beast             # GPU partition
 #SBATCH --gres=gpu:8                      # Request 8 GPUs on the node
-#SBATCH --cpus-per-task=2                 # CPU cores available to each task
+#SBATCH --cpus-per-task=32                # CPU cores for torchrun ranks and DataLoader workers
+#SBATCH --mem=128G                        # RAM for 8 local ranks loading metadata/models
 #SBATCH --output=logs/%x-%j.log           # Stdout/stderr log file
 #SBATCH --mail-type=FAIL                  # Email on failure only
 #SBATCH --mail-user=rb3434w@gre.ac.uk

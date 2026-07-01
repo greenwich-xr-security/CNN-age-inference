@@ -196,11 +196,12 @@ def age_assurance_loss_components(
     age_threshold: float = 18.0,
     min_age: float | None = None,
     max_age: float | None = None,
+    severity_radius: float | None = None,
 ) -> dict[str, torch.Tensor]:
     """Compute BCE and severity-weighted age-assurance losses.
 
     The assurance probability is derived from the age-regression Gaussian. The
-    two secondary losses weight wrong-side probability mass by normalized
+    two secondary losses weight wrong-side probability mass by symmetric
     distance from the minor/adult boundary.
     """
     threshold = float(age_threshold)
@@ -216,19 +217,24 @@ def age_assurance_loss_components(
         min_age = float(torch.min(target_age.detach()).item())
     if max_age is None:
         max_age = float(torch.max(target_age.detach()).item())
-    minor_den = max(threshold - float(min_age), 1e-6)
-    adult_den = max(float(max_age) - threshold, 1e-6)
+    if severity_radius is None:
+        lower_span = max(threshold - float(min_age), 0.0)
+        upper_span = max(float(max_age) - threshold, 0.0)
+        severity_radius = min(span for span in (lower_span, upper_span) if span > 0) if (
+            lower_span > 0 or upper_span > 0
+        ) else 1.0
+    severity_radius = max(float(severity_radius), 1e-6)
 
-    minor_mask = target_adult.lt(0.5)
-    adult_mask = target_adult.ge(0.5)
-    minor_severity = torch.clamp((threshold - target_age) / minor_den, min=0.0, max=1.0)
-    adult_severity = torch.clamp((target_age - threshold) / adult_den, min=0.0, max=1.0)
+    boundary_distance = torch.clamp(
+        torch.abs(target_age - threshold) / severity_radius,
+        min=0.0,
+        max=1.0,
+    )
 
     return {
         "adult_prob": adult_prob,
         "bce": torch.mean(per_sample_bce),
-        "minor_admission": torch.mean(per_sample_bce * minor_mask.to(per_sample_bce.dtype) * minor_severity),
-        "adult_rejection": torch.mean(per_sample_bce * adult_mask.to(per_sample_bce.dtype) * adult_severity),
+        "severity": torch.mean(per_sample_bce * boundary_distance),
     }
 
 

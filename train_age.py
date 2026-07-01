@@ -88,6 +88,11 @@ def _append_dataset_stats(config_path: Path, label: str, df: pd.DataFrame) -> No
             fp.write(f"{label}_{key}={stats[key]}\n")
 
 
+def format_active_loss_weights(items: list[tuple[str, float]], *, eps: float = 1e-12) -> str:
+    active = [f"{name}: {float(value):.3f}" for name, value in items if abs(float(value)) > eps]
+    return ", ".join(active) if active else "none"
+
+
 def _normalise_subject_id(value) -> str:
     uid = str(value).strip()
     for prefix in ("handrgbd_", "lucid_"):
@@ -564,11 +569,15 @@ def main() -> None:
         f"User group size: {args.user_group_size}\n"
         f"Epochs: {args.epochs} | Learning rate: {args.lr:.2e} | Seed: {args.seed}"
     )
-    print(
-        f"Loss weights -> NLL: {loss_weights.nll:.3f}, "
-        f"MSE: {loss_weights.mse:.3f}, MAE: {loss_weights.mae:.3f}, "
-        f"Spread: {args.loss_weight_spread:.3f}"
+    active_loss_weights = format_active_loss_weights(
+        [
+            ("NLL", loss_weights.nll),
+            ("MSE", loss_weights.mse),
+            ("MAE", loss_weights.mae),
+            ("Spread", args.loss_weight_spread),
+        ]
     )
+    print(f"Loss weights -> {active_loss_weights}")
     print(
         f"Eval aggregation group sizes: {eval_group_sizes} | "
         f"aggregation seed: {eval_agg_seed}"

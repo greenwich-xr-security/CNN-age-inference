@@ -68,9 +68,9 @@ LOSS_WEIGHT_MSE="${LOSS_WEIGHT_MSE:-0.4}"
 LOSS_WEIGHT_MAE="${LOSS_WEIGHT_MAE:-0.9}"
 LOSS_WEIGHT_SPREAD="${LOSS_WEIGHT_SPREAD:-0.5}"
 AGE_ASSURANCE_THRESHOLD="${AGE_ASSURANCE_THRESHOLD:-18.0}"
+AGE_ASSURANCE_SEVERITY_RADIUS="${AGE_ASSURANCE_SEVERITY_RADIUS:-5.0}"
 LOSS_WEIGHT_AGE_ASSURANCE_BCE="${LOSS_WEIGHT_AGE_ASSURANCE_BCE:-1.0}"
-LOSS_WEIGHT_MINOR_ADMISSION_SEVERITY="${LOSS_WEIGHT_MINOR_ADMISSION_SEVERITY:-1.0}"
-LOSS_WEIGHT_ADULT_REJECTION_SEVERITY="${LOSS_WEIGHT_ADULT_REJECTION_SEVERITY:-0.5}"
+LOSS_WEIGHT_AGE_ASSURANCE_SEVERITY="${LOSS_WEIGHT_AGE_ASSURANCE_SEVERITY:-1.0}"
 LOSS_WEIGHT_EMBED_VAR="${LOSS_WEIGHT_EMBED_VAR:-0.8}"
 LOSS_WEIGHT_EMBED_CONTRAST="${LOSS_WEIGHT_EMBED_CONTRAST:-0.8}"
 # Age-gate evaluation mode (age_threshold: classify adult if pred_mean >= tau_age)
@@ -227,9 +227,9 @@ if stage_enabled age; then
             --loss-weight-mae "${LOSS_WEIGHT_MAE}" \
             --loss-weight-spread "${LOSS_WEIGHT_SPREAD}" \
             --age-assurance-threshold "${AGE_ASSURANCE_THRESHOLD}" \
+            --age-assurance-severity-radius "${AGE_ASSURANCE_SEVERITY_RADIUS}" \
             --loss-weight-age-assurance-bce "${LOSS_WEIGHT_AGE_ASSURANCE_BCE}" \
-            --loss-weight-minor-admission-severity "${LOSS_WEIGHT_MINOR_ADMISSION_SEVERITY}" \
-            --loss-weight-adult-rejection-severity "${LOSS_WEIGHT_ADULT_REJECTION_SEVERITY}" \
+            --loss-weight-age-assurance-severity "${LOSS_WEIGHT_AGE_ASSURANCE_SEVERITY}" \
             --user-group-size "${USER_GROUP_SIZE}" \
             --eval-aggregation-sizes ${AGG_SIZES} \
             --eval-aggregation-seed "${AGG_SEED_EFF}" \
@@ -295,9 +295,9 @@ if stage_enabled age; then
           --loss-weight-mae "${LOSS_WEIGHT_MAE}" \
           --loss-weight-spread "${LOSS_WEIGHT_SPREAD}" \
           --age-assurance-threshold "${AGE_ASSURANCE_THRESHOLD}" \
+          --age-assurance-severity-radius "${AGE_ASSURANCE_SEVERITY_RADIUS}" \
           --loss-weight-age-assurance-bce "${LOSS_WEIGHT_AGE_ASSURANCE_BCE}" \
-          --loss-weight-minor-admission-severity "${LOSS_WEIGHT_MINOR_ADMISSION_SEVERITY}" \
-          --loss-weight-adult-rejection-severity "${LOSS_WEIGHT_ADULT_REJECTION_SEVERITY}" \
+          --loss-weight-age-assurance-severity "${LOSS_WEIGHT_AGE_ASSURANCE_SEVERITY}" \
           --user-group-size "${USER_GROUP_SIZE}" \
           --eval-aggregation-sizes ${AGG_SIZES} \
           --eval-aggregation-seed "${AGG_SEED_EFF}" \

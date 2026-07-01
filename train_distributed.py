@@ -860,7 +860,12 @@ def main() -> None:
                 ("MSE", loss_weights.mse),
                 ("MAE", loss_weights.mae),
                 ("Spread", args.loss_weight_spread),
-                ("Normals", getattr(args, "loss_weight_normals", 0.0)),
+                (
+                    "Normals",
+                    getattr(args, "loss_weight_normals", 0.0)
+                    if getattr(args, "normals_aux", False) or getattr(args, "normals_privileged", False)
+                    else 0.0,
+                ),
             ]
         )
         age_assurance_loss_weights = format_active_loss_weights(

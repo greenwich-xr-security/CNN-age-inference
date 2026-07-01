@@ -32,12 +32,14 @@ from metrics import (
     CHALLENGE_BINS,
     CHALLENGE_FNR_BINS,
     CHALLENGE_PROB_TAU,
+    age_assurance_loss_components,
     embedding_contrastive_loss,
     embedding_variance_loss,
     LossWeights,
     aggregate_predictions_by_user,
     compute_age_gate_curves,
     compute_age_gate_curves_direct_threshold,
+    compute_adult_probabilities,
     compute_challenge_fnr_table_adult_gate,
     compute_challenge_fpr_table,
     compute_challenge_fpr_table_weighted,
@@ -288,6 +290,30 @@ def parse_args() -> argparse.Namespace:
         type=float,
         default=0.0,
         help="Weight for intra-user prediction spread penalty (default: 0.0).",
+    )
+    parser.add_argument(
+        "--age-assurance-threshold",
+        type=float,
+        default=18.0,
+        help="Minor/adult boundary used by the age-assurance objective (default: 18.0).",
+    )
+    parser.add_argument(
+        "--loss-weight-age-assurance-bce",
+        type=float,
+        default=0.0,
+        help="Weight for BCE on CDF-derived adult probability (default: 0.0 = disabled).",
+    )
+    parser.add_argument(
+        "--loss-weight-minor-admission-severity",
+        type=float,
+        default=0.0,
+        help="Weight for minor false-accept severity loss (default: 0.0).",
+    )
+    parser.add_argument(
+        "--loss-weight-adult-rejection-severity",
+        type=float,
+        default=0.0,
+        help="Weight for adult false-reject severity loss (default: 0.0).",
     )
     parser.add_argument(
         "--eval-age-gate-mode",
@@ -662,6 +688,13 @@ def main() -> None:
     loss_weights.validate()
     if args.loss_weight_spread < 0:
         raise ValueError("loss-weight-spread must be non-negative.")
+    for loss_name in (
+        "loss_weight_age_assurance_bce",
+        "loss_weight_minor_admission_severity",
+        "loss_weight_adult_rejection_severity",
+    ):
+        if getattr(args, loss_name) < 0:
+            raise ValueError(f"{loss_name.replace('_', '-')} must be non-negative.")
     if args.user_group_size < 1:
         raise ValueError("user-group-size must be at least 1.")
     eval_group_sizes = sorted({int(n) for n in args.eval_aggregation_sizes if int(n) > 0})
@@ -690,6 +723,13 @@ def main() -> None:
         args, args.seed, img_size
     )
     needs_normals = getattr(args, "normals_aux", False) or getattr(args, "normals_privileged", False)
+    train_age_min = float(train_dataset.records["age"].min())
+    train_age_max = float(train_dataset.records["age"].max())
+    age_assurance_enabled = (
+        args.loss_weight_age_assurance_bce
+        + args.loss_weight_minor_admission_severity
+        + args.loss_weight_adult_rejection_severity
+    ) > 0
 
     def _collate_with_normals(batch):
         rgbs, ages, user_ids, normals_list = zip(*batch)
@@ -769,6 +809,16 @@ def main() -> None:
             fp.write(f"resolved_loss_weights_mse={loss_weights.mse}\n")
             fp.write(f"resolved_loss_weights_mae={loss_weights.mae}\n")
             fp.write(f"resolved_loss_weight_spread={args.loss_weight_spread}\n")
+            fp.write(f"resolved_age_assurance_threshold={args.age_assurance_threshold}\n")
+            fp.write(f"resolved_loss_weight_age_assurance_bce={args.loss_weight_age_assurance_bce}\n")
+            fp.write(
+                f"resolved_loss_weight_minor_admission_severity={args.loss_weight_minor_admission_severity}\n"
+            )
+            fp.write(
+                f"resolved_loss_weight_adult_rejection_severity={args.loss_weight_adult_rejection_severity}\n"
+            )
+            fp.write(f"resolved_age_assurance_min_age={train_age_min}\n")
+            fp.write(f"resolved_age_assurance_max_age={train_age_max}\n")
             fp.write(f"resolved_embed_dim={args.embed_dim}\n")
             fp.write(f"resolved_loss_weight_embed_var={args.loss_weight_embed_var}\n")
             fp.write(f"resolved_loss_weight_embed_contrast={args.loss_weight_embed_contrast}\n")
@@ -800,6 +850,14 @@ def main() -> None:
             f"MSE: {loss_weights.mse:.3f}, MAE: {loss_weights.mae:.3f}, "
             f"Spread: {args.loss_weight_spread:.3f}, "
             f"Normals: {getattr(args, 'loss_weight_normals', 0.0):.3f}"
+        )
+        print(
+            "Age assurance -> "
+            f"threshold: {args.age_assurance_threshold:.2f}, "
+            f"BCE: {args.loss_weight_age_assurance_bce:.3f}, "
+            f"minor admission severity: {args.loss_weight_minor_admission_severity:.3f}, "
+            f"adult rejection severity: {args.loss_weight_adult_rejection_severity:.3f}, "
+            f"min/max age: {train_age_min:.2f}/{train_age_max:.2f}"
         )
         if getattr(args, "normals_privileged", False):
             print(
@@ -855,6 +913,9 @@ def main() -> None:
         train_emb_var_sum = 0.0
         train_emb_contrast_sum = 0.0
         train_normals_sum = 0.0
+        train_assurance_bce_sum = 0.0
+        train_minor_admission_sum = 0.0
+        train_adult_rejection_sum = 0.0
         _normals_aux = getattr(args, "normals_aux", False)
         _normals_privileged = getattr(args, "normals_privileged", False)
         _normals_dropout = getattr(args, "normals_dropout", 0.5)
@@ -916,6 +977,22 @@ def main() -> None:
             else:
                 spread_loss = None
                 loss = base_loss
+            assurance_losses = None
+            if age_assurance_enabled:
+                assurance_losses = age_assurance_loss_components(
+                    pred_mean,
+                    pred_log_var,
+                    ages,
+                    age_threshold=args.age_assurance_threshold,
+                    min_age=train_age_min,
+                    max_age=train_age_max,
+                )
+                loss = (
+                    loss
+                    + args.loss_weight_age_assurance_bce * assurance_losses["bce"]
+                    + args.loss_weight_minor_admission_severity * assurance_losses["minor_admission"]
+                    + args.loss_weight_adult_rejection_severity * assurance_losses["adult_rejection"]
+                )
             embed_var_loss = None
             embed_contrast_loss = None
             if z is not None:
@@ -957,6 +1034,10 @@ def main() -> None:
                 train_emb_contrast_sum += embed_contrast_loss.item() * batch_size
             if norm_loss is not None:
                 train_normals_sum += norm_loss.item() * batch_size
+            if assurance_losses is not None:
+                train_assurance_bce_sum += assurance_losses["bce"].item() * batch_size
+                train_minor_admission_sum += assurance_losses["minor_admission"].item() * batch_size
+                train_adult_rejection_sum += assurance_losses["adult_rejection"].item() * batch_size
 
         train_totals = all_reduce_metrics(
             device,
@@ -969,10 +1050,13 @@ def main() -> None:
                 train_emb_var_sum,
                 train_emb_contrast_sum,
                 train_normals_sum,
+                train_assurance_bce_sum,
+                train_minor_admission_sum,
+                train_adult_rejection_sum,
                 train_sample_count,
             ],
         )
-        denom_train = max(1.0, train_totals[8])
+        denom_train = max(1.0, train_totals[11])
         train_loss = train_totals[0] / denom_train
         train_mae = train_totals[1] / denom_train
         train_rmse = float(np.sqrt(train_totals[2] / denom_train))
@@ -981,6 +1065,9 @@ def main() -> None:
         train_emb_var = train_totals[5] / denom_train
         train_emb_contrast = train_totals[6] / denom_train
         train_normals = train_totals[7] / denom_train
+        train_assurance_bce = train_totals[8] / denom_train
+        train_minor_admission = train_totals[9] / denom_train
+        train_adult_rejection = train_totals[10] / denom_train
 
         ddp_model.eval()
         val_sample_count = 0.0
@@ -991,6 +1078,9 @@ def main() -> None:
         val_spread_sum = 0.0
         val_emb_var_sum = 0.0
         val_emb_contrast_sum = 0.0
+        val_assurance_bce_sum = 0.0
+        val_minor_admission_sum = 0.0
+        val_adult_rejection_sum = 0.0
         val_targets = []
         val_predictions = []
         val_log_vars = []
@@ -1025,6 +1115,22 @@ def main() -> None:
                 else:
                     pred_mean, pred_log_var = outputs
                 batch_loss = weighted_regression_loss(pred_mean, pred_log_var, ages, loss_weights)
+                val_assurance_losses = None
+                if age_assurance_enabled:
+                    val_assurance_losses = age_assurance_loss_components(
+                        pred_mean,
+                        pred_log_var,
+                        ages,
+                        age_threshold=args.age_assurance_threshold,
+                        min_age=train_age_min,
+                        max_age=train_age_max,
+                    )
+                    batch_loss = (
+                        batch_loss
+                        + args.loss_weight_age_assurance_bce * val_assurance_losses["bce"]
+                        + args.loss_weight_minor_admission_severity * val_assurance_losses["minor_admission"]
+                        + args.loss_weight_adult_rejection_severity * val_assurance_losses["adult_rejection"]
+                    )
 
                 batch_size = ages.size(0)
                 val_sample_count += batch_size
@@ -1051,6 +1157,10 @@ def main() -> None:
                         age_thresh=args.embed_contrast_age_thresh,
                     )
                     val_emb_contrast_sum += val_emb_contrast_loss.item() * batch_size
+                if val_assurance_losses is not None:
+                    val_assurance_bce_sum += val_assurance_losses["bce"].item() * batch_size
+                    val_minor_admission_sum += val_assurance_losses["minor_admission"].item() * batch_size
+                    val_adult_rejection_sum += val_assurance_losses["adult_rejection"].item() * batch_size
 
                 val_targets.extend(ages.detach().cpu().tolist())
                 val_predictions.extend(pred_mean.detach().cpu().tolist())
@@ -1068,10 +1178,13 @@ def main() -> None:
                 val_spread_sum,
                 val_emb_var_sum,
                 val_emb_contrast_sum,
+                val_assurance_bce_sum,
+                val_minor_admission_sum,
+                val_adult_rejection_sum,
                 val_sample_count,
             ],
         )
-        denom_val = max(1.0, val_totals[7])
+        denom_val = max(1.0, val_totals[10])
         val_loss = val_totals[0] / denom_val
         val_mae = val_totals[1] / denom_val
         val_rmse = float(np.sqrt(val_totals[2] / denom_val))
@@ -1079,6 +1192,9 @@ def main() -> None:
         val_spread = val_totals[4] / denom_val
         val_emb_var = val_totals[5] / denom_val
         val_emb_contrast = val_totals[6] / denom_val
+        val_assurance_bce = val_totals[7] / denom_val
+        val_minor_admission = val_totals[8] / denom_val
+        val_adult_rejection = val_totals[9] / denom_val
 
         if is_main:
             print(
@@ -1086,20 +1202,30 @@ def main() -> None:
                 f"train_loss={train_loss:.4f}, train_mae={train_mae:.4f}, "
                 f"train_rmse={train_rmse:.4f}, train_std={train_std:.4f}, train_spread={train_spread:.4f}, "
                 f"train_emb_var={train_emb_var:.4f}, train_emb_contrast={train_emb_contrast:.4f}, "
-                f"train_normals={train_normals:.4f} | "
+                f"train_normals={train_normals:.4f}, train_assurance_bce={train_assurance_bce:.4f}, "
+                f"train_minor_admission={train_minor_admission:.4f}, "
+                f"train_adult_rejection={train_adult_rejection:.4f} | "
                 f"val_loss={val_loss:.4f}, val_mae={val_mae:.4f}, val_rmse={val_rmse:.4f}, "
                 f"val_std={val_std:.4f}, val_spread={val_spread:.4f}, "
-                f"val_emb_var={val_emb_var:.4f}, val_emb_contrast={val_emb_contrast:.4f}"
+                f"val_emb_var={val_emb_var:.4f}, val_emb_contrast={val_emb_contrast:.4f}, "
+                f"val_assurance_bce={val_assurance_bce:.4f}, "
+                f"val_minor_admission={val_minor_admission:.4f}, "
+                f"val_adult_rejection={val_adult_rejection:.4f}"
             )
             with history_log_path.open("a", encoding="utf-8") as log_fp:
                 log_fp.write(
                     f"Epoch {epoch},train_loss={train_loss:.6f},train_mae={train_mae:.6f},train_rmse={train_rmse:.6f},"
                     f"train_std={train_std:.6f},train_spread={train_spread:.6f},"
                     f"train_emb_var={train_emb_var:.6f},train_emb_contrast={train_emb_contrast:.6f},"
-                    f"train_normals={train_normals:.6f},"
+                    f"train_normals={train_normals:.6f},train_assurance_bce={train_assurance_bce:.6f},"
+                    f"train_minor_admission={train_minor_admission:.6f},"
+                    f"train_adult_rejection={train_adult_rejection:.6f},"
                     f"val_loss={val_loss:.6f},val_mae={val_mae:.6f},val_rmse={val_rmse:.6f},"
                     f"val_std={val_std:.6f},val_spread={val_spread:.6f},"
-                    f"val_emb_var={val_emb_var:.6f},val_emb_contrast={val_emb_contrast:.6f}\n"
+                    f"val_emb_var={val_emb_var:.6f},val_emb_contrast={val_emb_contrast:.6f},"
+                    f"val_assurance_bce={val_assurance_bce:.6f},"
+                    f"val_minor_admission={val_minor_admission:.6f},"
+                    f"val_adult_rejection={val_adult_rejection:.6f}\n"
                 )
             history_entries.append(
                 {
@@ -1108,6 +1234,12 @@ def main() -> None:
                     "val_mae": val_mae,
                     "train_rmse": train_rmse,
                     "val_rmse": val_rmse,
+                    "train_assurance_bce": train_assurance_bce,
+                    "train_minor_admission": train_minor_admission,
+                    "train_adult_rejection": train_adult_rejection,
+                    "val_assurance_bce": val_assurance_bce,
+                    "val_minor_admission": val_minor_admission,
+                    "val_adult_rejection": val_adult_rejection,
                 }
             )
 
@@ -1143,6 +1275,13 @@ def main() -> None:
             log_vars_arr = np.asarray(log_vars_all, dtype=float)
             user_ids_list = list(user_ids_all)
             image_paths_arr = np.asarray(image_paths_all, dtype=str)
+            assurance_prob_arr = compute_adult_probabilities(
+                preds_arr,
+                log_vars_arr,
+                age_threshold=args.age_assurance_threshold,
+            )
+            assurance_true_adult_arr = (targets_arr >= args.age_assurance_threshold).astype(int)
+            assurance_pred_adult_arr = (assurance_prob_arr >= CHALLENGE_PROB_TAU).astype(int)
 
             raw_preds_path = output_dir / "val_predictions_raw_ddp.npz"
             raw_skin_colors = map_user_series_to_array(user_ids_list, val_user_skin)
@@ -1151,6 +1290,9 @@ def main() -> None:
                 targets=targets_arr,
                 pred_mean=preds_arr,
                 pred_log_var=log_vars_arr,
+                age_assurance_prob=assurance_prob_arr,
+                age_assurance_true_adult=assurance_true_adult_arr,
+                age_assurance_pred_adult=assurance_pred_adult_arr,
                 user_ids=np.asarray(user_ids_list, dtype=str),
                 image_path=image_paths_arr,
                 skin_color=raw_skin_colors,
@@ -1207,12 +1349,22 @@ def main() -> None:
 
                 preds_dump_path = output_dir / f"val_predictions_{suffix}.npz"
                 agg_skin_colors = map_user_series_to_array(aggregated["user_ids"], val_user_skin)
+                agg_assurance_prob = compute_adult_probabilities(
+                    aggregated["pred_mean"],
+                    aggregated["pred_log_var"],
+                    age_threshold=args.age_assurance_threshold,
+                )
                 np.savez(
                     preds_dump_path,
                     targets=aggregated["targets"],
                     pred_mean=aggregated["pred_mean"],
                     pred_log_var=aggregated["pred_log_var"],
                     adult_prob=gate_results["adult_prob"],
+                    age_assurance_prob=agg_assurance_prob,
+                    age_assurance_true_adult=(
+                        np.asarray(aggregated["targets"], dtype=float) >= args.age_assurance_threshold
+                    ).astype(int),
+                    age_assurance_pred_adult=(agg_assurance_prob >= CHALLENGE_PROB_TAU).astype(int),
                     user_ids=aggregated["user_ids"],
                     image_path=aggregated.get("sample_ids", np.asarray([], dtype=str)),
                     skin_color=agg_skin_colors,
@@ -1567,12 +1719,22 @@ def main() -> None:
                 t_targets_arr = np.asarray(t_targets, dtype=float)
                 t_means_arr = np.asarray(t_means, dtype=float)
                 t_log_vars_arr = np.asarray(t_log_vars, dtype=float)
+                t_assurance_prob_arr = compute_adult_probabilities(
+                    t_means_arr,
+                    t_log_vars_arr,
+                    age_threshold=args.age_assurance_threshold,
+                )
+                t_assurance_true_adult_arr = (t_targets_arr >= args.age_assurance_threshold).astype(int)
+                t_assurance_pred_adult_arr = (t_assurance_prob_arr >= CHALLENGE_PROB_TAU).astype(int)
 
                 np.savez(
                     output_dir / "test_predictions_raw_ddp.npz",
                     targets=t_targets_arr,
                     pred_mean=t_means_arr,
                     pred_log_var=t_log_vars_arr,
+                    age_assurance_prob=t_assurance_prob_arr,
+                    age_assurance_true_adult=t_assurance_true_adult_arr,
+                    age_assurance_pred_adult=t_assurance_pred_adult_arr,
                     user_ids=np.asarray(t_user_ids, dtype=str),
                     image_path=np.asarray(t_image_paths, dtype=str),
                     skin_color=map_user_series_to_array(t_user_ids, test_user_skin),
@@ -1623,12 +1785,22 @@ def main() -> None:
                         best_tau_adult_gate if best_tau_adult_gate is not None else CHALLENGE_PROB_TAU
                     )
 
+                    test_agg_assurance_prob = compute_adult_probabilities(
+                        aggregated["pred_mean"],
+                        aggregated["pred_log_var"],
+                        age_threshold=args.age_assurance_threshold,
+                    )
                     np.savez(
                         output_dir / f"test_predictions_{suffix}.npz",
                         targets=aggregated["targets"],
                         pred_mean=aggregated["pred_mean"],
                         pred_log_var=aggregated["pred_log_var"],
                         adult_prob=gate_results["adult_prob"],
+                        age_assurance_prob=test_agg_assurance_prob,
+                        age_assurance_true_adult=(
+                            np.asarray(aggregated["targets"], dtype=float) >= args.age_assurance_threshold
+                        ).astype(int),
+                        age_assurance_pred_adult=(test_agg_assurance_prob >= CHALLENGE_PROB_TAU).astype(int),
                         user_ids=aggregated["user_ids"],
                         image_path=aggregated.get("sample_ids", np.asarray([], dtype=str)),
                         skin_color=map_user_series_to_array(aggregated["user_ids"], test_user_skin),

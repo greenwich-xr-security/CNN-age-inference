@@ -173,6 +173,65 @@ def weighted_regression_loss(
     return total_loss
 
 
+def age_assurance_probability(
+    pred_mean: torch.Tensor,
+    pred_log_var: torch.Tensor,
+    *,
+    age_threshold: float = 18.0,
+    eps: float = 1e-6,
+) -> torch.Tensor:
+    """Return P(age >= threshold) from Gaussian age predictions."""
+    log_var = torch.clamp(pred_log_var, min=LOG_VAR_MIN, max=LOG_VAR_MAX)
+    std = torch.exp(0.5 * log_var).clamp_min(eps)
+    z = (float(age_threshold) - pred_mean) / std
+    cdf = 0.5 * (1.0 + torch.erf(z / math.sqrt(2.0)))
+    return torch.clamp(1.0 - cdf, min=eps, max=1.0 - eps)
+
+
+def age_assurance_loss_components(
+    pred_mean: torch.Tensor,
+    pred_log_var: torch.Tensor,
+    target_age: torch.Tensor,
+    *,
+    age_threshold: float = 18.0,
+    min_age: float | None = None,
+    max_age: float | None = None,
+) -> dict[str, torch.Tensor]:
+    """Compute BCE and severity-weighted age-assurance losses.
+
+    The assurance probability is derived from the age-regression Gaussian. The
+    two secondary losses weight wrong-side probability mass by normalized
+    distance from the minor/adult boundary.
+    """
+    threshold = float(age_threshold)
+    adult_prob = age_assurance_probability(
+        pred_mean,
+        pred_log_var,
+        age_threshold=threshold,
+    )
+    target_adult = (target_age >= threshold).to(dtype=adult_prob.dtype)
+    per_sample_bce = F.binary_cross_entropy(adult_prob, target_adult, reduction="none")
+
+    if min_age is None:
+        min_age = float(torch.min(target_age.detach()).item())
+    if max_age is None:
+        max_age = float(torch.max(target_age.detach()).item())
+    minor_den = max(threshold - float(min_age), 1e-6)
+    adult_den = max(float(max_age) - threshold, 1e-6)
+
+    minor_mask = target_adult.lt(0.5)
+    adult_mask = target_adult.ge(0.5)
+    minor_severity = torch.clamp((threshold - target_age) / minor_den, min=0.0, max=1.0)
+    adult_severity = torch.clamp((target_age - threshold) / adult_den, min=0.0, max=1.0)
+
+    return {
+        "adult_prob": adult_prob,
+        "bce": torch.mean(per_sample_bce),
+        "minor_admission": torch.mean(per_sample_bce * minor_mask.to(per_sample_bce.dtype) * minor_severity),
+        "adult_rejection": torch.mean(per_sample_bce * adult_mask.to(per_sample_bce.dtype) * adult_severity),
+    }
+
+
 def embedding_variance_loss(
     z: torch.Tensor,
     user_ids: Sequence[object],

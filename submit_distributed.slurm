@@ -84,8 +84,8 @@ NUM_WORKERS="${NUM_WORKERS:-2}"
 RUN_NAME="${RUN_NAME:-v2_medium_newdata_ug4_dark_128_wd02_embed08_prolific}"
 # Age imbalance controls
 MAX_SAMPLES_PER_USER="${MAX_SAMPLES_PER_USER:-20}"    # keep current project default; best saved run used 16
-AGE_REWEIGHT="${AGE_REWEIGHT:-0}"
-AGE_WEIGHT_EPS="${AGE_WEIGHT_EPS:-1.0}"
+AGE_REWEIGHT="${AGE_REWEIGHT:-1}"
+AGE_WEIGHT_EPS="${AGE_WEIGHT_EPS:-1.0}" 
 AGE_WEIGHT_POWER="${AGE_WEIGHT_POWER:-1.0}"
 AGE_WEIGHT_MIN="${AGE_WEIGHT_MIN:-0.25}"
 AGE_WEIGHT_MAX="${AGE_WEIGHT_MAX:-4.0}"

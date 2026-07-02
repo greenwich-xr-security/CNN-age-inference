@@ -11,10 +11,6 @@ from dataset.age import AgeDataset
 
 
 QUALITY_TARGET_COLUMNS = [
-    "abs_error",
-    "uncertainty_score",
-    "consistency_score",
-    "boundary_error",
     "quality_score",
 ]
 

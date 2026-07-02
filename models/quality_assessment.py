@@ -20,10 +20,6 @@ EFFICIENTNET_ALIASES = {
 
 
 QUALITY_OUTPUT_NAMES = [
-    "expected_abs_error",
-    "expected_uncertainty",
-    "expected_consistency",
-    "boundary_error_logit",
     "quality_score",
 ]
 

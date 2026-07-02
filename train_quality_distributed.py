@@ -15,7 +15,7 @@ from torch.nn.parallel import DistributedDataParallel
 from torch.utils.data import DataLoader, DistributedSampler
 from tqdm import tqdm
 
-from dataset.quality import QUALITY_TARGET_COLUMNS, QualityDataset
+from dataset.quality import QualityDataset
 from dataset.transforms import build_transforms
 from models import resolve_quality_model_builder
 from train_age import set_random_seed
@@ -36,11 +36,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--patience", type=int, default=10)
     parser.add_argument("--use-masks", action="store_true")
-    parser.add_argument("--loss-weight-error", type=float, default=1.0)
-    parser.add_argument("--loss-weight-uncertainty", type=float, default=0.5)
-    parser.add_argument("--loss-weight-consistency", type=float, default=0.5)
-    parser.add_argument("--loss-weight-boundary", type=float, default=1.0)
-    parser.add_argument("--loss-weight-quality", type=float, default=1.0)
     parser.add_argument("--dist-backend", default="nccl")
     return parser.parse_args()
 
@@ -96,29 +91,14 @@ def drop_duplicate_prediction_rows(rows: list[dict[str, object]]) -> list[dict[s
     return deduped
 
 
-def quality_loss(outputs: torch.Tensor, targets: torch.Tensor, args: argparse.Namespace) -> torch.Tensor:
-    pred_error = F.softplus(outputs[:, 0])
-    pred_uncertainty = F.softplus(outputs[:, 1])
-    pred_consistency = F.softplus(outputs[:, 2])
-    pred_boundary_logit = outputs[:, 3]
-    pred_quality = torch.sigmoid(outputs[:, 4])
-    return (
-        args.loss_weight_error * F.smooth_l1_loss(pred_error, targets[:, 0])
-        + args.loss_weight_uncertainty * F.smooth_l1_loss(pred_uncertainty, targets[:, 1])
-        + args.loss_weight_consistency * F.smooth_l1_loss(pred_consistency, targets[:, 2])
-        + args.loss_weight_boundary
-        * F.binary_cross_entropy_with_logits(pred_boundary_logit, targets[:, 3])
-        + args.loss_weight_quality * F.smooth_l1_loss(pred_quality, targets[:, 4])
-    )
+def quality_loss(outputs: torch.Tensor, targets: torch.Tensor, _args: argparse.Namespace) -> torch.Tensor:
+    pred_quality = torch.sigmoid(outputs[:, 0])
+    return F.smooth_l1_loss(pred_quality, targets[:, 0])
 
 
 def decode_outputs(outputs: torch.Tensor) -> dict[str, np.ndarray]:
     return {
-        "pred_expected_abs_error": F.softplus(outputs[:, 0]).detach().cpu().numpy(),
-        "pred_expected_uncertainty": F.softplus(outputs[:, 1]).detach().cpu().numpy(),
-        "pred_expected_consistency": F.softplus(outputs[:, 2]).detach().cpu().numpy(),
-        "pred_boundary_error_prob": torch.sigmoid(outputs[:, 3]).detach().cpu().numpy(),
-        "pred_quality_score": torch.sigmoid(outputs[:, 4]).detach().cpu().numpy(),
+        "pred_quality_score": torch.sigmoid(outputs[:, 0]).detach().cpu().numpy(),
     }
 
 
@@ -227,11 +207,7 @@ def main() -> None:
                     row = {
                         "image_path": str(path),
                         "user_id": str(user_ids[i]),
-                        "target_abs_error": float(targets_np[i, 0]),
-                        "target_uncertainty": float(targets_np[i, 1]),
-                        "target_consistency": float(targets_np[i, 2]),
-                        "target_boundary_error": float(targets_np[i, 3]),
-                        "target_quality_score": float(targets_np[i, 4]),
+                        "target_quality_score": float(targets_np[i, 0]),
                     }
                     for key, values in decoded.items():
                         row[key] = float(values[i])

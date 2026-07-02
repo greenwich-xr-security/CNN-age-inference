@@ -72,12 +72,6 @@ def parse_args() -> argparse.Namespace:
         default=1.0,
         help="Scale for normalised predicted std when mapping uncertainty to quality score.",
     )
-    parser.add_argument(
-        "--consistency-scale",
-        type=float,
-        default=1.0,
-        help="Scale for normalised TTA std when mapping consistency to quality score.",
-    )
     return parser.parse_args()
 
 
@@ -204,7 +198,6 @@ def add_quality_columns(df: pd.DataFrame, args: argparse.Namespace) -> pd.DataFr
     penalty = (
         (normalised_abs_error / max(args.error_scale, 1e-6))
         + (normalised_uncertainty / max(args.uncertainty_scale, 1e-6))
-        + (normalised_consistency / max(args.consistency_scale, 1e-6))
     )
     out["quality_score"] = 1.0 / (1.0 + penalty)
     out["usefulness_score"] = out["quality_score"]

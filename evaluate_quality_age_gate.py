@@ -241,7 +241,7 @@ def main() -> None:
     if "image_path" not in quality_df.columns or "pred_quality_score" not in quality_df.columns:
         raise ValueError("quality predictions must include image_path and pred_quality_score columns.")
     merged = age_df.merge(
-        quality_df[["image_path", "pred_quality_score", "pred_boundary_error_prob", "pred_expected_abs_error"]],
+        quality_df[["image_path", "pred_quality_score"]],
         on="image_path",
         how="inner",
     )

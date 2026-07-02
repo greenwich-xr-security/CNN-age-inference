@@ -74,28 +74,38 @@ def main() -> None:
     summary = {
         "samples": len(df),
         "corr_quality": safe_corr(df["target_quality_score"], df["pred_quality_score"]),
-        "corr_abs_error": safe_corr(df["target_abs_error"], df["pred_expected_abs_error"]),
-        "mae_abs_error": float(mean_absolute_error(df["target_abs_error"], df["pred_expected_abs_error"])),
-        "rmse_abs_error": float(
-            np.sqrt(np.mean((df["target_abs_error"] - df["pred_expected_abs_error"]) ** 2))
-        ),
-        "auc_boundary_error": safe_auc(df["target_boundary_error"], df["pred_boundary_error_prob"]),
     }
-    high_error = df["target_abs_error"] >= df["target_abs_error"].quantile(0.75)
-    summary["auc_high_error_top_quartile"] = safe_auc(high_error.astype(int), df["pred_expected_abs_error"])
+    if {"target_abs_error", "pred_expected_abs_error"} <= set(df.columns):
+        summary.update(
+            {
+                "corr_abs_error": safe_corr(df["target_abs_error"], df["pred_expected_abs_error"]),
+                "mae_abs_error": float(mean_absolute_error(df["target_abs_error"], df["pred_expected_abs_error"])),
+                "rmse_abs_error": float(
+                    np.sqrt(np.mean((df["target_abs_error"] - df["pred_expected_abs_error"]) ** 2))
+                ),
+            }
+        )
+    if {"target_boundary_error", "pred_boundary_error_prob"} <= set(df.columns):
+        summary["auc_boundary_error"] = safe_auc(df["target_boundary_error"], df["pred_boundary_error_prob"])
+    if {"target_abs_error", "pred_expected_abs_error"} <= set(df.columns):
+        high_error = df["target_abs_error"] >= df["target_abs_error"].quantile(0.75)
+        summary["auc_high_error_top_quartile"] = safe_auc(high_error.astype(int), df["pred_expected_abs_error"])
     pd.DataFrame([summary]).to_csv(output_dir / "quality_summary.csv", index=False)
 
+    aggregations = {
+        "samples": ("image_path", "count"),
+        "pred_quality_mean": ("pred_quality_score", "mean"),
+        "target_quality_mean": ("target_quality_score", "mean"),
+    }
+    if "target_abs_error" in df.columns:
+        aggregations["target_abs_error_mean"] = ("target_abs_error", "mean")
+    if "target_boundary_error" in df.columns:
+        aggregations["boundary_error_rate"] = ("target_boundary_error", "mean")
     bins = pd.qcut(df["pred_quality_score"], q=min(10, max(2, len(df) // 10)), duplicates="drop")
     calibration = (
         df.assign(quality_bin=bins)
         .groupby("quality_bin", observed=True)
-        .agg(
-            samples=("image_path", "count"),
-            pred_quality_mean=("pred_quality_score", "mean"),
-            target_quality_mean=("target_quality_score", "mean"),
-            target_abs_error_mean=("target_abs_error", "mean"),
-            boundary_error_rate=("target_boundary_error", "mean"),
-        )
+        .agg(**aggregations)
         .reset_index()
     )
     calibration.to_csv(output_dir / "quality_calibration.csv", index=False)

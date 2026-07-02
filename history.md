@@ -124,16 +124,23 @@ Likely next decisions:
 - Check whether the age-assurance loss improves safety around the boundary without harming calibration away from it.
 - Decide whether `NLL + age assurance + severity + age reweighting` should become the preferred age-regression training recipe.
 
-Recommended next sweep:
+Submitted next sweep:
 
 Keep `loss_weight_nll = 1.0` fixed first, then vary the auxiliary age-assurance losses. This keeps the main age-regression objective anchored while testing whether the boundary losses can be tuned for a better FPR/FNR trade-off.
 
-| Run | NLL | Age-assurance BCE | Severity | Purpose |
-|---|---:|---:|---:|---|
-| Current | `1.0` | `0.25` | `0.5` | Baseline severity-loss recipe from this branch. |
-| Softer assurance | `1.0` | `0.10` | `0.25` | Check if lower boundary pressure reduces young-adult FNR. |
-| Stronger BCE | `1.0` | `0.50` | `0.5` | Test stronger adult/minor classification pressure. |
-| Stronger severity | `1.0` | `0.25` | `1.0` | Test whether severity specifically improves near-boundary safety. |
-| Balanced stronger | `1.0` | `0.50` | `1.0` | Test a stronger full age-assurance recipe. |
+Submitted on 2026-07-02 from branch `feature/age-assurance-severity-losses` at commit `10f1e02`. Each sweep job uses one GPU, the shared held-out test split, age reweighting enabled, and the same EfficientNet-V2-S configuration as the completed comparison runs.
+
+| Run | Job ID | Run name | NLL | Age-assurance BCE | Severity | Status at launch | Purpose |
+|---|---:|---|---:|---:|---:|---|---|
+| Current | `1049170` | `v2s_nll_age_assurance_age_reweight_shared20_r3` | `1.0` | `0.25` | `0.5` | Completed | Baseline severity-loss recipe from this branch. |
+| Softer assurance | `1049187` | `v2s_nll_age_assurance_soft_bce010_sev025_age_reweight` | `1.0` | `0.10` | `0.25` | Running | Check if lower boundary pressure reduces young-adult FNR. |
+| Stronger BCE | `1049184` | `v2s_nll_age_assurance_strong_bce050_sev050_age_reweight` | `1.0` | `0.50` | `0.5` | Running | Test stronger adult/minor classification pressure. |
+| Stronger severity | `1049188` | `v2s_nll_age_assurance_bce025_strong_sev100_age_reweight` | `1.0` | `0.25` | `1.0` | Running | Test whether severity specifically improves near-boundary safety. |
+| Balanced stronger | `1049186` | `v2s_nll_age_assurance_strong_bce050_sev100_age_reweight` | `1.0` | `0.50` | `1.0` | Running | Test a stronger full age-assurance recipe. |
+
+Launch notes:
+
+- `1049183` was canceled because it inherited old defaults and started the wrong configuration.
+- `1049185` failed during torchrun rendezvous and was relaunched cleanly as `1049188`.
 
 Compare each run on MAE, adult AUC, minor FPR by age bin, adult FNR by age bin, and threshold trade-off curves rather than only the lowest-FPR `tau`.

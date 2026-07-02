@@ -174,6 +174,63 @@ reject 50%: 65 minors, 326 adults
 
 This means the current model disproportionately rejects adult samples.
 
+## Current Running HPC Job
+
+The active rerun is:
+
+```text
+Job ID: 1049182
+Job name: age-rw-quality-b0
+Branch: feature/hand-quality-age-regression
+Commit: 9db2de1
+GPUs: 2
+Log: /home/rb3434w/CNN-age-inference/logs/age-rw-quality-b0-1049182.log
+```
+
+This job retrains the age-regression model first, then trains the b0 quality network from the new out-of-fold age predictions.
+
+Age run:
+
+```text
+runs/v2_small_quality_full_wall3_b32_age_reweight
+```
+
+Quality run:
+
+```text
+runs/v2_small_quality_full_wall3_b32_age_reweight_quality_b0
+```
+
+The key change is:
+
+```text
+AGE_REWEIGHT=1
+```
+
+Why this run exists:
+
+The previous age source run, `v2_small_quality_full_wall3_b32`, was trained with:
+
+```text
+age_reweight_loss=False
+```
+
+Because the quality labels are generated from age-model predictions, any age-distribution bias in the source age regressor can leak into the quality target and the quality network. The single-score b0 quality run disproportionately rejected adult samples, so this rerun tests whether a reweighted age regressor produces better quality targets and a less biased quality filter.
+
+The intended pipeline is:
+
+```text
+1. Train age regression with AGE_REWEIGHT=1
+2. Generate quality targets from the reweighted age OOF predictions
+3. Train b0 quality network
+4. Evaluate held-out quality filtering
+5. Check minor/adult rejection balance
+```
+
+Correction note:
+
+An earlier launch, `1049181`, was cancelled because it was started while the HPC checkout was on `feature/age-assurance-severity-losses`. Since `train_distributed.py` differs between branches, that run was not a clean run for this branch. Its partial new output folders were removed, the HPC checkout was switched/pulled to `feature/hand-quality-age-regression` at commit `9db2de1`, and the corrected job `1049182` was launched.
+
 ## Interpretation
 
 The single-score design is clean, but it may be too compressed. A single target may not provide enough learning signal for the network to discover robust visual cues of age-regression quality.

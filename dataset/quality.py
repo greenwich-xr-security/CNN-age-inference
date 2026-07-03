@@ -12,8 +12,6 @@ from dataset.age import AgeDataset
 
 QUALITY_TARGET_COLUMNS = [
     "abs_error",
-    "pred_std",
-    "quality_score",
 ]
 
 

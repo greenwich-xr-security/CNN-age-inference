@@ -21,8 +21,6 @@ EFFICIENTNET_ALIASES = {
 
 QUALITY_OUTPUT_NAMES = [
     "abs_error",
-    "pred_std",
-    "quality_score",
 ]
 
 

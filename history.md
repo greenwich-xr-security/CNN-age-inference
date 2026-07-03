@@ -68,6 +68,7 @@ The auxiliary heads (`pred_abs_error`, `pred_uncertainty`) are the direct compon
 
 **Run:** `v2_small_quality_full_wall3_b32_age_reweight_correct_split_quality_b0`
 **Backbone:** EfficientNet-B0, 2 GPUs, 5-fold CV
+**Git commit:** `a6f709b`
 
 **Results:**
 
@@ -79,3 +80,21 @@ The auxiliary heads (`pred_abs_error`, `pred_uncertainty`) are the direct compon
 | `auc_high_error_top_quartile` | 0.587 |
 
 The quality score has near-zero correlation with actual reliability. The abs_error head shows weak but real signal (+0.15). The uncertainty head is strongly inverted (-0.42) — higher predicted uncertainty correlates with lower actual error — suggesting the normalised uncertainty target is miscalibrated or noisy. The inverted uncertainty pulls the combined quality score toward zero or negative correlation.
+
+## Design 2 — Single-Head abs_error
+
+Drops the uncertainty and quality_score heads entirely. Since `quality_score = 1/(1 + abs_error)` when uncertainty is absent, the quality_score head is redundant — it is a monotonic transform of abs_error. The network is trained only to predict normalised abs_error; quality ranking at inference uses `pred_quality_score = 1 / (1 + pred_abs_error)` as a derived quantity.
+
+```text
+outputs:
+  pred_abs_error = softplus(out[0])   ← only head
+```
+
+Loss:
+
+```text
+loss = SmoothL1(pred_abs_error, target_abs_error)
+```
+
+**Run:** `v2_small_quality_full_wall3_b32_age_reweight_correct_split_quality_b0_d2`
+**Backbone:** EfficientNet-B0, 2 GPUs, 5-fold CV

@@ -93,19 +93,14 @@ def drop_duplicate_prediction_rows(rows: list[dict[str, object]]) -> list[dict[s
 
 def quality_loss(outputs: torch.Tensor, targets: torch.Tensor, _args: argparse.Namespace) -> torch.Tensor:
     pred_abs_error = F.softplus(outputs[:, 0])
-    pred_uncertainty = F.softplus(outputs[:, 1])
-    pred_quality = torch.sigmoid(outputs[:, 2])
-    loss_abs_error = F.smooth_l1_loss(pred_abs_error, targets[:, 0])
-    loss_uncertainty = F.smooth_l1_loss(pred_uncertainty, targets[:, 1])
-    loss_quality = F.smooth_l1_loss(pred_quality, targets[:, 2])
-    return loss_abs_error + 0.5 * loss_uncertainty + loss_quality
+    return F.smooth_l1_loss(pred_abs_error, targets[:, 0])
 
 
 def decode_outputs(outputs: torch.Tensor) -> dict[str, np.ndarray]:
+    pred_abs_error = F.softplus(outputs[:, 0]).detach().cpu().numpy()
     return {
-        "pred_abs_error": F.softplus(outputs[:, 0]).detach().cpu().numpy(),
-        "pred_uncertainty": F.softplus(outputs[:, 1]).detach().cpu().numpy(),
-        "pred_quality_score": torch.sigmoid(outputs[:, 2]).detach().cpu().numpy(),
+        "pred_abs_error": pred_abs_error,
+        "pred_quality_score": 1.0 / (1.0 + pred_abs_error),
     }
 
 

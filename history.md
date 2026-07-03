@@ -43,16 +43,25 @@ quality_score = 1 / (1 + normalized_abs_error + normalized_uncertainty)
 
 The auxiliary heads (`pred_abs_error`, `pred_uncertainty`) are the direct components of `quality_score`, so they provide intermediate supervision for exactly what the backbone needs to learn. Boundary error and consistency are excluded: boundary encodes the downstream decision rather than image quality; consistency can reward consistently uninformative samples.
 
-## Current HPC Job
+## Age Regression Baseline (correct split)
 
 ```text
-Job ID: 1049194
-Job name: age-infer-ddp
 Run name: v2_small_quality_full_wall3_b32_age_reweight_correct_split
-Test split: multitask_v2s_shared_test_users.json (128 users: 92 handrgbd, 36 prolific)
-Model: V2-S, img_size=384, AGE_REWEIGHT=1
-Pipeline stage: age only
-GPUs: 8
+Model: EfficientNet-V2-S, img_size=384, AGE_REWEIGHT=1
+Test split: multitask_v2s_shared_test_users.json (128 users: 92 HandRGBD + 36 Prolific)
+Datasets: HandRGBD, LUICID, Prolific (no HaGRID)
+K-folds: 5, seed=42
 ```
 
-Previous runs used `runs/test_users.json` which was created from a dataset including HaGRID. Since HaGRID is excluded from these runs, only 65 HandRGBD users were effective as the test set, with no Prolific holdout. This rerun uses the correct shared split.
+Previous runs used `runs/test_users.json` which was generated from a dataset that included HaGRID. Since HaGRID is excluded, only 65 HandRGBD users were effective as the test set with no Prolific holdout. This run regenerates the folds from the correct shared split.
+
+**Results (5-fold CV, n=1):**
+
+| Fold | Val MAE | Val AUC | Test MAE | Test AUC |
+|---|---|---|---|---|
+| 0 | 4.88 | 0.959 | 4.88 | 0.953 |
+| 1 | 5.10 | 0.967 | 4.93 | 0.976 |
+| 2 | 4.43 | 0.913 | 4.84 | 0.969 |
+| 3 | 4.69 | 0.978 | 4.82 | 0.957 |
+| 4 | 4.93 | 0.966 | 5.27 | 0.950 |
+| **mean** | **4.81 ±0.23** | **0.957 ±0.024** | **4.95 ±0.17** | **0.961 ±0.011** |

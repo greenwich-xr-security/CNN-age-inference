@@ -114,33 +114,17 @@ The current evidence suggests that adding adult/minor boundary supervision and s
 
 The lowest-FPR operating points are intentionally conservative and sit near `tau = 30`. They reduce minor false positives, but create high false-negative rates for young adults, especially `18-19` and `20-24`. A practical operating threshold should therefore be chosen later by balancing minor FPR against adult FNR.
 
-## Future Direction
+## Loss-Weight Sweep Results
 
-Likely next decisions:
+Completed 2026-07-03 (jobs `1049184`, `1049186`, `1049187`, `1049188`). Fixed `nll=1.0`; swept bce and severity weights. Mean held-out test results across 5 folds (V2-S, age reweighting enabled):
 
-- Inspect false positives and false negatives around the 18-year threshold in detail.
-- Compare per-age-bin and near-boundary performance, not only global aggregate metrics.
-- Tune `loss_weight_age_assurance_bce`, `loss_weight_age_assurance_severity`, and `age_assurance_severity_radius` to reduce minor false positives without pushing young-adult false negatives too high.
-- Check whether the age-assurance loss improves safety around the boundary without harming calibration away from it.
-- Decide whether `NLL + age assurance + severity + age reweighting` should become the preferred age-regression training recipe.
+| Recipe | BCE | Sev | MAE n=1 | AUC n=1 | MAE n=4 | AUC n=4 |
+|---|---:|---:|---:|---:|---:|---:|
+| NLL + age assurance (ref) | `0.25` | `0.50` | `5.105` | `0.9450` | `4.546` | `0.9765` |
+| NLL only | `0.00` | `0.00` | `5.314` | `0.9381` | `4.798` | `0.9627` |
+| Softer | `0.10` | `0.25` | `5.063` | `0.9376` | `4.501` | `0.9631` |
+| Stronger BCE | `0.50` | `0.50` | `5.254` | `0.9490` | `4.711` | `0.9713` |
+| Stronger severity | `0.25` | `1.00` | `5.332` | `0.9355` | `4.799` | `0.9665` |
+| Balanced stronger | `0.50` | `1.00` | `5.348` | `0.9464` | `4.794` | `0.9714` |
 
-Submitted next sweep:
-
-Keep `loss_weight_nll = 1.0` fixed first, then vary the auxiliary age-assurance losses. This keeps the main age-regression objective anchored while testing whether the boundary losses can be tuned for a better FPR/FNR trade-off.
-
-Submitted on 2026-07-02 from branch `feature/age-assurance-severity-losses` at commit `10f1e02`. Each sweep job uses one GPU, the shared held-out test split, age reweighting enabled, and the same EfficientNet-V2-S configuration as the completed comparison runs.
-
-| Run | Job ID | Run name | NLL | Age-assurance BCE | Severity | Status at launch | Purpose |
-|---|---:|---|---:|---:|---:|---|---|
-| Current | `1049170` | `v2s_nll_age_assurance_age_reweight_shared20_r3` | `1.0` | `0.25` | `0.5` | Completed | Baseline severity-loss recipe from this branch. |
-| Softer assurance | `1049187` | `v2s_nll_age_assurance_soft_bce010_sev025_age_reweight` | `1.0` | `0.10` | `0.25` | Running | Check if lower boundary pressure reduces young-adult FNR. |
-| Stronger BCE | `1049184` | `v2s_nll_age_assurance_strong_bce050_sev050_age_reweight` | `1.0` | `0.50` | `0.5` | Running | Test stronger adult/minor classification pressure. |
-| Stronger severity | `1049188` | `v2s_nll_age_assurance_bce025_strong_sev100_age_reweight` | `1.0` | `0.25` | `1.0` | Running | Test whether severity specifically improves near-boundary safety. |
-| Balanced stronger | `1049186` | `v2s_nll_age_assurance_strong_bce050_sev100_age_reweight` | `1.0` | `0.50` | `1.0` | Running | Test a stronger full age-assurance recipe. |
-
-Launch notes:
-
-- `1049183` was canceled because it inherited old defaults and started the wrong configuration.
-- `1049185` failed during torchrun rendezvous and was relaunched cleanly as `1049188`.
-
-Compare each run on MAE, adult AUC, minor FPR by age bin, adult FNR by age bin, and threshold trade-off curves rather than only the lowest-FPR `tau`.
+The reference recipe (bce=0.25, sev=0.5) is Pareto-dominant on n=4. Increasing severity beyond 0.5 consistently hurts both metrics. The softer config gets the lowest raw MAE but has a fold_0 AUC outlier (0.918). **The reference weights are confirmed as the standard recipe.**

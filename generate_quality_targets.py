@@ -37,40 +37,16 @@ def parse_args() -> argparse.Namespace:
         help="Samples within this many years of the threshold are marked near-boundary.",
     )
     parser.add_argument(
-        "--age-bin-width",
+        "--curve-bandwidth",
         type=float,
-        default=1.0,
-        help="Age-bin width in years for normalising absolute error by OOF age-bin MAE.",
+        default=3.0,
+        help="Gaussian kernel bandwidth in years for fitting smooth f_err(age) and f_std(age) curves.",
     )
     parser.add_argument(
-        "--min-age-bin-mae",
+        "--min-curve-value",
         type=float,
         default=0.25,
-        help="Lower bound for age-bin MAE when computing normalised error.",
-    )
-    parser.add_argument(
-        "--min-age-bin-uncertainty",
-        type=float,
-        default=0.25,
-        help="Lower bound for age-bin mean predicted std when computing normalised uncertainty.",
-    )
-    parser.add_argument(
-        "--min-age-bin-consistency",
-        type=float,
-        default=0.05,
-        help="Lower bound for age-bin mean TTA std when computing normalised consistency.",
-    )
-    parser.add_argument(
-        "--error-scale",
-        type=float,
-        default=1.0,
-        help="Scale for normalised error when mapping error to quality score.",
-    )
-    parser.add_argument(
-        "--uncertainty-scale",
-        type=float,
-        default=1.0,
-        help="Scale for normalised predicted std when mapping uncertainty to quality score.",
+        help="Floor applied to fitted curve values before normalising, to prevent division by near-zero.",
     )
     return parser.parse_args()
 
@@ -152,53 +128,51 @@ def collapse_duplicate_predictions(df: pd.DataFrame) -> pd.DataFrame:
     return grouped
 
 
+def fit_age_curve(ages: np.ndarray, values: np.ndarray, bandwidth: float, min_val: float) -> np.ndarray:
+    """Gaussian kernel regression: fit a smooth curve f(age) and return per-sample values.
+
+    Evaluates on a dense age grid then interpolates back, avoiding O(n²) cost.
+    """
+    grid = np.linspace(ages.min(), ages.max(), 200)
+    diffs = grid[:, None] - ages[None, :]          # (200, n)
+    weights = np.exp(-0.5 * (diffs / bandwidth) ** 2)
+    weights /= weights.sum(axis=1, keepdims=True)
+    smoothed = np.maximum((weights * values[None, :]).sum(axis=1), min_val)
+    return np.interp(ages, grid, smoothed)
+
+
 def add_quality_columns(df: pd.DataFrame, args: argparse.Namespace) -> pd.DataFrame:
     out = df.copy()
     log_var = np.clip(out["age_pred_log_var"].to_numpy(dtype=float), LOG_VAR_MIN, LOG_VAR_MAX)
     pred_std_raw = np.exp(0.5 * log_var)
     ages = out["age"].to_numpy(dtype=float)
     abs_error_raw = np.abs(out["age_pred_mean"].to_numpy(dtype=float) - ages)
-    bin_width = max(float(args.age_bin_width), 1e-6)
-    age_bin = np.floor(ages / bin_width) * bin_width
-    out["age_bin"] = age_bin
+
     out["raw_abs_error"] = abs_error_raw
     out["raw_pred_std"] = pred_std_raw
-    age_bin_mae = out.groupby("age_bin")["raw_abs_error"].transform("mean").to_numpy(dtype=float)
-    age_bin_mae = np.maximum(age_bin_mae, float(args.min_age_bin_mae))
-    normalised_abs_error = abs_error_raw / age_bin_mae
-    sq_error = normalised_abs_error ** 2
-    true_adult = out["age"].to_numpy(dtype=float) >= args.age_threshold
+
+    fitted_err = fit_age_curve(ages, abs_error_raw, args.curve_bandwidth, args.min_curve_value)
+    fitted_std = fit_age_curve(ages, pred_std_raw, args.curve_bandwidth, args.min_curve_value)
+
+    normalised_abs_error = abs_error_raw / fitted_err
+    normalised_uncertainty = pred_std_raw / fitted_std
+
+    true_adult = ages >= args.age_threshold
     pred_adult = out["age_pred_mean"].to_numpy(dtype=float) >= args.age_threshold
     consistency_raw = out.get("tta_pred_std", pd.Series(np.zeros(len(out)), index=out.index)).fillna(0.0).to_numpy(float)
     out["raw_consistency_score"] = consistency_raw
 
-    age_bin_uncertainty = out.groupby("age_bin")["raw_pred_std"].transform("mean").to_numpy(dtype=float)
-    age_bin_uncertainty = np.maximum(age_bin_uncertainty, float(args.min_age_bin_uncertainty))
-    normalised_uncertainty = pred_std_raw / age_bin_uncertainty
-
-    age_bin_consistency = out.groupby("age_bin")["raw_consistency_score"].transform("mean").to_numpy(dtype=float)
-    age_bin_consistency = np.maximum(age_bin_consistency, float(args.min_age_bin_consistency))
-    normalised_consistency = consistency_raw / age_bin_consistency
-
-    out["age_bin_mae"] = age_bin_mae
+    out["fitted_err"] = fitted_err
+    out["fitted_std"] = fitted_std
     out["normalized_abs_error"] = normalised_abs_error
-    out["age_bin_uncertainty"] = age_bin_uncertainty
     out["normalized_uncertainty"] = normalised_uncertainty
-    out["age_bin_consistency"] = age_bin_consistency
-    out["normalized_consistency"] = normalised_consistency
     out["abs_error"] = normalised_abs_error
-    out["squared_error"] = sq_error
     out["pred_std"] = normalised_uncertainty
-    out["uncertainty_score"] = normalised_uncertainty
     out["boundary_error"] = (true_adult != pred_adult).astype(int)
     out["boundary_margin"] = np.abs(out["age_pred_mean"].to_numpy(dtype=float) - args.age_threshold)
-    out["true_boundary_margin"] = np.abs(out["age"].to_numpy(dtype=float) - args.age_threshold)
+    out["true_boundary_margin"] = np.abs(ages - args.age_threshold)
     out["near_boundary"] = (out["true_boundary_margin"] <= args.boundary_window).astype(int)
-    out["consistency_score"] = normalised_consistency
-    penalty = (
-        (normalised_abs_error / max(args.error_scale, 1e-6))
-        + (normalised_uncertainty / max(args.uncertainty_scale, 1e-6))
-    )
+    penalty = normalised_abs_error + normalised_uncertainty
     out["quality_score"] = 1.0 / (1.0 + penalty)
     out["usefulness_score"] = out["quality_score"]
     return out

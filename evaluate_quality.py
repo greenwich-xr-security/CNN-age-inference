@@ -75,21 +75,25 @@ def main() -> None:
         "samples": len(df),
         "corr_quality": safe_corr(df["target_quality_score"], df["pred_quality_score"]),
     }
-    if {"target_abs_error", "pred_expected_abs_error"} <= set(df.columns):
+    pred_abs_error_col = next(
+        (c for c in ("pred_abs_error", "pred_expected_abs_error") if c in df.columns), None
+    )
+    if pred_abs_error_col is not None and "target_abs_error" in df.columns:
         summary.update(
             {
-                "corr_abs_error": safe_corr(df["target_abs_error"], df["pred_expected_abs_error"]),
-                "mae_abs_error": float(mean_absolute_error(df["target_abs_error"], df["pred_expected_abs_error"])),
+                "corr_abs_error": safe_corr(df["target_abs_error"], df[pred_abs_error_col]),
+                "mae_abs_error": float(mean_absolute_error(df["target_abs_error"], df[pred_abs_error_col])),
                 "rmse_abs_error": float(
-                    np.sqrt(np.mean((df["target_abs_error"] - df["pred_expected_abs_error"]) ** 2))
+                    np.sqrt(np.mean((df["target_abs_error"] - df[pred_abs_error_col]) ** 2))
                 ),
             }
         )
+        high_error = df["target_abs_error"] >= df["target_abs_error"].quantile(0.75)
+        summary["auc_high_error_top_quartile"] = safe_auc(high_error.astype(int), df[pred_abs_error_col])
+    if "pred_uncertainty" in df.columns and "target_pred_std" in df.columns:
+        summary["corr_uncertainty"] = safe_corr(df["target_pred_std"], df["pred_uncertainty"])
     if {"target_boundary_error", "pred_boundary_error_prob"} <= set(df.columns):
         summary["auc_boundary_error"] = safe_auc(df["target_boundary_error"], df["pred_boundary_error_prob"])
-    if {"target_abs_error", "pred_expected_abs_error"} <= set(df.columns):
-        high_error = df["target_abs_error"] >= df["target_abs_error"].quantile(0.75)
-        summary["auc_high_error_top_quartile"] = safe_auc(high_error.astype(int), df["pred_expected_abs_error"])
     pd.DataFrame([summary]).to_csv(output_dir / "quality_summary.csv", index=False)
 
     aggregations = {

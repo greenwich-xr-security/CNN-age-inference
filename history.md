@@ -43,6 +43,21 @@ quality_score = 1 / (1 + normalized_abs_error + normalized_uncertainty)
 
 The auxiliary heads (`pred_abs_error`, `pred_uncertainty`) are the direct components of `quality_score`, so they provide intermediate supervision for exactly what the backbone needs to learn. Boundary error and consistency are excluded: boundary encodes the downstream decision rather than image quality; consistency can reward consistently uninformative samples.
 
+## Current HPC Jobs
+
+```text
+Job 1049195 — quality targets generation
+  PIPELINE_STAGE: quality_targets
+  Age run: v2_small_quality_full_wall3_b32_age_reweight_correct_split
+
+Job 1049197 — B0 quality network training
+  PIPELINE_STAGE: quality
+  Model: EfficientNet-B0
+  GPUs: 2
+  Quality run: v2_small_quality_full_wall3_b32_age_reweight_correct_split_quality_b0
+  Design: 3-head (abs_error + uncertainty + quality_score)
+```
+
 ## Age Regression Baseline (correct split)
 
 ```text

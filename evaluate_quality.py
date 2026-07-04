@@ -71,6 +71,9 @@ def main() -> None:
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
+    if "target_quality_score" not in df.columns and "target_abs_error" in df.columns:
+        df["target_quality_score"] = 1.0 / (1.0 + df["target_abs_error"])
+
     summary = {
         "samples": len(df),
         "corr_quality": safe_corr(df["target_quality_score"], df["pred_quality_score"]),

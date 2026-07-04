@@ -129,4 +129,4 @@ pred_quality_score = sigmoid(out[0])   ← P(high quality)
 
 **Run:** `v2_small_quality_full_wall3_b32_age_reweight_correct_split_quality_b0_d3`
 **Backbone:** EfficientNet-B0, 2 GPUs, 5-fold CV
-**Git commit:** `(pending)`
+**Git commit:** `876afd2`

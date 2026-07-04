@@ -73,6 +73,8 @@ def main() -> None:
 
     if "target_quality_score" not in df.columns and "target_abs_error" in df.columns:
         df["target_quality_score"] = 1.0 / (1.0 + df["target_abs_error"])
+    if "target_quality_score" not in df.columns and "target_quality_label" in df.columns:
+        df["target_quality_score"] = df["target_quality_label"]
 
     summary = {
         "samples": len(df),

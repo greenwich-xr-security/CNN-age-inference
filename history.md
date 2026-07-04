@@ -110,3 +110,23 @@ loss = SmoothL1(pred_abs_error, target_abs_error)
 | `auc_high_error_top_quartile` | 0.587 | **0.591** |
 
 Dropping the uncertainty head improves `corr_quality` from near-zero (-0.054) to a modest positive (+0.115). The abs_error signal also improves slightly (+0.152 → +0.172). Removing the inverted uncertainty target allows the backbone to focus entirely on predicting normalised abs_error.
+
+## Design 3 — Binary Classification (high-error vs low-error)
+
+Rather than regressing normalised abs_error, the network classifies samples as high-quality (bottom quartile of abs_error) or low-quality (top quartile). The middle 50% are filtered out at training time, giving cleaner and more separable labels. BCE loss is used directly, matching the `auc_high_error_top_quartile` evaluation metric.
+
+```text
+quality_label = 1  if abs_error <= 25th percentile  (low error = high quality)
+quality_label = 0  if abs_error >= 75th percentile  (high error = low quality)
+middle 50%     = filtered out
+```
+
+Loss: `BCE(sigmoid(out[0]), quality_label)`
+
+```text
+pred_quality_score = sigmoid(out[0])   ← P(high quality)
+```
+
+**Run:** `v2_small_quality_full_wall3_b32_age_reweight_correct_split_quality_b0_d3`
+**Backbone:** EfficientNet-B0, 2 GPUs, 5-fold CV
+**Git commit:** `(pending)`

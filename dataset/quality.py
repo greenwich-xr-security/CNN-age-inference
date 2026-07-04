@@ -11,7 +11,7 @@ from dataset.age import AgeDataset
 
 
 QUALITY_TARGET_COLUMNS = [
-    "abs_error",
+    "quality_label",
 ]
 
 
@@ -30,6 +30,7 @@ class QualityDataset(Dataset):
         missing = {"image_path", "age", "user_id", *self.target_columns} - set(self.records.columns)
         if missing:
             raise ValueError(f"Quality targets missing columns: {sorted(missing)}")
+        self.records = self.records.dropna(subset=self.target_columns).reset_index(drop=True)
         self.records["image_path"] = self.records["image_path"].map(Path)
         self.base = AgeDataset(
             self.records,

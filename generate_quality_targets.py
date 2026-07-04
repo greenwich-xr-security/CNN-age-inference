@@ -175,6 +175,13 @@ def add_quality_columns(df: pd.DataFrame, args: argparse.Namespace) -> pd.DataFr
     penalty = normalised_abs_error + normalised_uncertainty
     out["quality_score"] = 1.0 / (1.0 + penalty)
     out["usefulness_score"] = out["quality_score"]
+
+    p25 = out["abs_error"].quantile(0.25)
+    p75 = out["abs_error"].quantile(0.75)
+    out["quality_label"] = float("nan")
+    out.loc[out["abs_error"] <= p25, "quality_label"] = 1.0
+    out.loc[out["abs_error"] >= p75, "quality_label"] = 0.0
+
     return out
 
 

@@ -20,7 +20,7 @@ EFFICIENTNET_ALIASES = {
 
 
 QUALITY_OUTPUT_NAMES = [
-    "abs_error",
+    "quality_label",
 ]
 
 

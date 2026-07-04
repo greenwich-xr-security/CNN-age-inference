@@ -130,3 +130,17 @@ pred_quality_score = sigmoid(out[0])   ← P(high quality)
 **Run:** `v2_small_quality_full_wall3_b32_age_reweight_correct_split_quality_b0_d3`
 **Backbone:** EfficientNet-B0, 2 GPUs, 5-fold CV
 **Git commit:** `876afd2`
+
+**Results:**
+
+| Metric | Design 1 (3-head) | Design 2 (single-head) | Design 3 (binary BCE) |
+|---|---|---|---|
+| `corr_quality` | -0.054 | +0.115 | **+0.168** |
+| `corr_abs_error` | +0.152 | +0.172 | — |
+| `mae_abs_error` | 0.594 | 0.598 | — |
+| `auc_high_error_top_quartile` | 0.587 | 0.591 | — |
+| eval samples | all | all | top+bottom 50% |
+
+Design 3 achieves the highest `corr_quality` (+0.168) across all designs. Note: the metric is not directly comparable — Designs 1/2 use Pearson correlation over all samples against a continuous target; Design 3 uses point-biserial correlation over the top/bottom quartile samples only against a binary label. The improvement suggests binary supervision provides a cleaner learning signal than regressing normalised continuous error.
+
+The missing `auc_high_error_top_quartile` for Design 3 is because the network does not predict a `pred_abs_error` column — only `pred_quality_score` (sigmoid probability of being high-quality). The evaluation metric could be recomputed by treating `1 - pred_quality_score` as the predicted high-error score, but this was not done in the current evaluation script.

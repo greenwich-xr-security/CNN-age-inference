@@ -118,6 +118,13 @@ def parse_args() -> argparse.Namespace:
         help="Exact dataset sources to load; overrides individual --no-* dataset flags.",
     )
     parser.add_argument(
+        "--eval-datasets",
+        nargs="+",
+        choices=DATASET_SOURCES,
+        default=None,
+        help="Dataset sources eligible for held-out evaluation; defaults to --datasets when omitted.",
+    )
+    parser.add_argument(
         "--batch-size",
         type=int,
         default=32,
@@ -178,7 +185,7 @@ def main() -> None:
     metadata = filter_metadata(
         load_combined_metadata(
             root=get_dataset_root(),
-            sources=args.datasets,
+            sources=args.eval_datasets or args.datasets,
             include_hagrid=not getattr(args, "no_hagrid", False),
             include_synthetic_dorsal=not getattr(args, "no_synthetic_dorsal", False),
         ),

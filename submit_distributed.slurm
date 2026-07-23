@@ -94,7 +94,9 @@ EMBED_CONTRAST_AGE_THRESH="${EMBED_CONTRAST_AGE_THRESH:-5.0}"
 USE_MASKS="${USE_MASKS:-0}"                        # set >0 to apply dataset masks (black background)
 # Space-separated list passed unchanged to every split, fold, and training command.
 # Choices: handrgbd hagrid synthetic_dorsal primary archive
-DATASETS="${DATASETS:-handrgbd hagrid synthetic_dorsal}"
+DATASETS="${DATASETS:-handrgbd hagrid synthetic_dorsal}" # legacy shared selection
+TRAIN_DATASETS="${TRAIN_DATASETS:-${DATASETS}}"
+EVAL_DATASETS="${EVAL_DATASETS:-${DATASETS}}"
 # K-fold settings (set KFOLDS > 1 to enable).
 KFOLDS="${KFOLDS:-5}"
 FOLD_SEED="${FOLD_SEED:-${SEED}}"
@@ -115,7 +117,7 @@ if [[ ! -f "${TEST_SPLIT_FILE}" ]]; then
     --seed "${SEED}" \
     --out-file "${TEST_SPLIT_FILE}" \
     --stratify-mode "${SPLIT_STRATIFY_MODE}" \
-    --datasets ${DATASETS}
+    --eval-datasets ${EVAL_DATASETS}
 else
   echo ">>> Using existing test split: ${TEST_SPLIT_FILE}"
 fi
@@ -141,7 +143,7 @@ for USER_GROUP_SIZE in ${USER_GROUP_SIZES}; do
             --out-file "${FOLD_FILE}" \
             --test-users-file "${TEST_SPLIT_FILE}" \
             --stratify-mode "${SPLIT_STRATIFY_MODE}" \
-            --datasets ${DATASETS} \
+            --eval-datasets ${EVAL_DATASETS} \
             $( [[ "${FOLD_OVERWRITE}" -gt 0 ]] && echo "--overwrite" )
         fi
         for ((FOLD_IDX=0; FOLD_IDX<KFOLDS; FOLD_IDX++)); do
@@ -178,7 +180,8 @@ for USER_GROUP_SIZE in ${USER_GROUP_SIZES}; do
             --embed-contrast-margin "${EMBED_CONTRAST_MARGIN}" \
             --embed-contrast-age-thresh "${EMBED_CONTRAST_AGE_THRESH}" \
             $( [[ "${USE_MASKS}" -gt 0 ]] && echo "--use-masks" ) \
-            --datasets ${DATASETS} \
+            --train-datasets ${TRAIN_DATASETS} \
+            --eval-datasets ${EVAL_DATASETS} \
             $( [[ "${AGE_REWEIGHT}" -gt 0 ]] && echo "--age-reweight-loss --age-weight-eps ${AGE_WEIGHT_EPS} --age-weight-power ${AGE_WEIGHT_POWER} --age-weight-min ${AGE_WEIGHT_MIN} --age-weight-max ${AGE_WEIGHT_MAX}" ) \
             $( [[ "${AGE_OVERSAMPLE}" -gt 0 ]] && echo "--age-oversample --age-oversample-max-multiplier ${AGE_OVERSAMPLE_MAX_MULT}" ) \
             $( [[ -n "${AGE_OVERSAMPLE_TARGET}" ]] && echo "--age-oversample-target ${AGE_OVERSAMPLE_TARGET}" ) \
@@ -233,7 +236,8 @@ for USER_GROUP_SIZE in ${USER_GROUP_SIZES}; do
           --embed-contrast-margin "${EMBED_CONTRAST_MARGIN}" \
           --embed-contrast-age-thresh "${EMBED_CONTRAST_AGE_THRESH}" \
           $( [[ "${USE_MASKS}" -gt 0 ]] && echo "--use-masks" ) \
-          --datasets ${DATASETS} \
+          --train-datasets ${TRAIN_DATASETS} \
+          --eval-datasets ${EVAL_DATASETS} \
           $( [[ "${AGE_REWEIGHT}" -gt 0 ]] && echo "--age-reweight-loss --age-weight-eps ${AGE_WEIGHT_EPS} --age-weight-power ${AGE_WEIGHT_POWER} --age-weight-min ${AGE_WEIGHT_MIN} --age-weight-max ${AGE_WEIGHT_MAX}" ) \
           $( [[ "${AGE_OVERSAMPLE}" -gt 0 ]] && echo "--age-oversample --age-oversample-max-multiplier ${AGE_OVERSAMPLE_MAX_MULT}" ) \
           $( [[ -n "${AGE_OVERSAMPLE_TARGET}" ]] && echo "--age-oversample-target ${AGE_OVERSAMPLE_TARGET}" ) \

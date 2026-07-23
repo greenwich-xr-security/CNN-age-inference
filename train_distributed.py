@@ -202,6 +202,20 @@ def parse_args() -> argparse.Namespace:
         help="Exact dataset sources to load; overrides individual --no-* dataset flags.",
     )
     parser.add_argument(
+        "--train-datasets",
+        nargs="+",
+        choices=DATASET_SOURCES,
+        default=None,
+        help="Dataset sources eligible for training; defaults to --datasets when omitted.",
+    )
+    parser.add_argument(
+        "--eval-datasets",
+        nargs="+",
+        choices=DATASET_SOURCES,
+        default=None,
+        help="Dataset sources eligible for validation and held-out testing; defaults to --datasets when omitted.",
+    )
+    parser.add_argument(
         "--epochs",
         type=int,
         default=DEFAULT_EPOCHS,
@@ -363,10 +377,22 @@ def build_datasets(args: argparse.Namespace, seed: int, img_size: int):
 
     train_transform, test_transform = build_transforms(img_size)
 
-    metadata = filter_metadata(
+    train_sources = getattr(args, "train_datasets", None) or getattr(args, "datasets", None)
+    eval_sources = getattr(args, "eval_datasets", None) or getattr(args, "datasets", None)
+    train_metadata = filter_metadata(
         load_combined_metadata(
             root=active_root,
-            sources=getattr(args, "datasets", None),
+            sources=train_sources,
+            include_hagrid=not getattr(args, "no_hagrid", False),
+            include_synthetic_dorsal=not getattr(args, "no_synthetic_dorsal", False),
+        ),
+        max_samples_per_user=args.max_samples_per_user or None,
+        max_samples_per_age_bin=args.max_samples_per_age_bin or None,
+    )
+    eval_metadata = filter_metadata(
+        load_combined_metadata(
+            root=active_root,
+            sources=eval_sources,
             include_hagrid=not getattr(args, "no_hagrid", False),
             include_synthetic_dorsal=not getattr(args, "no_synthetic_dorsal", False),
         ),
@@ -377,9 +403,10 @@ def build_datasets(args: argparse.Namespace, seed: int, img_size: int):
     if args.test_users_file:
         test_data = load_test_split(args.test_users_file)
         test_ids = {str(uid) for uid in test_data["test_user_ids"]}
-        before = metadata["user_id"].nunique()
-        metadata = metadata[~metadata["user_id"].astype(str).isin(test_ids)]
-        after = metadata["user_id"].nunique()
+        before = eval_metadata["user_id"].nunique()
+        train_metadata = train_metadata[~train_metadata["user_id"].astype(str).isin(test_ids)]
+        eval_metadata = eval_metadata[~eval_metadata["user_id"].astype(str).isin(test_ids)]
+        after = eval_metadata["user_id"].nunique()
         print(f"[data] Excluded {before - after} held-out test users. Remaining: {after}")
 
     fold_info = None
@@ -398,7 +425,7 @@ def build_datasets(args: argparse.Namespace, seed: int, img_size: int):
             if idx == args.fold_index:
                 continue
             train_ids.update(str(uid) for uid in fold)
-        available_ids = set(metadata["user_id"].astype(str).unique())
+        available_ids = set(eval_metadata["user_id"].astype(str).unique())
         val_ids = [uid for uid in val_ids if uid in available_ids]
         train_ids = [uid for uid in train_ids if uid in available_ids and uid not in val_ids]
         fold_info = {
@@ -406,10 +433,12 @@ def build_datasets(args: argparse.Namespace, seed: int, img_size: int):
             "index": args.fold_index,
         }
     else:
-        user_ids = metadata["user_id"].unique()
-        train_ids, val_ids = train_test_split(user_ids, test_size=0.2, random_state=seed)
-    train_meta = metadata[metadata["user_id"].isin(train_ids)]
-    val_meta = metadata[metadata["user_id"].isin(val_ids)]
+        user_ids = eval_metadata["user_id"].unique()
+        _, val_ids = train_test_split(user_ids, test_size=0.2, random_state=seed)
+    val_meta = eval_metadata[eval_metadata["user_id"].isin(val_ids)]
+    train_meta = train_metadata[
+        ~train_metadata["user_id"].astype(str).isin({str(uid) for uid in val_ids})
+    ]
 
     if args.age_oversample:
         before = len(train_meta)
@@ -434,10 +463,11 @@ def load_filtered_test_metadata(args: argparse.Namespace, active_root) -> pd.Dat
 
     test_split_data = load_test_split(args.test_users_file)
     test_ids = {str(uid) for uid in test_split_data["test_user_ids"]}
+    eval_sources = getattr(args, "eval_datasets", None) or getattr(args, "datasets", None)
     all_meta = filter_metadata(
         load_combined_metadata(
             root=active_root,
-            sources=getattr(args, "datasets", None),
+            sources=eval_sources,
             include_hagrid=not getattr(args, "no_hagrid", False),
             include_synthetic_dorsal=not getattr(args, "no_synthetic_dorsal", False),
         ),

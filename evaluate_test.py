@@ -169,6 +169,10 @@ def main() -> None:
         f"stratified={test_data.get('stratified')}, "
         f"fraction={test_data.get('test_size')})"
     )
+    print(
+        f"Test split provenance: format={test_data['split_format']} | "
+        f"sha256={test_data['split_sha256']}"
+    )
 
     # ── Build test dataset ────────────────────────────────────────────────────
     metadata = filter_metadata(

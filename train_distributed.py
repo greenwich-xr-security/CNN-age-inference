@@ -632,6 +632,12 @@ def main() -> None:
             fp.write(f"resolved_age_oversample_target={args.age_oversample_target}\n")
             fp.write(f"resolved_age_oversample_max_multiplier={args.age_oversample_max_multiplier}\n")
             fp.write(f"resolved_use_masks={int(args.use_masks)}\n")
+            if args.test_users_file:
+                split_data = load_test_split(args.test_users_file)
+                fp.write(f"test_split_path={split_data['split_path']}\n")
+                fp.write(f"test_split_sha256={split_data['split_sha256']}\n")
+                fp.write(f"test_split_format={split_data['split_format']}\n")
+                fp.write(f"test_split_users={len(split_data['test_user_ids'])}\n")
         if combined_records is not None:
             _append_dataset_stats(config_path, "dataset", combined_records)
         print(

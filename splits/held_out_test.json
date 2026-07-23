@@ -1,0 +1,3265 @@
+{
+  "schema_version": 3,
+  "seed": 42,
+  "data_root": "C:\\Users\\Staff\\OneDrive - University of Greenwich\\HandsDatasets",
+  "description": "Locked subject-disjoint held-out test split for the utility-of-synthetic-dorsal-hands study. The split is balanced to 15 subjects per age bin; synthetic data must never be used for validation or test.",
+  "selection_method": {
+    "target_per_age_group": 15,
+    "age_groups": "10-12, 13-15, 16-17, 18-19, 20-24, 25-29, 30-39, 40-49, 50-59, 60+",
+    "primary_sources": "Within each age bin, handRGBD and Archive are split as evenly as availability allows.",
+    "fallback_sources": "11k Hands (primary) and ProlificHands are used only when handRGBD + Archive cannot fill the 15-subject age-bin target."
+  },
+  "age_groups": {
+    "10-12": {
+      "min_age": 10,
+      "max_age": 12
+    },
+    "13-15": {
+      "min_age": 13,
+      "max_age": 15
+    },
+    "16-17": {
+      "min_age": 16,
+      "max_age": 17
+    },
+    "18-19": {
+      "min_age": 18,
+      "max_age": 19
+    },
+    "20-24": {
+      "min_age": 20,
+      "max_age": 24
+    },
+    "25-29": {
+      "min_age": 25,
+      "max_age": 29
+    },
+    "30-39": {
+      "min_age": 30,
+      "max_age": 39
+    },
+    "40-49": {
+      "min_age": 40,
+      "max_age": 49
+    },
+    "50-59": {
+      "min_age": 50,
+      "max_age": 59
+    },
+    "60+": {
+      "min_age": 60,
+      "max_age": null
+    }
+  },
+  "target_counts": {
+    "subjects_per_age_group": 15,
+    "by_age_group_and_source": {
+      "10-12": {
+        "handrgbd": 8,
+        "archive": 7
+      },
+      "13-15": {
+        "handrgbd": 7,
+        "archive": 8
+      },
+      "16-17": {
+        "handrgbd": 8,
+        "archive": 7
+      },
+      "18-19": {
+        "handrgbd": 7,
+        "archive": 8
+      },
+      "20-24": {
+        "handrgbd": 8,
+        "archive": 7
+      },
+      "25-29": {
+        "handrgbd": 10,
+        "archive": 5
+      },
+      "30-39": {
+        "handrgbd": 7,
+        "archive": 8
+      },
+      "40-49": {
+        "handrgbd": 7,
+        "archive": 8
+      },
+      "50-59": {
+        "handrgbd": 12,
+        "archive": 3
+      },
+      "60+": {
+        "handrgbd": 5,
+        "archive": 5,
+        "primary": 2,
+        "prolific": 3
+      }
+    }
+  },
+  "subjects": [
+    {
+      "subject_id": "archive_16",
+      "raw_subject_id": 16,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 12,
+      "age_group": "10-12",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_2",
+      "raw_subject_id": 2,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 10,
+      "age_group": "10-12",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_21",
+      "raw_subject_id": 21,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 12,
+      "age_group": "10-12",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_26",
+      "raw_subject_id": 26,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 11,
+      "age_group": "10-12",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_41",
+      "raw_subject_id": 41,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 10,
+      "age_group": "10-12",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_84",
+      "raw_subject_id": 84,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 12,
+      "age_group": "10-12",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_98",
+      "raw_subject_id": 98,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 12,
+      "age_group": "10-12",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "handrgbd_109",
+      "raw_subject_id": 109,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 12,
+      "age_group": "10-12",
+      "skin_tone": "medium"
+    },
+    {
+      "subject_id": "handrgbd_115",
+      "raw_subject_id": 115,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 10,
+      "age_group": "10-12",
+      "skin_tone": "medium"
+    },
+    {
+      "subject_id": "handrgbd_279",
+      "raw_subject_id": 279,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 12,
+      "age_group": "10-12",
+      "skin_tone": "medium"
+    },
+    {
+      "subject_id": "handrgbd_304",
+      "raw_subject_id": 304,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 12,
+      "age_group": "10-12",
+      "skin_tone": "medium"
+    },
+    {
+      "subject_id": "handrgbd_350",
+      "raw_subject_id": 350,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 12,
+      "age_group": "10-12",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "handrgbd_362",
+      "raw_subject_id": 362,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 11,
+      "age_group": "10-12",
+      "skin_tone": "medium"
+    },
+    {
+      "subject_id": "handrgbd_66",
+      "raw_subject_id": 66,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 12,
+      "age_group": "10-12",
+      "skin_tone": "dark"
+    },
+    {
+      "subject_id": "handrgbd_89",
+      "raw_subject_id": 89,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 12,
+      "age_group": "10-12",
+      "skin_tone": "dark"
+    },
+    {
+      "subject_id": "archive_100",
+      "raw_subject_id": 100,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 15,
+      "age_group": "13-15",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_31",
+      "raw_subject_id": 31,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 14,
+      "age_group": "13-15",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_55",
+      "raw_subject_id": 55,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 15,
+      "age_group": "13-15",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_64",
+      "raw_subject_id": 64,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 14,
+      "age_group": "13-15",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_68",
+      "raw_subject_id": 68,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 15,
+      "age_group": "13-15",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_73",
+      "raw_subject_id": 73,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 15,
+      "age_group": "13-15",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_74",
+      "raw_subject_id": 74,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 14,
+      "age_group": "13-15",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_76",
+      "raw_subject_id": 76,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 15,
+      "age_group": "13-15",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "handrgbd_128",
+      "raw_subject_id": 128,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 13,
+      "age_group": "13-15",
+      "skin_tone": "medium"
+    },
+    {
+      "subject_id": "handrgbd_231",
+      "raw_subject_id": 231,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 14,
+      "age_group": "13-15",
+      "skin_tone": "dark"
+    },
+    {
+      "subject_id": "handrgbd_300",
+      "raw_subject_id": 300,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 13,
+      "age_group": "13-15",
+      "skin_tone": "dark"
+    },
+    {
+      "subject_id": "handrgbd_301",
+      "raw_subject_id": 301,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 14,
+      "age_group": "13-15",
+      "skin_tone": "medium"
+    },
+    {
+      "subject_id": "handrgbd_311",
+      "raw_subject_id": 311,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 14,
+      "age_group": "13-15",
+      "skin_tone": "medium"
+    },
+    {
+      "subject_id": "handrgbd_319",
+      "raw_subject_id": 319,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 14,
+      "age_group": "13-15",
+      "skin_tone": "dark"
+    },
+    {
+      "subject_id": "handrgbd_377",
+      "raw_subject_id": 377,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 14,
+      "age_group": "13-15",
+      "skin_tone": "medium"
+    },
+    {
+      "subject_id": "archive_24",
+      "raw_subject_id": 24,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 17,
+      "age_group": "16-17",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_35",
+      "raw_subject_id": 35,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 17,
+      "age_group": "16-17",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_39",
+      "raw_subject_id": 39,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 16,
+      "age_group": "16-17",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_58",
+      "raw_subject_id": 58,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 16,
+      "age_group": "16-17",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_59",
+      "raw_subject_id": 59,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 16,
+      "age_group": "16-17",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_66",
+      "raw_subject_id": 66,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 17,
+      "age_group": "16-17",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_77",
+      "raw_subject_id": 77,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 16,
+      "age_group": "16-17",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "handrgbd_208",
+      "raw_subject_id": 208,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 16,
+      "age_group": "16-17",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "handrgbd_242",
+      "raw_subject_id": 242,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 17,
+      "age_group": "16-17",
+      "skin_tone": "unlabeled"
+    },
+    {
+      "subject_id": "handrgbd_248",
+      "raw_subject_id": 248,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 17,
+      "age_group": "16-17",
+      "skin_tone": "medium"
+    },
+    {
+      "subject_id": "handrgbd_281",
+      "raw_subject_id": 281,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 17,
+      "age_group": "16-17",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "handrgbd_293",
+      "raw_subject_id": 293,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 16,
+      "age_group": "16-17",
+      "skin_tone": "dark"
+    },
+    {
+      "subject_id": "handrgbd_329",
+      "raw_subject_id": 329,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 16,
+      "age_group": "16-17",
+      "skin_tone": "dark"
+    },
+    {
+      "subject_id": "handrgbd_70",
+      "raw_subject_id": 70,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 16,
+      "age_group": "16-17",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "handrgbd_83",
+      "raw_subject_id": 83,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 17,
+      "age_group": "16-17",
+      "skin_tone": "dark"
+    },
+    {
+      "subject_id": "archive_17",
+      "raw_subject_id": 17,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 18,
+      "age_group": "18-19",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_18",
+      "raw_subject_id": 18,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 19,
+      "age_group": "18-19",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_29",
+      "raw_subject_id": 29,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 18,
+      "age_group": "18-19",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_40",
+      "raw_subject_id": 40,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 19,
+      "age_group": "18-19",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_56",
+      "raw_subject_id": 56,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 18,
+      "age_group": "18-19",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_57",
+      "raw_subject_id": 57,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 18,
+      "age_group": "18-19",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_65",
+      "raw_subject_id": 65,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 18,
+      "age_group": "18-19",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_87",
+      "raw_subject_id": 87,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 18,
+      "age_group": "18-19",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "handrgbd_162",
+      "raw_subject_id": 162,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 18,
+      "age_group": "18-19",
+      "skin_tone": "dark"
+    },
+    {
+      "subject_id": "handrgbd_169",
+      "raw_subject_id": 169,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 18,
+      "age_group": "18-19",
+      "skin_tone": "dark"
+    },
+    {
+      "subject_id": "handrgbd_210",
+      "raw_subject_id": 210,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 19,
+      "age_group": "18-19",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "handrgbd_211",
+      "raw_subject_id": 211,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 19,
+      "age_group": "18-19",
+      "skin_tone": "medium"
+    },
+    {
+      "subject_id": "handrgbd_214",
+      "raw_subject_id": 214,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 19,
+      "age_group": "18-19",
+      "skin_tone": "medium"
+    },
+    {
+      "subject_id": "handrgbd_282",
+      "raw_subject_id": 282,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 18,
+      "age_group": "18-19",
+      "skin_tone": "medium"
+    },
+    {
+      "subject_id": "handrgbd_388",
+      "raw_subject_id": 388,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 19,
+      "age_group": "18-19",
+      "skin_tone": "dark"
+    },
+    {
+      "subject_id": "archive_36",
+      "raw_subject_id": 36,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 23,
+      "age_group": "20-24",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_7",
+      "raw_subject_id": 7,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 24,
+      "age_group": "20-24",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_80",
+      "raw_subject_id": 80,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 21,
+      "age_group": "20-24",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_81",
+      "raw_subject_id": 81,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 21,
+      "age_group": "20-24",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_82",
+      "raw_subject_id": 82,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 23,
+      "age_group": "20-24",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_83",
+      "raw_subject_id": 83,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 21,
+      "age_group": "20-24",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_94",
+      "raw_subject_id": 94,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 22,
+      "age_group": "20-24",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "handrgbd_12",
+      "raw_subject_id": 12,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 20,
+      "age_group": "20-24",
+      "skin_tone": "dark"
+    },
+    {
+      "subject_id": "handrgbd_149",
+      "raw_subject_id": 149,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 23,
+      "age_group": "20-24",
+      "skin_tone": "dark"
+    },
+    {
+      "subject_id": "handrgbd_153",
+      "raw_subject_id": 153,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 23,
+      "age_group": "20-24",
+      "skin_tone": "medium"
+    },
+    {
+      "subject_id": "handrgbd_164",
+      "raw_subject_id": 164,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 22,
+      "age_group": "20-24",
+      "skin_tone": "medium"
+    },
+    {
+      "subject_id": "handrgbd_183",
+      "raw_subject_id": 183,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 23,
+      "age_group": "20-24",
+      "skin_tone": "dark"
+    },
+    {
+      "subject_id": "handrgbd_205",
+      "raw_subject_id": 205,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 24,
+      "age_group": "20-24",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "handrgbd_21",
+      "raw_subject_id": 21,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 20,
+      "age_group": "20-24",
+      "skin_tone": "dark"
+    },
+    {
+      "subject_id": "handrgbd_218",
+      "raw_subject_id": 218,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 20,
+      "age_group": "20-24",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_32",
+      "raw_subject_id": 32,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 28,
+      "age_group": "25-29",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_46",
+      "raw_subject_id": 46,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 27,
+      "age_group": "25-29",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_47",
+      "raw_subject_id": 47,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 26,
+      "age_group": "25-29",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_49",
+      "raw_subject_id": 49,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 28,
+      "age_group": "25-29",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_50",
+      "raw_subject_id": 50,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 25,
+      "age_group": "25-29",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "handrgbd_141",
+      "raw_subject_id": 141,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 25,
+      "age_group": "25-29",
+      "skin_tone": "dark"
+    },
+    {
+      "subject_id": "handrgbd_142",
+      "raw_subject_id": 142,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 28,
+      "age_group": "25-29",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "handrgbd_16",
+      "raw_subject_id": 16,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 29,
+      "age_group": "25-29",
+      "skin_tone": "dark"
+    },
+    {
+      "subject_id": "handrgbd_170",
+      "raw_subject_id": 170,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 26,
+      "age_group": "25-29",
+      "skin_tone": "dark"
+    },
+    {
+      "subject_id": "handrgbd_195",
+      "raw_subject_id": 195,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 26,
+      "age_group": "25-29",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "handrgbd_412",
+      "raw_subject_id": 412,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 29,
+      "age_group": "25-29",
+      "skin_tone": "unlabeled"
+    },
+    {
+      "subject_id": "handrgbd_417",
+      "raw_subject_id": 417,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 28,
+      "age_group": "25-29",
+      "skin_tone": "unlabeled"
+    },
+    {
+      "subject_id": "handrgbd_431",
+      "raw_subject_id": 431,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 28,
+      "age_group": "25-29",
+      "skin_tone": "medium"
+    },
+    {
+      "subject_id": "handrgbd_432",
+      "raw_subject_id": 432,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 29,
+      "age_group": "25-29",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "handrgbd_44",
+      "raw_subject_id": 44,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 27,
+      "age_group": "25-29",
+      "skin_tone": "medium"
+    },
+    {
+      "subject_id": "archive_11",
+      "raw_subject_id": 11,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 33,
+      "age_group": "30-39",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_13",
+      "raw_subject_id": 13,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 31,
+      "age_group": "30-39",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_23",
+      "raw_subject_id": 23,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 39,
+      "age_group": "30-39",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_27",
+      "raw_subject_id": 27,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 30,
+      "age_group": "30-39",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_4",
+      "raw_subject_id": 4,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 37,
+      "age_group": "30-39",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_42",
+      "raw_subject_id": 42,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 30,
+      "age_group": "30-39",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_78",
+      "raw_subject_id": 78,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 32,
+      "age_group": "30-39",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_92",
+      "raw_subject_id": 92,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 32,
+      "age_group": "30-39",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "handrgbd_104",
+      "raw_subject_id": 104,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 35,
+      "age_group": "30-39",
+      "skin_tone": "dark"
+    },
+    {
+      "subject_id": "handrgbd_132",
+      "raw_subject_id": 132,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 39,
+      "age_group": "30-39",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "handrgbd_136",
+      "raw_subject_id": 136,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 33,
+      "age_group": "30-39",
+      "skin_tone": "medium"
+    },
+    {
+      "subject_id": "handrgbd_178",
+      "raw_subject_id": 178,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 32,
+      "age_group": "30-39",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "handrgbd_220",
+      "raw_subject_id": 220,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 37,
+      "age_group": "30-39",
+      "skin_tone": "dark"
+    },
+    {
+      "subject_id": "handrgbd_423",
+      "raw_subject_id": 423,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 35,
+      "age_group": "30-39",
+      "skin_tone": "dark"
+    },
+    {
+      "subject_id": "handrgbd_425",
+      "raw_subject_id": 425,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 37,
+      "age_group": "30-39",
+      "skin_tone": "dark"
+    },
+    {
+      "subject_id": "archive_10",
+      "raw_subject_id": 10,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 45,
+      "age_group": "40-49",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_25",
+      "raw_subject_id": 25,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 42,
+      "age_group": "40-49",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_43",
+      "raw_subject_id": 43,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 40,
+      "age_group": "40-49",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_45",
+      "raw_subject_id": 45,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 45,
+      "age_group": "40-49",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_53",
+      "raw_subject_id": 53,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 40,
+      "age_group": "40-49",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_54",
+      "raw_subject_id": 54,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 40,
+      "age_group": "40-49",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_85",
+      "raw_subject_id": 85,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 44,
+      "age_group": "40-49",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_88",
+      "raw_subject_id": 88,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 45,
+      "age_group": "40-49",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "handrgbd_113",
+      "raw_subject_id": 113,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 43,
+      "age_group": "40-49",
+      "skin_tone": "dark"
+    },
+    {
+      "subject_id": "handrgbd_129",
+      "raw_subject_id": 129,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 40,
+      "age_group": "40-49",
+      "skin_tone": "dark"
+    },
+    {
+      "subject_id": "handrgbd_330",
+      "raw_subject_id": 330,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 48,
+      "age_group": "40-49",
+      "skin_tone": "dark"
+    },
+    {
+      "subject_id": "handrgbd_346",
+      "raw_subject_id": 346,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 46,
+      "age_group": "40-49",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "handrgbd_39",
+      "raw_subject_id": 39,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 48,
+      "age_group": "40-49",
+      "skin_tone": "dark"
+    },
+    {
+      "subject_id": "handrgbd_84",
+      "raw_subject_id": 84,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 46,
+      "age_group": "40-49",
+      "skin_tone": "dark"
+    },
+    {
+      "subject_id": "handrgbd_92",
+      "raw_subject_id": 92,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 45,
+      "age_group": "40-49",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_37",
+      "raw_subject_id": 37,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 52,
+      "age_group": "50-59",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_62",
+      "raw_subject_id": 62,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 54,
+      "age_group": "50-59",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_70",
+      "raw_subject_id": 70,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 58,
+      "age_group": "50-59",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "handrgbd_100",
+      "raw_subject_id": 100,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 51,
+      "age_group": "50-59",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "handrgbd_185",
+      "raw_subject_id": 185,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 50,
+      "age_group": "50-59",
+      "skin_tone": "dark"
+    },
+    {
+      "subject_id": "handrgbd_188",
+      "raw_subject_id": 188,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 57,
+      "age_group": "50-59",
+      "skin_tone": "dark"
+    },
+    {
+      "subject_id": "handrgbd_197",
+      "raw_subject_id": 197,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 50,
+      "age_group": "50-59",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "handrgbd_392",
+      "raw_subject_id": 392,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 52,
+      "age_group": "50-59",
+      "skin_tone": "dark"
+    },
+    {
+      "subject_id": "handrgbd_413",
+      "raw_subject_id": 413,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 56,
+      "age_group": "50-59",
+      "skin_tone": "dark"
+    },
+    {
+      "subject_id": "handrgbd_422",
+      "raw_subject_id": 422,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 54,
+      "age_group": "50-59",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "handrgbd_426",
+      "raw_subject_id": 426,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 51,
+      "age_group": "50-59",
+      "skin_tone": "medium"
+    },
+    {
+      "subject_id": "handrgbd_439",
+      "raw_subject_id": 439,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 50,
+      "age_group": "50-59",
+      "skin_tone": "medium"
+    },
+    {
+      "subject_id": "handrgbd_440",
+      "raw_subject_id": 440,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 51,
+      "age_group": "50-59",
+      "skin_tone": "dark"
+    },
+    {
+      "subject_id": "handrgbd_449",
+      "raw_subject_id": 449,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 53,
+      "age_group": "50-59",
+      "skin_tone": "medium"
+    },
+    {
+      "subject_id": "handrgbd_96",
+      "raw_subject_id": 96,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 50,
+      "age_group": "50-59",
+      "skin_tone": "dark"
+    },
+    {
+      "subject_id": "archive_28",
+      "raw_subject_id": 28,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 60,
+      "age_group": "60+",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_34",
+      "raw_subject_id": 34,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 65,
+      "age_group": "60+",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_6",
+      "raw_subject_id": 6,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 68,
+      "age_group": "60+",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_60",
+      "raw_subject_id": 60,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 60,
+      "age_group": "60+",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_8",
+      "raw_subject_id": 8,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 71,
+      "age_group": "60+",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "handrgbd_125",
+      "raw_subject_id": 125,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 60,
+      "age_group": "60+",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "handrgbd_276",
+      "raw_subject_id": 276,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 67,
+      "age_group": "60+",
+      "skin_tone": "dark"
+    },
+    {
+      "subject_id": "handrgbd_365",
+      "raw_subject_id": 365,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 61,
+      "age_group": "60+",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "handrgbd_402",
+      "raw_subject_id": 402,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 65,
+      "age_group": "60+",
+      "skin_tone": "dark"
+    },
+    {
+      "subject_id": "handrgbd_403",
+      "raw_subject_id": 403,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 60,
+      "age_group": "60+",
+      "skin_tone": "dark"
+    },
+    {
+      "subject_id": "primary_1000000",
+      "raw_subject_id": 1000000,
+      "source": "primary",
+      "source_label": "11k Hands",
+      "age": 70,
+      "age_group": "60+",
+      "skin_tone": "dark"
+    },
+    {
+      "subject_id": "primary_2000000",
+      "raw_subject_id": 2000000,
+      "source": "primary",
+      "source_label": "11k Hands",
+      "age": 75,
+      "age_group": "60+",
+      "skin_tone": "dark"
+    },
+    {
+      "subject_id": "prolific_67c8c28fccf665e3c35c44ce",
+      "raw_subject_id": "67c8c28fccf665e3c35c44ce",
+      "source": "prolific",
+      "source_label": "ProlificHands",
+      "age": 60,
+      "age_group": "60+",
+      "skin_tone": "medium"
+    },
+    {
+      "subject_id": "prolific_69f20ef28c9e6a90d0e12909",
+      "raw_subject_id": "69f20ef28c9e6a90d0e12909",
+      "source": "prolific",
+      "source_label": "ProlificHands",
+      "age": 60,
+      "age_group": "60+",
+      "skin_tone": "dark"
+    },
+    {
+      "subject_id": "prolific_6a0a48ea0931e3441a3ae3c2",
+      "raw_subject_id": "6a0a48ea0931e3441a3ae3c2",
+      "source": "prolific",
+      "source_label": "ProlificHands",
+      "age": 60,
+      "age_group": "60+",
+      "skin_tone": "light"
+    }
+  ],
+  "test_user_ids": [
+    "archive_16",
+    "archive_2",
+    "archive_21",
+    "archive_26",
+    "archive_41",
+    "archive_84",
+    "archive_98",
+    "handrgbd_109",
+    "handrgbd_115",
+    "handrgbd_279",
+    "handrgbd_304",
+    "handrgbd_350",
+    "handrgbd_362",
+    "handrgbd_66",
+    "handrgbd_89",
+    "archive_100",
+    "archive_31",
+    "archive_55",
+    "archive_64",
+    "archive_68",
+    "archive_73",
+    "archive_74",
+    "archive_76",
+    "handrgbd_128",
+    "handrgbd_231",
+    "handrgbd_300",
+    "handrgbd_301",
+    "handrgbd_311",
+    "handrgbd_319",
+    "handrgbd_377",
+    "archive_24",
+    "archive_35",
+    "archive_39",
+    "archive_58",
+    "archive_59",
+    "archive_66",
+    "archive_77",
+    "handrgbd_208",
+    "handrgbd_242",
+    "handrgbd_248",
+    "handrgbd_281",
+    "handrgbd_293",
+    "handrgbd_329",
+    "handrgbd_70",
+    "handrgbd_83",
+    "archive_17",
+    "archive_18",
+    "archive_29",
+    "archive_40",
+    "archive_56",
+    "archive_57",
+    "archive_65",
+    "archive_87",
+    "handrgbd_162",
+    "handrgbd_169",
+    "handrgbd_210",
+    "handrgbd_211",
+    "handrgbd_214",
+    "handrgbd_282",
+    "handrgbd_388",
+    "archive_36",
+    "archive_7",
+    "archive_80",
+    "archive_81",
+    "archive_82",
+    "archive_83",
+    "archive_94",
+    "handrgbd_12",
+    "handrgbd_149",
+    "handrgbd_153",
+    "handrgbd_164",
+    "handrgbd_183",
+    "handrgbd_205",
+    "handrgbd_21",
+    "handrgbd_218",
+    "archive_32",
+    "archive_46",
+    "archive_47",
+    "archive_49",
+    "archive_50",
+    "handrgbd_141",
+    "handrgbd_142",
+    "handrgbd_16",
+    "handrgbd_170",
+    "handrgbd_195",
+    "handrgbd_412",
+    "handrgbd_417",
+    "handrgbd_431",
+    "handrgbd_432",
+    "handrgbd_44",
+    "archive_11",
+    "archive_13",
+    "archive_23",
+    "archive_27",
+    "archive_4",
+    "archive_42",
+    "archive_78",
+    "archive_92",
+    "handrgbd_104",
+    "handrgbd_132",
+    "handrgbd_136",
+    "handrgbd_178",
+    "handrgbd_220",
+    "handrgbd_423",
+    "handrgbd_425",
+    "archive_10",
+    "archive_25",
+    "archive_43",
+    "archive_45",
+    "archive_53",
+    "archive_54",
+    "archive_85",
+    "archive_88",
+    "handrgbd_113",
+    "handrgbd_129",
+    "handrgbd_330",
+    "handrgbd_346",
+    "handrgbd_39",
+    "handrgbd_84",
+    "handrgbd_92",
+    "archive_37",
+    "archive_62",
+    "archive_70",
+    "handrgbd_100",
+    "handrgbd_185",
+    "handrgbd_188",
+    "handrgbd_197",
+    "handrgbd_392",
+    "handrgbd_413",
+    "handrgbd_422",
+    "handrgbd_426",
+    "handrgbd_439",
+    "handrgbd_440",
+    "handrgbd_449",
+    "handrgbd_96",
+    "archive_28",
+    "archive_34",
+    "archive_6",
+    "archive_60",
+    "archive_8",
+    "handrgbd_125",
+    "handrgbd_276",
+    "handrgbd_365",
+    "handrgbd_402",
+    "handrgbd_403",
+    "primary_1000000",
+    "primary_2000000",
+    "prolific_67c8c28fccf665e3c35c44ce",
+    "prolific_69f20ef28c9e6a90d0e12909",
+    "prolific_6a0a48ea0931e3441a3ae3c2"
+  ],
+  "source_user_ids": {
+    "handrgbd": [
+      "handrgbd_109",
+      "handrgbd_115",
+      "handrgbd_279",
+      "handrgbd_304",
+      "handrgbd_350",
+      "handrgbd_362",
+      "handrgbd_66",
+      "handrgbd_89",
+      "handrgbd_128",
+      "handrgbd_231",
+      "handrgbd_300",
+      "handrgbd_301",
+      "handrgbd_311",
+      "handrgbd_319",
+      "handrgbd_377",
+      "handrgbd_208",
+      "handrgbd_242",
+      "handrgbd_248",
+      "handrgbd_281",
+      "handrgbd_293",
+      "handrgbd_329",
+      "handrgbd_70",
+      "handrgbd_83",
+      "handrgbd_162",
+      "handrgbd_169",
+      "handrgbd_210",
+      "handrgbd_211",
+      "handrgbd_214",
+      "handrgbd_282",
+      "handrgbd_388",
+      "handrgbd_12",
+      "handrgbd_149",
+      "handrgbd_153",
+      "handrgbd_164",
+      "handrgbd_183",
+      "handrgbd_205",
+      "handrgbd_21",
+      "handrgbd_218",
+      "handrgbd_141",
+      "handrgbd_142",
+      "handrgbd_16",
+      "handrgbd_170",
+      "handrgbd_195",
+      "handrgbd_412",
+      "handrgbd_417",
+      "handrgbd_431",
+      "handrgbd_432",
+      "handrgbd_44",
+      "handrgbd_104",
+      "handrgbd_132",
+      "handrgbd_136",
+      "handrgbd_178",
+      "handrgbd_220",
+      "handrgbd_423",
+      "handrgbd_425",
+      "handrgbd_113",
+      "handrgbd_129",
+      "handrgbd_330",
+      "handrgbd_346",
+      "handrgbd_39",
+      "handrgbd_84",
+      "handrgbd_92",
+      "handrgbd_100",
+      "handrgbd_185",
+      "handrgbd_188",
+      "handrgbd_197",
+      "handrgbd_392",
+      "handrgbd_413",
+      "handrgbd_422",
+      "handrgbd_426",
+      "handrgbd_439",
+      "handrgbd_440",
+      "handrgbd_449",
+      "handrgbd_96",
+      "handrgbd_125",
+      "handrgbd_276",
+      "handrgbd_365",
+      "handrgbd_402",
+      "handrgbd_403"
+    ],
+    "archive": [
+      "archive_16",
+      "archive_2",
+      "archive_21",
+      "archive_26",
+      "archive_41",
+      "archive_84",
+      "archive_98",
+      "archive_100",
+      "archive_31",
+      "archive_55",
+      "archive_64",
+      "archive_68",
+      "archive_73",
+      "archive_74",
+      "archive_76",
+      "archive_24",
+      "archive_35",
+      "archive_39",
+      "archive_58",
+      "archive_59",
+      "archive_66",
+      "archive_77",
+      "archive_17",
+      "archive_18",
+      "archive_29",
+      "archive_40",
+      "archive_56",
+      "archive_57",
+      "archive_65",
+      "archive_87",
+      "archive_36",
+      "archive_7",
+      "archive_80",
+      "archive_81",
+      "archive_82",
+      "archive_83",
+      "archive_94",
+      "archive_32",
+      "archive_46",
+      "archive_47",
+      "archive_49",
+      "archive_50",
+      "archive_11",
+      "archive_13",
+      "archive_23",
+      "archive_27",
+      "archive_4",
+      "archive_42",
+      "archive_78",
+      "archive_92",
+      "archive_10",
+      "archive_25",
+      "archive_43",
+      "archive_45",
+      "archive_53",
+      "archive_54",
+      "archive_85",
+      "archive_88",
+      "archive_37",
+      "archive_62",
+      "archive_70",
+      "archive_28",
+      "archive_34",
+      "archive_6",
+      "archive_60",
+      "archive_8"
+    ],
+    "primary": [
+      "primary_1000000",
+      "primary_2000000"
+    ],
+    "prolific": [
+      "prolific_67c8c28fccf665e3c35c44ce",
+      "prolific_69f20ef28c9e6a90d0e12909",
+      "prolific_6a0a48ea0931e3441a3ae3c2"
+    ]
+  },
+  "handrgbd": [
+    {
+      "subject_id": "handrgbd_109",
+      "raw_subject_id": 109,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 12,
+      "age_group": "10-12",
+      "skin_tone": "medium"
+    },
+    {
+      "subject_id": "handrgbd_115",
+      "raw_subject_id": 115,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 10,
+      "age_group": "10-12",
+      "skin_tone": "medium"
+    },
+    {
+      "subject_id": "handrgbd_279",
+      "raw_subject_id": 279,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 12,
+      "age_group": "10-12",
+      "skin_tone": "medium"
+    },
+    {
+      "subject_id": "handrgbd_304",
+      "raw_subject_id": 304,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 12,
+      "age_group": "10-12",
+      "skin_tone": "medium"
+    },
+    {
+      "subject_id": "handrgbd_350",
+      "raw_subject_id": 350,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 12,
+      "age_group": "10-12",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "handrgbd_362",
+      "raw_subject_id": 362,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 11,
+      "age_group": "10-12",
+      "skin_tone": "medium"
+    },
+    {
+      "subject_id": "handrgbd_66",
+      "raw_subject_id": 66,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 12,
+      "age_group": "10-12",
+      "skin_tone": "dark"
+    },
+    {
+      "subject_id": "handrgbd_89",
+      "raw_subject_id": 89,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 12,
+      "age_group": "10-12",
+      "skin_tone": "dark"
+    },
+    {
+      "subject_id": "handrgbd_128",
+      "raw_subject_id": 128,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 13,
+      "age_group": "13-15",
+      "skin_tone": "medium"
+    },
+    {
+      "subject_id": "handrgbd_231",
+      "raw_subject_id": 231,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 14,
+      "age_group": "13-15",
+      "skin_tone": "dark"
+    },
+    {
+      "subject_id": "handrgbd_300",
+      "raw_subject_id": 300,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 13,
+      "age_group": "13-15",
+      "skin_tone": "dark"
+    },
+    {
+      "subject_id": "handrgbd_301",
+      "raw_subject_id": 301,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 14,
+      "age_group": "13-15",
+      "skin_tone": "medium"
+    },
+    {
+      "subject_id": "handrgbd_311",
+      "raw_subject_id": 311,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 14,
+      "age_group": "13-15",
+      "skin_tone": "medium"
+    },
+    {
+      "subject_id": "handrgbd_319",
+      "raw_subject_id": 319,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 14,
+      "age_group": "13-15",
+      "skin_tone": "dark"
+    },
+    {
+      "subject_id": "handrgbd_377",
+      "raw_subject_id": 377,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 14,
+      "age_group": "13-15",
+      "skin_tone": "medium"
+    },
+    {
+      "subject_id": "handrgbd_208",
+      "raw_subject_id": 208,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 16,
+      "age_group": "16-17",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "handrgbd_242",
+      "raw_subject_id": 242,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 17,
+      "age_group": "16-17",
+      "skin_tone": "unlabeled"
+    },
+    {
+      "subject_id": "handrgbd_248",
+      "raw_subject_id": 248,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 17,
+      "age_group": "16-17",
+      "skin_tone": "medium"
+    },
+    {
+      "subject_id": "handrgbd_281",
+      "raw_subject_id": 281,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 17,
+      "age_group": "16-17",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "handrgbd_293",
+      "raw_subject_id": 293,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 16,
+      "age_group": "16-17",
+      "skin_tone": "dark"
+    },
+    {
+      "subject_id": "handrgbd_329",
+      "raw_subject_id": 329,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 16,
+      "age_group": "16-17",
+      "skin_tone": "dark"
+    },
+    {
+      "subject_id": "handrgbd_70",
+      "raw_subject_id": 70,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 16,
+      "age_group": "16-17",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "handrgbd_83",
+      "raw_subject_id": 83,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 17,
+      "age_group": "16-17",
+      "skin_tone": "dark"
+    },
+    {
+      "subject_id": "handrgbd_162",
+      "raw_subject_id": 162,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 18,
+      "age_group": "18-19",
+      "skin_tone": "dark"
+    },
+    {
+      "subject_id": "handrgbd_169",
+      "raw_subject_id": 169,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 18,
+      "age_group": "18-19",
+      "skin_tone": "dark"
+    },
+    {
+      "subject_id": "handrgbd_210",
+      "raw_subject_id": 210,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 19,
+      "age_group": "18-19",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "handrgbd_211",
+      "raw_subject_id": 211,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 19,
+      "age_group": "18-19",
+      "skin_tone": "medium"
+    },
+    {
+      "subject_id": "handrgbd_214",
+      "raw_subject_id": 214,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 19,
+      "age_group": "18-19",
+      "skin_tone": "medium"
+    },
+    {
+      "subject_id": "handrgbd_282",
+      "raw_subject_id": 282,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 18,
+      "age_group": "18-19",
+      "skin_tone": "medium"
+    },
+    {
+      "subject_id": "handrgbd_388",
+      "raw_subject_id": 388,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 19,
+      "age_group": "18-19",
+      "skin_tone": "dark"
+    },
+    {
+      "subject_id": "handrgbd_12",
+      "raw_subject_id": 12,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 20,
+      "age_group": "20-24",
+      "skin_tone": "dark"
+    },
+    {
+      "subject_id": "handrgbd_149",
+      "raw_subject_id": 149,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 23,
+      "age_group": "20-24",
+      "skin_tone": "dark"
+    },
+    {
+      "subject_id": "handrgbd_153",
+      "raw_subject_id": 153,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 23,
+      "age_group": "20-24",
+      "skin_tone": "medium"
+    },
+    {
+      "subject_id": "handrgbd_164",
+      "raw_subject_id": 164,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 22,
+      "age_group": "20-24",
+      "skin_tone": "medium"
+    },
+    {
+      "subject_id": "handrgbd_183",
+      "raw_subject_id": 183,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 23,
+      "age_group": "20-24",
+      "skin_tone": "dark"
+    },
+    {
+      "subject_id": "handrgbd_205",
+      "raw_subject_id": 205,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 24,
+      "age_group": "20-24",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "handrgbd_21",
+      "raw_subject_id": 21,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 20,
+      "age_group": "20-24",
+      "skin_tone": "dark"
+    },
+    {
+      "subject_id": "handrgbd_218",
+      "raw_subject_id": 218,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 20,
+      "age_group": "20-24",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "handrgbd_141",
+      "raw_subject_id": 141,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 25,
+      "age_group": "25-29",
+      "skin_tone": "dark"
+    },
+    {
+      "subject_id": "handrgbd_142",
+      "raw_subject_id": 142,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 28,
+      "age_group": "25-29",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "handrgbd_16",
+      "raw_subject_id": 16,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 29,
+      "age_group": "25-29",
+      "skin_tone": "dark"
+    },
+    {
+      "subject_id": "handrgbd_170",
+      "raw_subject_id": 170,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 26,
+      "age_group": "25-29",
+      "skin_tone": "dark"
+    },
+    {
+      "subject_id": "handrgbd_195",
+      "raw_subject_id": 195,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 26,
+      "age_group": "25-29",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "handrgbd_412",
+      "raw_subject_id": 412,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 29,
+      "age_group": "25-29",
+      "skin_tone": "unlabeled"
+    },
+    {
+      "subject_id": "handrgbd_417",
+      "raw_subject_id": 417,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 28,
+      "age_group": "25-29",
+      "skin_tone": "unlabeled"
+    },
+    {
+      "subject_id": "handrgbd_431",
+      "raw_subject_id": 431,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 28,
+      "age_group": "25-29",
+      "skin_tone": "medium"
+    },
+    {
+      "subject_id": "handrgbd_432",
+      "raw_subject_id": 432,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 29,
+      "age_group": "25-29",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "handrgbd_44",
+      "raw_subject_id": 44,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 27,
+      "age_group": "25-29",
+      "skin_tone": "medium"
+    },
+    {
+      "subject_id": "handrgbd_104",
+      "raw_subject_id": 104,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 35,
+      "age_group": "30-39",
+      "skin_tone": "dark"
+    },
+    {
+      "subject_id": "handrgbd_132",
+      "raw_subject_id": 132,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 39,
+      "age_group": "30-39",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "handrgbd_136",
+      "raw_subject_id": 136,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 33,
+      "age_group": "30-39",
+      "skin_tone": "medium"
+    },
+    {
+      "subject_id": "handrgbd_178",
+      "raw_subject_id": 178,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 32,
+      "age_group": "30-39",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "handrgbd_220",
+      "raw_subject_id": 220,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 37,
+      "age_group": "30-39",
+      "skin_tone": "dark"
+    },
+    {
+      "subject_id": "handrgbd_423",
+      "raw_subject_id": 423,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 35,
+      "age_group": "30-39",
+      "skin_tone": "dark"
+    },
+    {
+      "subject_id": "handrgbd_425",
+      "raw_subject_id": 425,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 37,
+      "age_group": "30-39",
+      "skin_tone": "dark"
+    },
+    {
+      "subject_id": "handrgbd_113",
+      "raw_subject_id": 113,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 43,
+      "age_group": "40-49",
+      "skin_tone": "dark"
+    },
+    {
+      "subject_id": "handrgbd_129",
+      "raw_subject_id": 129,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 40,
+      "age_group": "40-49",
+      "skin_tone": "dark"
+    },
+    {
+      "subject_id": "handrgbd_330",
+      "raw_subject_id": 330,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 48,
+      "age_group": "40-49",
+      "skin_tone": "dark"
+    },
+    {
+      "subject_id": "handrgbd_346",
+      "raw_subject_id": 346,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 46,
+      "age_group": "40-49",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "handrgbd_39",
+      "raw_subject_id": 39,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 48,
+      "age_group": "40-49",
+      "skin_tone": "dark"
+    },
+    {
+      "subject_id": "handrgbd_84",
+      "raw_subject_id": 84,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 46,
+      "age_group": "40-49",
+      "skin_tone": "dark"
+    },
+    {
+      "subject_id": "handrgbd_92",
+      "raw_subject_id": 92,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 45,
+      "age_group": "40-49",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "handrgbd_100",
+      "raw_subject_id": 100,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 51,
+      "age_group": "50-59",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "handrgbd_185",
+      "raw_subject_id": 185,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 50,
+      "age_group": "50-59",
+      "skin_tone": "dark"
+    },
+    {
+      "subject_id": "handrgbd_188",
+      "raw_subject_id": 188,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 57,
+      "age_group": "50-59",
+      "skin_tone": "dark"
+    },
+    {
+      "subject_id": "handrgbd_197",
+      "raw_subject_id": 197,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 50,
+      "age_group": "50-59",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "handrgbd_392",
+      "raw_subject_id": 392,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 52,
+      "age_group": "50-59",
+      "skin_tone": "dark"
+    },
+    {
+      "subject_id": "handrgbd_413",
+      "raw_subject_id": 413,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 56,
+      "age_group": "50-59",
+      "skin_tone": "dark"
+    },
+    {
+      "subject_id": "handrgbd_422",
+      "raw_subject_id": 422,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 54,
+      "age_group": "50-59",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "handrgbd_426",
+      "raw_subject_id": 426,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 51,
+      "age_group": "50-59",
+      "skin_tone": "medium"
+    },
+    {
+      "subject_id": "handrgbd_439",
+      "raw_subject_id": 439,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 50,
+      "age_group": "50-59",
+      "skin_tone": "medium"
+    },
+    {
+      "subject_id": "handrgbd_440",
+      "raw_subject_id": 440,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 51,
+      "age_group": "50-59",
+      "skin_tone": "dark"
+    },
+    {
+      "subject_id": "handrgbd_449",
+      "raw_subject_id": 449,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 53,
+      "age_group": "50-59",
+      "skin_tone": "medium"
+    },
+    {
+      "subject_id": "handrgbd_96",
+      "raw_subject_id": 96,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 50,
+      "age_group": "50-59",
+      "skin_tone": "dark"
+    },
+    {
+      "subject_id": "handrgbd_125",
+      "raw_subject_id": 125,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 60,
+      "age_group": "60+",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "handrgbd_276",
+      "raw_subject_id": 276,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 67,
+      "age_group": "60+",
+      "skin_tone": "dark"
+    },
+    {
+      "subject_id": "handrgbd_365",
+      "raw_subject_id": 365,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 61,
+      "age_group": "60+",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "handrgbd_402",
+      "raw_subject_id": 402,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 65,
+      "age_group": "60+",
+      "skin_tone": "dark"
+    },
+    {
+      "subject_id": "handrgbd_403",
+      "raw_subject_id": 403,
+      "source": "handrgbd",
+      "source_label": "handRGBD",
+      "age": 60,
+      "age_group": "60+",
+      "skin_tone": "dark"
+    }
+  ],
+  "archive": [
+    {
+      "subject_id": "archive_16",
+      "raw_subject_id": 16,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 12,
+      "age_group": "10-12",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_2",
+      "raw_subject_id": 2,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 10,
+      "age_group": "10-12",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_21",
+      "raw_subject_id": 21,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 12,
+      "age_group": "10-12",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_26",
+      "raw_subject_id": 26,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 11,
+      "age_group": "10-12",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_41",
+      "raw_subject_id": 41,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 10,
+      "age_group": "10-12",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_84",
+      "raw_subject_id": 84,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 12,
+      "age_group": "10-12",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_98",
+      "raw_subject_id": 98,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 12,
+      "age_group": "10-12",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_100",
+      "raw_subject_id": 100,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 15,
+      "age_group": "13-15",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_31",
+      "raw_subject_id": 31,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 14,
+      "age_group": "13-15",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_55",
+      "raw_subject_id": 55,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 15,
+      "age_group": "13-15",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_64",
+      "raw_subject_id": 64,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 14,
+      "age_group": "13-15",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_68",
+      "raw_subject_id": 68,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 15,
+      "age_group": "13-15",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_73",
+      "raw_subject_id": 73,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 15,
+      "age_group": "13-15",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_74",
+      "raw_subject_id": 74,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 14,
+      "age_group": "13-15",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_76",
+      "raw_subject_id": 76,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 15,
+      "age_group": "13-15",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_24",
+      "raw_subject_id": 24,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 17,
+      "age_group": "16-17",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_35",
+      "raw_subject_id": 35,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 17,
+      "age_group": "16-17",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_39",
+      "raw_subject_id": 39,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 16,
+      "age_group": "16-17",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_58",
+      "raw_subject_id": 58,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 16,
+      "age_group": "16-17",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_59",
+      "raw_subject_id": 59,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 16,
+      "age_group": "16-17",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_66",
+      "raw_subject_id": 66,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 17,
+      "age_group": "16-17",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_77",
+      "raw_subject_id": 77,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 16,
+      "age_group": "16-17",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_17",
+      "raw_subject_id": 17,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 18,
+      "age_group": "18-19",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_18",
+      "raw_subject_id": 18,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 19,
+      "age_group": "18-19",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_29",
+      "raw_subject_id": 29,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 18,
+      "age_group": "18-19",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_40",
+      "raw_subject_id": 40,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 19,
+      "age_group": "18-19",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_56",
+      "raw_subject_id": 56,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 18,
+      "age_group": "18-19",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_57",
+      "raw_subject_id": 57,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 18,
+      "age_group": "18-19",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_65",
+      "raw_subject_id": 65,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 18,
+      "age_group": "18-19",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_87",
+      "raw_subject_id": 87,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 18,
+      "age_group": "18-19",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_36",
+      "raw_subject_id": 36,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 23,
+      "age_group": "20-24",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_7",
+      "raw_subject_id": 7,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 24,
+      "age_group": "20-24",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_80",
+      "raw_subject_id": 80,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 21,
+      "age_group": "20-24",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_81",
+      "raw_subject_id": 81,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 21,
+      "age_group": "20-24",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_82",
+      "raw_subject_id": 82,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 23,
+      "age_group": "20-24",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_83",
+      "raw_subject_id": 83,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 21,
+      "age_group": "20-24",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_94",
+      "raw_subject_id": 94,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 22,
+      "age_group": "20-24",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_32",
+      "raw_subject_id": 32,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 28,
+      "age_group": "25-29",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_46",
+      "raw_subject_id": 46,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 27,
+      "age_group": "25-29",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_47",
+      "raw_subject_id": 47,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 26,
+      "age_group": "25-29",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_49",
+      "raw_subject_id": 49,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 28,
+      "age_group": "25-29",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_50",
+      "raw_subject_id": 50,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 25,
+      "age_group": "25-29",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_11",
+      "raw_subject_id": 11,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 33,
+      "age_group": "30-39",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_13",
+      "raw_subject_id": 13,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 31,
+      "age_group": "30-39",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_23",
+      "raw_subject_id": 23,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 39,
+      "age_group": "30-39",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_27",
+      "raw_subject_id": 27,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 30,
+      "age_group": "30-39",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_4",
+      "raw_subject_id": 4,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 37,
+      "age_group": "30-39",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_42",
+      "raw_subject_id": 42,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 30,
+      "age_group": "30-39",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_78",
+      "raw_subject_id": 78,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 32,
+      "age_group": "30-39",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_92",
+      "raw_subject_id": 92,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 32,
+      "age_group": "30-39",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_10",
+      "raw_subject_id": 10,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 45,
+      "age_group": "40-49",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_25",
+      "raw_subject_id": 25,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 42,
+      "age_group": "40-49",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_43",
+      "raw_subject_id": 43,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 40,
+      "age_group": "40-49",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_45",
+      "raw_subject_id": 45,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 45,
+      "age_group": "40-49",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_53",
+      "raw_subject_id": 53,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 40,
+      "age_group": "40-49",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_54",
+      "raw_subject_id": 54,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 40,
+      "age_group": "40-49",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_85",
+      "raw_subject_id": 85,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 44,
+      "age_group": "40-49",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_88",
+      "raw_subject_id": 88,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 45,
+      "age_group": "40-49",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_37",
+      "raw_subject_id": 37,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 52,
+      "age_group": "50-59",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_62",
+      "raw_subject_id": 62,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 54,
+      "age_group": "50-59",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_70",
+      "raw_subject_id": 70,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 58,
+      "age_group": "50-59",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_28",
+      "raw_subject_id": 28,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 60,
+      "age_group": "60+",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_34",
+      "raw_subject_id": 34,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 65,
+      "age_group": "60+",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_6",
+      "raw_subject_id": 6,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 68,
+      "age_group": "60+",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_60",
+      "raw_subject_id": 60,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 60,
+      "age_group": "60+",
+      "skin_tone": "light"
+    },
+    {
+      "subject_id": "archive_8",
+      "raw_subject_id": 8,
+      "source": "archive",
+      "source_label": "Archive",
+      "age": 71,
+      "age_group": "60+",
+      "skin_tone": "light"
+    }
+  ],
+  "primary": [
+    {
+      "subject_id": "primary_1000000",
+      "raw_subject_id": 1000000,
+      "source": "primary",
+      "source_label": "11k Hands",
+      "age": 70,
+      "age_group": "60+",
+      "skin_tone": "dark"
+    },
+    {
+      "subject_id": "primary_2000000",
+      "raw_subject_id": 2000000,
+      "source": "primary",
+      "source_label": "11k Hands",
+      "age": 75,
+      "age_group": "60+",
+      "skin_tone": "dark"
+    }
+  ],
+  "prolific": [
+    {
+      "subject_id": "prolific_67c8c28fccf665e3c35c44ce",
+      "raw_subject_id": "67c8c28fccf665e3c35c44ce",
+      "source": "prolific",
+      "source_label": "ProlificHands",
+      "age": 60,
+      "age_group": "60+",
+      "skin_tone": "medium"
+    },
+    {
+      "subject_id": "prolific_69f20ef28c9e6a90d0e12909",
+      "raw_subject_id": "69f20ef28c9e6a90d0e12909",
+      "source": "prolific",
+      "source_label": "ProlificHands",
+      "age": 60,
+      "age_group": "60+",
+      "skin_tone": "dark"
+    },
+    {
+      "subject_id": "prolific_6a0a48ea0931e3441a3ae3c2",
+      "raw_subject_id": "6a0a48ea0931e3441a3ae3c2",
+      "source": "prolific",
+      "source_label": "ProlificHands",
+      "age": 60,
+      "age_group": "60+",
+      "skin_tone": "light"
+    }
+  ],
+  "summary": {
+    "total_subjects": 150,
+    "subjects_per_age_group": 15,
+    "minor_subjects": 45,
+    "adult_subjects": 105,
+    "by_source": {
+      "handrgbd": 79,
+      "archive": 66,
+      "primary": 2,
+      "prolific": 3
+    },
+    "by_age_group": {
+      "10-12": 15,
+      "13-15": 15,
+      "16-17": 15,
+      "18-19": 15,
+      "20-24": 15,
+      "25-29": 15,
+      "30-39": 15,
+      "40-49": 15,
+      "50-59": 15,
+      "60+": 15
+    },
+    "by_age_group_and_source": {
+      "10-12": {
+        "handrgbd": 8,
+        "archive": 7
+      },
+      "13-15": {
+        "handrgbd": 7,
+        "archive": 8
+      },
+      "16-17": {
+        "handrgbd": 8,
+        "archive": 7
+      },
+      "18-19": {
+        "handrgbd": 7,
+        "archive": 8
+      },
+      "20-24": {
+        "handrgbd": 8,
+        "archive": 7
+      },
+      "25-29": {
+        "handrgbd": 10,
+        "archive": 5
+      },
+      "30-39": {
+        "handrgbd": 7,
+        "archive": 8
+      },
+      "40-49": {
+        "handrgbd": 7,
+        "archive": 8
+      },
+      "50-59": {
+        "handrgbd": 12,
+        "archive": 3
+      },
+      "60+": {
+        "handrgbd": 5,
+        "archive": 5,
+        "primary": 2,
+        "prolific": 3
+      }
+    },
+    "by_skin_tone": {
+      "light": 86,
+      "medium": 22,
+      "dark": 39,
+      "unlabeled": 3
+    },
+    "available_subjects_by_source": {
+      "handrgbd": 435,
+      "archive": 99,
+      "primary": 189,
+      "prolific": 202
+    },
+    "available_subjects_by_age_group_and_source": {
+      "10-12": {
+        "handrgbd": 49,
+        "archive": 8,
+        "primary": 0,
+        "prolific": 0
+      },
+      "13-15": {
+        "handrgbd": 94,
+        "archive": 15,
+        "primary": 0,
+        "prolific": 0
+      },
+      "16-17": {
+        "handrgbd": 46,
+        "archive": 16,
+        "primary": 0,
+        "prolific": 0
+      },
+      "18-19": {
+        "handrgbd": 25,
+        "archive": 9,
+        "primary": 3,
+        "prolific": 0
+      },
+      "20-24": {
+        "handrgbd": 67,
+        "archive": 9,
+        "primary": 173,
+        "prolific": 0
+      },
+      "25-29": {
+        "handrgbd": 42,
+        "archive": 5,
+        "primary": 7,
+        "prolific": 15
+      },
+      "30-39": {
+        "handrgbd": 42,
+        "archive": 19,
+        "primary": 2,
+        "prolific": 64
+      },
+      "40-49": {
+        "handrgbd": 40,
+        "archive": 10,
+        "primary": 1,
+        "prolific": 60
+      },
+      "50-59": {
+        "handrgbd": 25,
+        "archive": 3,
+        "primary": 1,
+        "prolific": 60
+      },
+      "60+": {
+        "handrgbd": 5,
+        "archive": 5,
+        "primary": 2,
+        "prolific": 3
+      }
+    }
+  }
+}

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 from pathlib import Path
 from typing import Iterable
 
@@ -676,10 +677,41 @@ def save_test_split(
 
 
 def load_test_split(path: str | Path) -> dict:
-    """Load a held-out test split JSON produced by save_test_split()."""
+    """Load a generated or canonical paper held-out split JSON.
+
+    The legacy/generated format stores ``test_user_ids`` directly.  The paper's
+    locked split stores richer per-subject records under ``subjects``.  This
+    function normalises both formats to include ``test_user_ids`` and records a
+    SHA-256 digest of the exact file used for the run.
+    """
     path = Path(path)
-    with path.open("r", encoding="utf-8") as fp:
-        payload = json.load(fp)
+    raw_bytes = path.read_bytes()
+    payload = json.loads(raw_bytes.decode("utf-8"))
+    subjects = payload.get("subjects")
+    is_canonical = isinstance(subjects, list)
     if "test_user_ids" not in payload:
-        raise ValueError("Test split file is missing 'test_user_ids'.")
+        if not is_canonical:
+            raise ValueError("Test split file is missing 'test_user_ids' or canonical 'subjects'.")
+        test_user_ids = []
+        for subject in subjects:
+            if not isinstance(subject, dict) or not subject.get("subject_id"):
+                raise ValueError("Canonical test split contains a subject without 'subject_id'.")
+            test_user_ids.append(str(subject["subject_id"]))
+        if len(test_user_ids) != len(set(test_user_ids)):
+            raise ValueError("Canonical test split contains duplicate subject IDs.")
+        payload["test_user_ids"] = test_user_ids
+        payload["stratified"] = True
+    else:
+        payload["test_user_ids"] = [str(uid) for uid in payload["test_user_ids"]]
+    if is_canonical:
+        subject_ids = [str(subject.get("subject_id")) for subject in subjects]
+        if any(subject_id == "None" for subject_id in subject_ids):
+            raise ValueError("Canonical test split contains a subject without 'subject_id'.")
+        if set(payload["test_user_ids"]) != set(subject_ids):
+            raise ValueError("Canonical 'subjects' and 'test_user_ids' do not match.")
+        payload["split_format"] = "canonical_subjects"
+    else:
+        payload.setdefault("split_format", "test_user_ids")
+    payload["split_path"] = str(path.resolve())
+    payload["split_sha256"] = hashlib.sha256(raw_bytes).hexdigest()
     return payload

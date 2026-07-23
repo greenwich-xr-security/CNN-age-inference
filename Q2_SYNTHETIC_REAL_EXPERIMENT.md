@@ -150,13 +150,17 @@ training data and from every synthetic conditioning pool.
 
 ### Synthetic test set
 
-Create and lock a separate `splits/synthetic_test_users.json` from
+Create and lock a separate `splits/synthetic_test_images.json` from
 `SyntheticDorsalHands`. Use it only for SS and RS.
 
-The synthetic training/test partition must be image-disjoint. It should also
-be provenance-disjoint where possible: records assigned to the synthetic test
-partition must not share any of these source identities with synthetic
-training records:
+The synthetic training/test partition must be image-disjoint. This dataset has
+one unique generated image per `sample_id`, rather than repeated images for a
+synthetic person, so it cannot support a user-disjoint synthetic split.
+
+Provenance-disjoint partitioning is also impossible in the current manifest:
+all generated images form one connected component through the source identity
+fields below. Therefore SS and RS are explicitly image-level tests, not
+synthetic-subject or provenance-generalisation tests:
 
 - `skeleton_source_user_id`
 - `skin_source_user_id`
@@ -189,9 +193,9 @@ updated to include it.
 | ID | `TRAIN_DATASETS` | `EVAL_DATASETS` | Split file |
 | --- | --- | --- | --- |
 | RR | `handrgbd archive primary prolific` | `handrgbd archive primary prolific` | `splits/held_out_test.json` |
-| SS | `synthetic_dorsal` | `synthetic_dorsal` | `splits/synthetic_test_users.json` |
+| SS | `synthetic_dorsal` | `synthetic_dorsal` | `splits/synthetic_test_images.json` |
 | SR | `synthetic_dorsal` | `handrgbd archive primary prolific` | `splits/held_out_test.json` |
-| RS | `handrgbd archive primary prolific` | `synthetic_dorsal` | `splits/synthetic_test_users.json` |
+| RS | `handrgbd archive primary prolific` | `synthetic_dorsal` | `splits/synthetic_test_images.json` |
 
 ## HPC campaign
 

@@ -1,0 +1,1557 @@
+{
+  "schema_version": 1,
+  "split_format": "synthetic_image_holdout",
+  "seed": 42,
+  "description": "Locked image-level synthetic hold-out for Question 2. SyntheticDorsalHands has no repeated synthetic-person identity, so this is image-disjoint rather than user- or provenance-disjoint.",
+  "selection_method": {
+    "age_groups": "10-12, 13-15, 16-17, 18-19, 20-24, 25-29, 30-39, 40-49, 50-59, 60+",
+    "target_images_per_age_group": 15,
+    "secondary_strata": "proportional gender x skin_color"
+  },
+  "age_groups": {
+    "10-12": {
+      "available_images": 618,
+      "selected_images": 15
+    },
+    "13-15": {
+      "available_images": 648,
+      "selected_images": 15
+    },
+    "16-17": {
+      "available_images": 434,
+      "selected_images": 15
+    },
+    "18-19": {
+      "available_images": 437,
+      "selected_images": 15
+    },
+    "20-24": {
+      "available_images": 1121,
+      "selected_images": 15
+    },
+    "25-29": {
+      "available_images": 1181,
+      "selected_images": 15
+    },
+    "30-39": {
+      "available_images": 2282,
+      "selected_images": 15
+    },
+    "40-49": {
+      "available_images": 2126,
+      "selected_images": 15
+    },
+    "50-59": {
+      "available_images": 1945,
+      "selected_images": 15
+    },
+    "60+": {
+      "available_images": 2659,
+      "selected_images": 15
+    }
+  },
+  "test_user_ids": [
+    "synthetic_job1050574_age_12_male_tan_brown_002",
+    "synthetic_job1050561_age_12_male_light_003",
+    "synthetic_job1050561_age_11_female_tan_brown_005",
+    "synthetic_job1050574_age_12_male_very_light_002",
+    "synthetic_job1050574_age_10_female_very_light_002",
+    "synthetic_job1050574_age_10_male_tan_brown_003",
+    "synthetic_job1050452_age_10_female_tan_brown_002",
+    "synthetic_job1050574_age_11_female_dark_003",
+    "synthetic_job1050574_age_10_male_intermediate_009",
+    "synthetic_job1050574_age_10_female_light_009",
+    "synthetic_job1050452_age_10_female_intermediate_000",
+    "synthetic_job1050452_age_10_male_dark_001",
+    "synthetic_job1050452_age_11_male_very_light_009",
+    "synthetic_job1050574_age_10_female_light_004",
+    "synthetic_job1050452_age_10_female_intermediate_009",
+    "synthetic_job1050561_age_13_male_tan_brown_008",
+    "synthetic_job1050561_age_13_female_intermediate_009",
+    "synthetic_job1050452_age_13_male_very_light_004",
+    "synthetic_job1050561_age_13_male_intermediate_005",
+    "synthetic_job1050561_age_14_female_tan_brown_008",
+    "synthetic_job1050561_age_13_female_intermediate_008",
+    "synthetic_job1050561_age_13_male_dark_005",
+    "synthetic_job1050452_age_15_male_very_light_007",
+    "synthetic_job1050452_age_15_female_light_000",
+    "synthetic_job1050574_age_15_male_very_light_004",
+    "synthetic_job1050561_age_13_male_dark_001",
+    "synthetic_job1050574_age_15_female_light_003",
+    "synthetic_job1050561_age_13_female_dark_001",
+    "synthetic_job1050574_age_13_female_tan_brown_009",
+    "synthetic_job1050561_age_14_female_very_light_008",
+    "synthetic_job1050452_age_17_female_very_light_001",
+    "synthetic_job1050574_age_17_male_dark_003",
+    "synthetic_job1050452_age_16_female_intermediate_005",
+    "synthetic_job1050561_age_16_male_tan_brown_001",
+    "synthetic_job1050561_age_16_male_very_light_005",
+    "synthetic_job1050574_age_16_male_dark_008",
+    "synthetic_job1050561_age_16_female_dark_002",
+    "synthetic_job1050452_age_16_male_very_light_003",
+    "synthetic_job1050561_age_16_male_intermediate_006",
+    "synthetic_job1050574_age_16_female_tan_brown_003",
+    "synthetic_job1050561_age_17_male_intermediate_001",
+    "synthetic_job1050574_age_16_male_very_light_000",
+    "synthetic_job1050574_age_17_female_tan_brown_004",
+    "synthetic_job1050574_age_17_female_very_light_002",
+    "synthetic_job1050452_age_16_female_light_001",
+    "synthetic_job1050574_age_19_male_dark_002",
+    "synthetic_job1050452_age_18_male_dark_006",
+    "synthetic_job1050561_age_18_female_intermediate_002",
+    "synthetic_job1050452_age_18_female_tan_brown_005",
+    "synthetic_job1050561_age_19_male_light_003",
+    "synthetic_job1050452_age_18_male_dark_009",
+    "synthetic_job1050574_age_18_male_intermediate_008",
+    "synthetic_job1050452_age_19_female_tan_brown_003",
+    "synthetic_job1050561_age_18_female_light_006",
+    "synthetic_job1050452_age_18_male_intermediate_001",
+    "synthetic_job1050561_age_18_female_very_light_008",
+    "synthetic_job1050574_age_18_female_dark_000",
+    "synthetic_job1050574_age_18_male_light_005",
+    "synthetic_job1050561_age_19_female_very_light_001",
+    "synthetic_job1050574_age_19_male_very_light_002",
+    "synthetic_job1050561_age_22_female_tan_brown_007",
+    "synthetic_job1050561_age_20_female_intermediate_001",
+    "synthetic_job1050574_age_20_male_very_light_008",
+    "synthetic_job1050452_age_20_female_tan_brown_009",
+    "synthetic_job1050574_age_22_female_intermediate_007",
+    "synthetic_job1050561_age_22_male_light_004",
+    "synthetic_job1050574_age_24_male_intermediate_003",
+    "synthetic_job1050452_age_24_male_tan_brown_006",
+    "synthetic_job1050561_age_20_female_tan_brown_007",
+    "synthetic_job1050561_age_21_female_light_009",
+    "synthetic_job1050574_age_21_male_dark_003",
+    "synthetic_job1050452_age_20_female_light_000",
+    "synthetic_job1050561_age_24_male_tan_brown_007",
+    "synthetic_job1050561_age_24_female_very_light_007",
+    "synthetic_job1050574_age_21_male_very_light_004",
+    "synthetic_job1050561_age_29_female_light_001",
+    "synthetic_job1050561_age_28_female_very_light_004",
+    "synthetic_job1050574_age_25_female_tan_brown_002",
+    "synthetic_job1050452_age_29_male_intermediate_006",
+    "synthetic_job1050452_age_25_female_dark_000",
+    "synthetic_job1050452_age_26_male_light_009",
+    "synthetic_job1050574_age_29_male_tan_brown_006",
+    "synthetic_job1050561_age_26_male_very_light_001",
+    "synthetic_job1050561_age_26_female_tan_brown_006",
+    "synthetic_job1050452_age_26_female_light_003",
+    "synthetic_job1050561_age_26_male_very_light_008",
+    "synthetic_job1050452_age_25_male_tan_brown_007",
+    "synthetic_job1050452_age_28_male_intermediate_008",
+    "synthetic_job1050452_age_28_female_intermediate_002",
+    "synthetic_job1050561_age_25_male_dark_009",
+    "synthetic_job1050574_age_33_male_dark_003",
+    "synthetic_job1050574_age_34_male_intermediate_007",
+    "synthetic_job1050574_age_37_male_light_009",
+    "synthetic_job1050561_age_33_female_light_000",
+    "synthetic_job1050561_age_39_male_tan_brown_005",
+    "synthetic_job1050561_age_31_male_very_light_000",
+    "synthetic_job1050561_age_32_female_tan_brown_004",
+    "synthetic_job1050561_age_32_male_dark_003",
+    "synthetic_job1050574_age_34_female_intermediate_008",
+    "synthetic_job1050574_age_39_male_light_009",
+    "synthetic_job1050574_age_30_male_intermediate_004",
+    "synthetic_job1050574_age_39_female_very_light_001",
+    "synthetic_job1050561_age_35_female_tan_brown_003",
+    "synthetic_job1050574_age_34_female_light_005",
+    "synthetic_job1050561_age_36_female_dark_009",
+    "synthetic_job1050561_age_41_female_very_light_001",
+    "synthetic_job1050452_age_46_female_tan_brown_000",
+    "synthetic_job1050574_age_47_male_very_light_007",
+    "synthetic_job1050574_age_42_female_tan_brown_005",
+    "synthetic_job1050574_age_43_male_tan_brown_006",
+    "synthetic_job1050561_age_48_male_intermediate_004",
+    "synthetic_job1050574_age_40_male_very_light_009",
+    "synthetic_job1050574_age_42_male_dark_005",
+    "synthetic_job1050561_age_47_female_dark_007",
+    "synthetic_job1050574_age_40_female_light_001",
+    "synthetic_job1050574_age_41_female_intermediate_007",
+    "synthetic_job1050452_age_46_female_light_004",
+    "synthetic_job1050452_age_41_male_tan_brown_004",
+    "synthetic_job1050452_age_45_male_intermediate_002",
+    "synthetic_job1050574_age_47_male_light_003",
+    "synthetic_job1050561_age_52_male_intermediate_005",
+    "synthetic_job1050452_age_56_male_light_005",
+    "synthetic_job1050561_age_52_male_very_light_003",
+    "synthetic_job1050452_age_50_female_very_light_002",
+    "synthetic_job1050561_age_54_female_dark_008",
+    "synthetic_job1050574_age_57_male_dark_000",
+    "synthetic_job1050561_age_59_male_dark_007",
+    "synthetic_job1050574_age_59_male_dark_008",
+    "synthetic_job1050452_age_53_female_light_006",
+    "synthetic_job1050452_age_58_female_intermediate_003",
+    "synthetic_job1050561_age_55_female_light_004",
+    "synthetic_job1050452_age_51_female_tan_brown_007",
+    "synthetic_job1050561_age_50_male_very_light_001",
+    "synthetic_job1050561_age_58_male_intermediate_004",
+    "synthetic_job1050574_age_50_female_dark_009",
+    "synthetic_job1050561_age_61_female_very_light_006",
+    "synthetic_job1050561_age_75_male_dark_002",
+    "synthetic_job1050561_age_72_female_tan_brown_004",
+    "synthetic_job1050561_age_65_male_dark_002",
+    "synthetic_job1050574_age_66_female_dark_002",
+    "synthetic_job1050452_age_72_female_very_light_001",
+    "synthetic_job1050574_age_62_female_intermediate_008",
+    "synthetic_job1050561_age_60_male_light_006",
+    "synthetic_job1050574_age_68_male_light_004",
+    "synthetic_job1050574_age_71_male_light_003",
+    "synthetic_job1050452_age_75_male_intermediate_001",
+    "synthetic_job1050452_age_63_female_tan_brown_005",
+    "synthetic_job1050574_age_63_female_light_008",
+    "synthetic_job1050574_age_71_male_tan_brown_003",
+    "synthetic_job1050452_age_73_male_intermediate_001"
+  ],
+  "samples": [
+    {
+      "sample_id": "job1050574_age_12_male_tan_brown_002",
+      "user_id": "synthetic_job1050574_age_12_male_tan_brown_002",
+      "age": 12,
+      "age_group": "10-12",
+      "gender": "male",
+      "skin_color": "dark",
+      "image_path": "rgb/job1050574_age_12_male_tan_brown_002.png"
+    },
+    {
+      "sample_id": "job1050561_age_12_male_light_003",
+      "user_id": "synthetic_job1050561_age_12_male_light_003",
+      "age": 12,
+      "age_group": "10-12",
+      "gender": "male",
+      "skin_color": "light",
+      "image_path": "rgb/job1050561_age_12_male_light_003.png"
+    },
+    {
+      "sample_id": "job1050561_age_11_female_tan_brown_005",
+      "user_id": "synthetic_job1050561_age_11_female_tan_brown_005",
+      "age": 11,
+      "age_group": "10-12",
+      "gender": "female",
+      "skin_color": "dark",
+      "image_path": "rgb/job1050561_age_11_female_tan_brown_005.png"
+    },
+    {
+      "sample_id": "job1050574_age_12_male_very_light_002",
+      "user_id": "synthetic_job1050574_age_12_male_very_light_002",
+      "age": 12,
+      "age_group": "10-12",
+      "gender": "male",
+      "skin_color": "light",
+      "image_path": "rgb/job1050574_age_12_male_very_light_002.png"
+    },
+    {
+      "sample_id": "job1050574_age_10_female_very_light_002",
+      "user_id": "synthetic_job1050574_age_10_female_very_light_002",
+      "age": 10,
+      "age_group": "10-12",
+      "gender": "female",
+      "skin_color": "light",
+      "image_path": "rgb/job1050574_age_10_female_very_light_002.png"
+    },
+    {
+      "sample_id": "job1050574_age_10_male_tan_brown_003",
+      "user_id": "synthetic_job1050574_age_10_male_tan_brown_003",
+      "age": 10,
+      "age_group": "10-12",
+      "gender": "male",
+      "skin_color": "dark",
+      "image_path": "rgb/job1050574_age_10_male_tan_brown_003.png"
+    },
+    {
+      "sample_id": "job1050452_age_10_female_tan_brown_002",
+      "user_id": "synthetic_job1050452_age_10_female_tan_brown_002",
+      "age": 10,
+      "age_group": "10-12",
+      "gender": "female",
+      "skin_color": "dark",
+      "image_path": "rgb/job1050452_age_10_female_tan_brown_002.png"
+    },
+    {
+      "sample_id": "job1050574_age_11_female_dark_003",
+      "user_id": "synthetic_job1050574_age_11_female_dark_003",
+      "age": 11,
+      "age_group": "10-12",
+      "gender": "female",
+      "skin_color": "dark",
+      "image_path": "rgb/job1050574_age_11_female_dark_003.png"
+    },
+    {
+      "sample_id": "job1050574_age_10_male_intermediate_009",
+      "user_id": "synthetic_job1050574_age_10_male_intermediate_009",
+      "age": 10,
+      "age_group": "10-12",
+      "gender": "male",
+      "skin_color": "tan",
+      "image_path": "rgb/job1050574_age_10_male_intermediate_009.png"
+    },
+    {
+      "sample_id": "job1050574_age_10_female_light_009",
+      "user_id": "synthetic_job1050574_age_10_female_light_009",
+      "age": 10,
+      "age_group": "10-12",
+      "gender": "female",
+      "skin_color": "light",
+      "image_path": "rgb/job1050574_age_10_female_light_009.png"
+    },
+    {
+      "sample_id": "job1050452_age_10_female_intermediate_000",
+      "user_id": "synthetic_job1050452_age_10_female_intermediate_000",
+      "age": 10,
+      "age_group": "10-12",
+      "gender": "female",
+      "skin_color": "tan",
+      "image_path": "rgb/job1050452_age_10_female_intermediate_000.png"
+    },
+    {
+      "sample_id": "job1050452_age_10_male_dark_001",
+      "user_id": "synthetic_job1050452_age_10_male_dark_001",
+      "age": 10,
+      "age_group": "10-12",
+      "gender": "male",
+      "skin_color": "dark",
+      "image_path": "rgb/job1050452_age_10_male_dark_001.png"
+    },
+    {
+      "sample_id": "job1050452_age_11_male_very_light_009",
+      "user_id": "synthetic_job1050452_age_11_male_very_light_009",
+      "age": 11,
+      "age_group": "10-12",
+      "gender": "male",
+      "skin_color": "light",
+      "image_path": "rgb/job1050452_age_11_male_very_light_009.png"
+    },
+    {
+      "sample_id": "job1050574_age_10_female_light_004",
+      "user_id": "synthetic_job1050574_age_10_female_light_004",
+      "age": 10,
+      "age_group": "10-12",
+      "gender": "female",
+      "skin_color": "light",
+      "image_path": "rgb/job1050574_age_10_female_light_004.png"
+    },
+    {
+      "sample_id": "job1050452_age_10_female_intermediate_009",
+      "user_id": "synthetic_job1050452_age_10_female_intermediate_009",
+      "age": 10,
+      "age_group": "10-12",
+      "gender": "female",
+      "skin_color": "tan",
+      "image_path": "rgb/job1050452_age_10_female_intermediate_009.png"
+    },
+    {
+      "sample_id": "job1050561_age_13_male_tan_brown_008",
+      "user_id": "synthetic_job1050561_age_13_male_tan_brown_008",
+      "age": 13,
+      "age_group": "13-15",
+      "gender": "male",
+      "skin_color": "dark",
+      "image_path": "rgb/job1050561_age_13_male_tan_brown_008.png"
+    },
+    {
+      "sample_id": "job1050561_age_13_female_intermediate_009",
+      "user_id": "synthetic_job1050561_age_13_female_intermediate_009",
+      "age": 13,
+      "age_group": "13-15",
+      "gender": "female",
+      "skin_color": "tan",
+      "image_path": "rgb/job1050561_age_13_female_intermediate_009.png"
+    },
+    {
+      "sample_id": "job1050452_age_13_male_very_light_004",
+      "user_id": "synthetic_job1050452_age_13_male_very_light_004",
+      "age": 13,
+      "age_group": "13-15",
+      "gender": "male",
+      "skin_color": "light",
+      "image_path": "rgb/job1050452_age_13_male_very_light_004.png"
+    },
+    {
+      "sample_id": "job1050561_age_13_male_intermediate_005",
+      "user_id": "synthetic_job1050561_age_13_male_intermediate_005",
+      "age": 13,
+      "age_group": "13-15",
+      "gender": "male",
+      "skin_color": "tan",
+      "image_path": "rgb/job1050561_age_13_male_intermediate_005.png"
+    },
+    {
+      "sample_id": "job1050561_age_14_female_tan_brown_008",
+      "user_id": "synthetic_job1050561_age_14_female_tan_brown_008",
+      "age": 14,
+      "age_group": "13-15",
+      "gender": "female",
+      "skin_color": "dark",
+      "image_path": "rgb/job1050561_age_14_female_tan_brown_008.png"
+    },
+    {
+      "sample_id": "job1050561_age_13_female_intermediate_008",
+      "user_id": "synthetic_job1050561_age_13_female_intermediate_008",
+      "age": 13,
+      "age_group": "13-15",
+      "gender": "female",
+      "skin_color": "tan",
+      "image_path": "rgb/job1050561_age_13_female_intermediate_008.png"
+    },
+    {
+      "sample_id": "job1050561_age_13_male_dark_005",
+      "user_id": "synthetic_job1050561_age_13_male_dark_005",
+      "age": 13,
+      "age_group": "13-15",
+      "gender": "male",
+      "skin_color": "dark",
+      "image_path": "rgb/job1050561_age_13_male_dark_005.png"
+    },
+    {
+      "sample_id": "job1050452_age_15_male_very_light_007",
+      "user_id": "synthetic_job1050452_age_15_male_very_light_007",
+      "age": 15,
+      "age_group": "13-15",
+      "gender": "male",
+      "skin_color": "light",
+      "image_path": "rgb/job1050452_age_15_male_very_light_007.png"
+    },
+    {
+      "sample_id": "job1050452_age_15_female_light_000",
+      "user_id": "synthetic_job1050452_age_15_female_light_000",
+      "age": 15,
+      "age_group": "13-15",
+      "gender": "female",
+      "skin_color": "light",
+      "image_path": "rgb/job1050452_age_15_female_light_000.png"
+    },
+    {
+      "sample_id": "job1050574_age_15_male_very_light_004",
+      "user_id": "synthetic_job1050574_age_15_male_very_light_004",
+      "age": 15,
+      "age_group": "13-15",
+      "gender": "male",
+      "skin_color": "light",
+      "image_path": "rgb/job1050574_age_15_male_very_light_004.png"
+    },
+    {
+      "sample_id": "job1050561_age_13_male_dark_001",
+      "user_id": "synthetic_job1050561_age_13_male_dark_001",
+      "age": 13,
+      "age_group": "13-15",
+      "gender": "male",
+      "skin_color": "dark",
+      "image_path": "rgb/job1050561_age_13_male_dark_001.png"
+    },
+    {
+      "sample_id": "job1050574_age_15_female_light_003",
+      "user_id": "synthetic_job1050574_age_15_female_light_003",
+      "age": 15,
+      "age_group": "13-15",
+      "gender": "female",
+      "skin_color": "light",
+      "image_path": "rgb/job1050574_age_15_female_light_003.png"
+    },
+    {
+      "sample_id": "job1050561_age_13_female_dark_001",
+      "user_id": "synthetic_job1050561_age_13_female_dark_001",
+      "age": 13,
+      "age_group": "13-15",
+      "gender": "female",
+      "skin_color": "dark",
+      "image_path": "rgb/job1050561_age_13_female_dark_001.png"
+    },
+    {
+      "sample_id": "job1050574_age_13_female_tan_brown_009",
+      "user_id": "synthetic_job1050574_age_13_female_tan_brown_009",
+      "age": 13,
+      "age_group": "13-15",
+      "gender": "female",
+      "skin_color": "dark",
+      "image_path": "rgb/job1050574_age_13_female_tan_brown_009.png"
+    },
+    {
+      "sample_id": "job1050561_age_14_female_very_light_008",
+      "user_id": "synthetic_job1050561_age_14_female_very_light_008",
+      "age": 14,
+      "age_group": "13-15",
+      "gender": "female",
+      "skin_color": "light",
+      "image_path": "rgb/job1050561_age_14_female_very_light_008.png"
+    },
+    {
+      "sample_id": "job1050452_age_17_female_very_light_001",
+      "user_id": "synthetic_job1050452_age_17_female_very_light_001",
+      "age": 17,
+      "age_group": "16-17",
+      "gender": "female",
+      "skin_color": "light",
+      "image_path": "rgb/job1050452_age_17_female_very_light_001.png"
+    },
+    {
+      "sample_id": "job1050574_age_17_male_dark_003",
+      "user_id": "synthetic_job1050574_age_17_male_dark_003",
+      "age": 17,
+      "age_group": "16-17",
+      "gender": "male",
+      "skin_color": "dark",
+      "image_path": "rgb/job1050574_age_17_male_dark_003.png"
+    },
+    {
+      "sample_id": "job1050452_age_16_female_intermediate_005",
+      "user_id": "synthetic_job1050452_age_16_female_intermediate_005",
+      "age": 16,
+      "age_group": "16-17",
+      "gender": "female",
+      "skin_color": "tan",
+      "image_path": "rgb/job1050452_age_16_female_intermediate_005.png"
+    },
+    {
+      "sample_id": "job1050561_age_16_male_tan_brown_001",
+      "user_id": "synthetic_job1050561_age_16_male_tan_brown_001",
+      "age": 16,
+      "age_group": "16-17",
+      "gender": "male",
+      "skin_color": "dark",
+      "image_path": "rgb/job1050561_age_16_male_tan_brown_001.png"
+    },
+    {
+      "sample_id": "job1050561_age_16_male_very_light_005",
+      "user_id": "synthetic_job1050561_age_16_male_very_light_005",
+      "age": 16,
+      "age_group": "16-17",
+      "gender": "male",
+      "skin_color": "light",
+      "image_path": "rgb/job1050561_age_16_male_very_light_005.png"
+    },
+    {
+      "sample_id": "job1050574_age_16_male_dark_008",
+      "user_id": "synthetic_job1050574_age_16_male_dark_008",
+      "age": 16,
+      "age_group": "16-17",
+      "gender": "male",
+      "skin_color": "dark",
+      "image_path": "rgb/job1050574_age_16_male_dark_008.png"
+    },
+    {
+      "sample_id": "job1050561_age_16_female_dark_002",
+      "user_id": "synthetic_job1050561_age_16_female_dark_002",
+      "age": 16,
+      "age_group": "16-17",
+      "gender": "female",
+      "skin_color": "dark",
+      "image_path": "rgb/job1050561_age_16_female_dark_002.png"
+    },
+    {
+      "sample_id": "job1050452_age_16_male_very_light_003",
+      "user_id": "synthetic_job1050452_age_16_male_very_light_003",
+      "age": 16,
+      "age_group": "16-17",
+      "gender": "male",
+      "skin_color": "light",
+      "image_path": "rgb/job1050452_age_16_male_very_light_003.png"
+    },
+    {
+      "sample_id": "job1050561_age_16_male_intermediate_006",
+      "user_id": "synthetic_job1050561_age_16_male_intermediate_006",
+      "age": 16,
+      "age_group": "16-17",
+      "gender": "male",
+      "skin_color": "tan",
+      "image_path": "rgb/job1050561_age_16_male_intermediate_006.png"
+    },
+    {
+      "sample_id": "job1050574_age_16_female_tan_brown_003",
+      "user_id": "synthetic_job1050574_age_16_female_tan_brown_003",
+      "age": 16,
+      "age_group": "16-17",
+      "gender": "female",
+      "skin_color": "dark",
+      "image_path": "rgb/job1050574_age_16_female_tan_brown_003.png"
+    },
+    {
+      "sample_id": "job1050561_age_17_male_intermediate_001",
+      "user_id": "synthetic_job1050561_age_17_male_intermediate_001",
+      "age": 17,
+      "age_group": "16-17",
+      "gender": "male",
+      "skin_color": "tan",
+      "image_path": "rgb/job1050561_age_17_male_intermediate_001.png"
+    },
+    {
+      "sample_id": "job1050574_age_16_male_very_light_000",
+      "user_id": "synthetic_job1050574_age_16_male_very_light_000",
+      "age": 16,
+      "age_group": "16-17",
+      "gender": "male",
+      "skin_color": "light",
+      "image_path": "rgb/job1050574_age_16_male_very_light_000.png"
+    },
+    {
+      "sample_id": "job1050574_age_17_female_tan_brown_004",
+      "user_id": "synthetic_job1050574_age_17_female_tan_brown_004",
+      "age": 17,
+      "age_group": "16-17",
+      "gender": "female",
+      "skin_color": "dark",
+      "image_path": "rgb/job1050574_age_17_female_tan_brown_004.png"
+    },
+    {
+      "sample_id": "job1050574_age_17_female_very_light_002",
+      "user_id": "synthetic_job1050574_age_17_female_very_light_002",
+      "age": 17,
+      "age_group": "16-17",
+      "gender": "female",
+      "skin_color": "light",
+      "image_path": "rgb/job1050574_age_17_female_very_light_002.png"
+    },
+    {
+      "sample_id": "job1050452_age_16_female_light_001",
+      "user_id": "synthetic_job1050452_age_16_female_light_001",
+      "age": 16,
+      "age_group": "16-17",
+      "gender": "female",
+      "skin_color": "light",
+      "image_path": "rgb/job1050452_age_16_female_light_001.png"
+    },
+    {
+      "sample_id": "job1050574_age_19_male_dark_002",
+      "user_id": "synthetic_job1050574_age_19_male_dark_002",
+      "age": 19,
+      "age_group": "18-19",
+      "gender": "male",
+      "skin_color": "dark",
+      "image_path": "rgb/job1050574_age_19_male_dark_002.png"
+    },
+    {
+      "sample_id": "job1050452_age_18_male_dark_006",
+      "user_id": "synthetic_job1050452_age_18_male_dark_006",
+      "age": 18,
+      "age_group": "18-19",
+      "gender": "male",
+      "skin_color": "dark",
+      "image_path": "rgb/job1050452_age_18_male_dark_006.png"
+    },
+    {
+      "sample_id": "job1050561_age_18_female_intermediate_002",
+      "user_id": "synthetic_job1050561_age_18_female_intermediate_002",
+      "age": 18,
+      "age_group": "18-19",
+      "gender": "female",
+      "skin_color": "tan",
+      "image_path": "rgb/job1050561_age_18_female_intermediate_002.png"
+    },
+    {
+      "sample_id": "job1050452_age_18_female_tan_brown_005",
+      "user_id": "synthetic_job1050452_age_18_female_tan_brown_005",
+      "age": 18,
+      "age_group": "18-19",
+      "gender": "female",
+      "skin_color": "dark",
+      "image_path": "rgb/job1050452_age_18_female_tan_brown_005.png"
+    },
+    {
+      "sample_id": "job1050561_age_19_male_light_003",
+      "user_id": "synthetic_job1050561_age_19_male_light_003",
+      "age": 19,
+      "age_group": "18-19",
+      "gender": "male",
+      "skin_color": "light",
+      "image_path": "rgb/job1050561_age_19_male_light_003.png"
+    },
+    {
+      "sample_id": "job1050452_age_18_male_dark_009",
+      "user_id": "synthetic_job1050452_age_18_male_dark_009",
+      "age": 18,
+      "age_group": "18-19",
+      "gender": "male",
+      "skin_color": "dark",
+      "image_path": "rgb/job1050452_age_18_male_dark_009.png"
+    },
+    {
+      "sample_id": "job1050574_age_18_male_intermediate_008",
+      "user_id": "synthetic_job1050574_age_18_male_intermediate_008",
+      "age": 18,
+      "age_group": "18-19",
+      "gender": "male",
+      "skin_color": "tan",
+      "image_path": "rgb/job1050574_age_18_male_intermediate_008.png"
+    },
+    {
+      "sample_id": "job1050452_age_19_female_tan_brown_003",
+      "user_id": "synthetic_job1050452_age_19_female_tan_brown_003",
+      "age": 19,
+      "age_group": "18-19",
+      "gender": "female",
+      "skin_color": "dark",
+      "image_path": "rgb/job1050452_age_19_female_tan_brown_003.png"
+    },
+    {
+      "sample_id": "job1050561_age_18_female_light_006",
+      "user_id": "synthetic_job1050561_age_18_female_light_006",
+      "age": 18,
+      "age_group": "18-19",
+      "gender": "female",
+      "skin_color": "light",
+      "image_path": "rgb/job1050561_age_18_female_light_006.png"
+    },
+    {
+      "sample_id": "job1050452_age_18_male_intermediate_001",
+      "user_id": "synthetic_job1050452_age_18_male_intermediate_001",
+      "age": 18,
+      "age_group": "18-19",
+      "gender": "male",
+      "skin_color": "tan",
+      "image_path": "rgb/job1050452_age_18_male_intermediate_001.png"
+    },
+    {
+      "sample_id": "job1050561_age_18_female_very_light_008",
+      "user_id": "synthetic_job1050561_age_18_female_very_light_008",
+      "age": 18,
+      "age_group": "18-19",
+      "gender": "female",
+      "skin_color": "light",
+      "image_path": "rgb/job1050561_age_18_female_very_light_008.png"
+    },
+    {
+      "sample_id": "job1050574_age_18_female_dark_000",
+      "user_id": "synthetic_job1050574_age_18_female_dark_000",
+      "age": 18,
+      "age_group": "18-19",
+      "gender": "female",
+      "skin_color": "dark",
+      "image_path": "rgb/job1050574_age_18_female_dark_000.png"
+    },
+    {
+      "sample_id": "job1050574_age_18_male_light_005",
+      "user_id": "synthetic_job1050574_age_18_male_light_005",
+      "age": 18,
+      "age_group": "18-19",
+      "gender": "male",
+      "skin_color": "light",
+      "image_path": "rgb/job1050574_age_18_male_light_005.png"
+    },
+    {
+      "sample_id": "job1050561_age_19_female_very_light_001",
+      "user_id": "synthetic_job1050561_age_19_female_very_light_001",
+      "age": 19,
+      "age_group": "18-19",
+      "gender": "female",
+      "skin_color": "light",
+      "image_path": "rgb/job1050561_age_19_female_very_light_001.png"
+    },
+    {
+      "sample_id": "job1050574_age_19_male_very_light_002",
+      "user_id": "synthetic_job1050574_age_19_male_very_light_002",
+      "age": 19,
+      "age_group": "18-19",
+      "gender": "male",
+      "skin_color": "light",
+      "image_path": "rgb/job1050574_age_19_male_very_light_002.png"
+    },
+    {
+      "sample_id": "job1050561_age_22_female_tan_brown_007",
+      "user_id": "synthetic_job1050561_age_22_female_tan_brown_007",
+      "age": 22,
+      "age_group": "20-24",
+      "gender": "female",
+      "skin_color": "dark",
+      "image_path": "rgb/job1050561_age_22_female_tan_brown_007.png"
+    },
+    {
+      "sample_id": "job1050561_age_20_female_intermediate_001",
+      "user_id": "synthetic_job1050561_age_20_female_intermediate_001",
+      "age": 20,
+      "age_group": "20-24",
+      "gender": "female",
+      "skin_color": "tan",
+      "image_path": "rgb/job1050561_age_20_female_intermediate_001.png"
+    },
+    {
+      "sample_id": "job1050574_age_20_male_very_light_008",
+      "user_id": "synthetic_job1050574_age_20_male_very_light_008",
+      "age": 20,
+      "age_group": "20-24",
+      "gender": "male",
+      "skin_color": "light",
+      "image_path": "rgb/job1050574_age_20_male_very_light_008.png"
+    },
+    {
+      "sample_id": "job1050452_age_20_female_tan_brown_009",
+      "user_id": "synthetic_job1050452_age_20_female_tan_brown_009",
+      "age": 20,
+      "age_group": "20-24",
+      "gender": "female",
+      "skin_color": "dark",
+      "image_path": "rgb/job1050452_age_20_female_tan_brown_009.png"
+    },
+    {
+      "sample_id": "job1050574_age_22_female_intermediate_007",
+      "user_id": "synthetic_job1050574_age_22_female_intermediate_007",
+      "age": 22,
+      "age_group": "20-24",
+      "gender": "female",
+      "skin_color": "tan",
+      "image_path": "rgb/job1050574_age_22_female_intermediate_007.png"
+    },
+    {
+      "sample_id": "job1050561_age_22_male_light_004",
+      "user_id": "synthetic_job1050561_age_22_male_light_004",
+      "age": 22,
+      "age_group": "20-24",
+      "gender": "male",
+      "skin_color": "light",
+      "image_path": "rgb/job1050561_age_22_male_light_004.png"
+    },
+    {
+      "sample_id": "job1050574_age_24_male_intermediate_003",
+      "user_id": "synthetic_job1050574_age_24_male_intermediate_003",
+      "age": 24,
+      "age_group": "20-24",
+      "gender": "male",
+      "skin_color": "tan",
+      "image_path": "rgb/job1050574_age_24_male_intermediate_003.png"
+    },
+    {
+      "sample_id": "job1050452_age_24_male_tan_brown_006",
+      "user_id": "synthetic_job1050452_age_24_male_tan_brown_006",
+      "age": 24,
+      "age_group": "20-24",
+      "gender": "male",
+      "skin_color": "dark",
+      "image_path": "rgb/job1050452_age_24_male_tan_brown_006.png"
+    },
+    {
+      "sample_id": "job1050561_age_20_female_tan_brown_007",
+      "user_id": "synthetic_job1050561_age_20_female_tan_brown_007",
+      "age": 20,
+      "age_group": "20-24",
+      "gender": "female",
+      "skin_color": "dark",
+      "image_path": "rgb/job1050561_age_20_female_tan_brown_007.png"
+    },
+    {
+      "sample_id": "job1050561_age_21_female_light_009",
+      "user_id": "synthetic_job1050561_age_21_female_light_009",
+      "age": 21,
+      "age_group": "20-24",
+      "gender": "female",
+      "skin_color": "light",
+      "image_path": "rgb/job1050561_age_21_female_light_009.png"
+    },
+    {
+      "sample_id": "job1050574_age_21_male_dark_003",
+      "user_id": "synthetic_job1050574_age_21_male_dark_003",
+      "age": 21,
+      "age_group": "20-24",
+      "gender": "male",
+      "skin_color": "dark",
+      "image_path": "rgb/job1050574_age_21_male_dark_003.png"
+    },
+    {
+      "sample_id": "job1050452_age_20_female_light_000",
+      "user_id": "synthetic_job1050452_age_20_female_light_000",
+      "age": 20,
+      "age_group": "20-24",
+      "gender": "female",
+      "skin_color": "light",
+      "image_path": "rgb/job1050452_age_20_female_light_000.png"
+    },
+    {
+      "sample_id": "job1050561_age_24_male_tan_brown_007",
+      "user_id": "synthetic_job1050561_age_24_male_tan_brown_007",
+      "age": 24,
+      "age_group": "20-24",
+      "gender": "male",
+      "skin_color": "dark",
+      "image_path": "rgb/job1050561_age_24_male_tan_brown_007.png"
+    },
+    {
+      "sample_id": "job1050561_age_24_female_very_light_007",
+      "user_id": "synthetic_job1050561_age_24_female_very_light_007",
+      "age": 24,
+      "age_group": "20-24",
+      "gender": "female",
+      "skin_color": "light",
+      "image_path": "rgb/job1050561_age_24_female_very_light_007.png"
+    },
+    {
+      "sample_id": "job1050574_age_21_male_very_light_004",
+      "user_id": "synthetic_job1050574_age_21_male_very_light_004",
+      "age": 21,
+      "age_group": "20-24",
+      "gender": "male",
+      "skin_color": "light",
+      "image_path": "rgb/job1050574_age_21_male_very_light_004.png"
+    },
+    {
+      "sample_id": "job1050561_age_29_female_light_001",
+      "user_id": "synthetic_job1050561_age_29_female_light_001",
+      "age": 29,
+      "age_group": "25-29",
+      "gender": "female",
+      "skin_color": "light",
+      "image_path": "rgb/job1050561_age_29_female_light_001.png"
+    },
+    {
+      "sample_id": "job1050561_age_28_female_very_light_004",
+      "user_id": "synthetic_job1050561_age_28_female_very_light_004",
+      "age": 28,
+      "age_group": "25-29",
+      "gender": "female",
+      "skin_color": "light",
+      "image_path": "rgb/job1050561_age_28_female_very_light_004.png"
+    },
+    {
+      "sample_id": "job1050574_age_25_female_tan_brown_002",
+      "user_id": "synthetic_job1050574_age_25_female_tan_brown_002",
+      "age": 25,
+      "age_group": "25-29",
+      "gender": "female",
+      "skin_color": "dark",
+      "image_path": "rgb/job1050574_age_25_female_tan_brown_002.png"
+    },
+    {
+      "sample_id": "job1050452_age_29_male_intermediate_006",
+      "user_id": "synthetic_job1050452_age_29_male_intermediate_006",
+      "age": 29,
+      "age_group": "25-29",
+      "gender": "male",
+      "skin_color": "tan",
+      "image_path": "rgb/job1050452_age_29_male_intermediate_006.png"
+    },
+    {
+      "sample_id": "job1050452_age_25_female_dark_000",
+      "user_id": "synthetic_job1050452_age_25_female_dark_000",
+      "age": 25,
+      "age_group": "25-29",
+      "gender": "female",
+      "skin_color": "dark",
+      "image_path": "rgb/job1050452_age_25_female_dark_000.png"
+    },
+    {
+      "sample_id": "job1050452_age_26_male_light_009",
+      "user_id": "synthetic_job1050452_age_26_male_light_009",
+      "age": 26,
+      "age_group": "25-29",
+      "gender": "male",
+      "skin_color": "light",
+      "image_path": "rgb/job1050452_age_26_male_light_009.png"
+    },
+    {
+      "sample_id": "job1050574_age_29_male_tan_brown_006",
+      "user_id": "synthetic_job1050574_age_29_male_tan_brown_006",
+      "age": 29,
+      "age_group": "25-29",
+      "gender": "male",
+      "skin_color": "dark",
+      "image_path": "rgb/job1050574_age_29_male_tan_brown_006.png"
+    },
+    {
+      "sample_id": "job1050561_age_26_male_very_light_001",
+      "user_id": "synthetic_job1050561_age_26_male_very_light_001",
+      "age": 26,
+      "age_group": "25-29",
+      "gender": "male",
+      "skin_color": "light",
+      "image_path": "rgb/job1050561_age_26_male_very_light_001.png"
+    },
+    {
+      "sample_id": "job1050561_age_26_female_tan_brown_006",
+      "user_id": "synthetic_job1050561_age_26_female_tan_brown_006",
+      "age": 26,
+      "age_group": "25-29",
+      "gender": "female",
+      "skin_color": "dark",
+      "image_path": "rgb/job1050561_age_26_female_tan_brown_006.png"
+    },
+    {
+      "sample_id": "job1050452_age_26_female_light_003",
+      "user_id": "synthetic_job1050452_age_26_female_light_003",
+      "age": 26,
+      "age_group": "25-29",
+      "gender": "female",
+      "skin_color": "light",
+      "image_path": "rgb/job1050452_age_26_female_light_003.png"
+    },
+    {
+      "sample_id": "job1050561_age_26_male_very_light_008",
+      "user_id": "synthetic_job1050561_age_26_male_very_light_008",
+      "age": 26,
+      "age_group": "25-29",
+      "gender": "male",
+      "skin_color": "light",
+      "image_path": "rgb/job1050561_age_26_male_very_light_008.png"
+    },
+    {
+      "sample_id": "job1050452_age_25_male_tan_brown_007",
+      "user_id": "synthetic_job1050452_age_25_male_tan_brown_007",
+      "age": 25,
+      "age_group": "25-29",
+      "gender": "male",
+      "skin_color": "dark",
+      "image_path": "rgb/job1050452_age_25_male_tan_brown_007.png"
+    },
+    {
+      "sample_id": "job1050452_age_28_male_intermediate_008",
+      "user_id": "synthetic_job1050452_age_28_male_intermediate_008",
+      "age": 28,
+      "age_group": "25-29",
+      "gender": "male",
+      "skin_color": "tan",
+      "image_path": "rgb/job1050452_age_28_male_intermediate_008.png"
+    },
+    {
+      "sample_id": "job1050452_age_28_female_intermediate_002",
+      "user_id": "synthetic_job1050452_age_28_female_intermediate_002",
+      "age": 28,
+      "age_group": "25-29",
+      "gender": "female",
+      "skin_color": "tan",
+      "image_path": "rgb/job1050452_age_28_female_intermediate_002.png"
+    },
+    {
+      "sample_id": "job1050561_age_25_male_dark_009",
+      "user_id": "synthetic_job1050561_age_25_male_dark_009",
+      "age": 25,
+      "age_group": "25-29",
+      "gender": "male",
+      "skin_color": "dark",
+      "image_path": "rgb/job1050561_age_25_male_dark_009.png"
+    },
+    {
+      "sample_id": "job1050574_age_33_male_dark_003",
+      "user_id": "synthetic_job1050574_age_33_male_dark_003",
+      "age": 33,
+      "age_group": "30-39",
+      "gender": "male",
+      "skin_color": "dark",
+      "image_path": "rgb/job1050574_age_33_male_dark_003.png"
+    },
+    {
+      "sample_id": "job1050574_age_34_male_intermediate_007",
+      "user_id": "synthetic_job1050574_age_34_male_intermediate_007",
+      "age": 34,
+      "age_group": "30-39",
+      "gender": "male",
+      "skin_color": "tan",
+      "image_path": "rgb/job1050574_age_34_male_intermediate_007.png"
+    },
+    {
+      "sample_id": "job1050574_age_37_male_light_009",
+      "user_id": "synthetic_job1050574_age_37_male_light_009",
+      "age": 37,
+      "age_group": "30-39",
+      "gender": "male",
+      "skin_color": "light",
+      "image_path": "rgb/job1050574_age_37_male_light_009.png"
+    },
+    {
+      "sample_id": "job1050561_age_33_female_light_000",
+      "user_id": "synthetic_job1050561_age_33_female_light_000",
+      "age": 33,
+      "age_group": "30-39",
+      "gender": "female",
+      "skin_color": "light",
+      "image_path": "rgb/job1050561_age_33_female_light_000.png"
+    },
+    {
+      "sample_id": "job1050561_age_39_male_tan_brown_005",
+      "user_id": "synthetic_job1050561_age_39_male_tan_brown_005",
+      "age": 39,
+      "age_group": "30-39",
+      "gender": "male",
+      "skin_color": "dark",
+      "image_path": "rgb/job1050561_age_39_male_tan_brown_005.png"
+    },
+    {
+      "sample_id": "job1050561_age_31_male_very_light_000",
+      "user_id": "synthetic_job1050561_age_31_male_very_light_000",
+      "age": 31,
+      "age_group": "30-39",
+      "gender": "male",
+      "skin_color": "light",
+      "image_path": "rgb/job1050561_age_31_male_very_light_000.png"
+    },
+    {
+      "sample_id": "job1050561_age_32_female_tan_brown_004",
+      "user_id": "synthetic_job1050561_age_32_female_tan_brown_004",
+      "age": 32,
+      "age_group": "30-39",
+      "gender": "female",
+      "skin_color": "dark",
+      "image_path": "rgb/job1050561_age_32_female_tan_brown_004.png"
+    },
+    {
+      "sample_id": "job1050561_age_32_male_dark_003",
+      "user_id": "synthetic_job1050561_age_32_male_dark_003",
+      "age": 32,
+      "age_group": "30-39",
+      "gender": "male",
+      "skin_color": "dark",
+      "image_path": "rgb/job1050561_age_32_male_dark_003.png"
+    },
+    {
+      "sample_id": "job1050574_age_34_female_intermediate_008",
+      "user_id": "synthetic_job1050574_age_34_female_intermediate_008",
+      "age": 34,
+      "age_group": "30-39",
+      "gender": "female",
+      "skin_color": "tan",
+      "image_path": "rgb/job1050574_age_34_female_intermediate_008.png"
+    },
+    {
+      "sample_id": "job1050574_age_39_male_light_009",
+      "user_id": "synthetic_job1050574_age_39_male_light_009",
+      "age": 39,
+      "age_group": "30-39",
+      "gender": "male",
+      "skin_color": "light",
+      "image_path": "rgb/job1050574_age_39_male_light_009.png"
+    },
+    {
+      "sample_id": "job1050574_age_30_male_intermediate_004",
+      "user_id": "synthetic_job1050574_age_30_male_intermediate_004",
+      "age": 30,
+      "age_group": "30-39",
+      "gender": "male",
+      "skin_color": "tan",
+      "image_path": "rgb/job1050574_age_30_male_intermediate_004.png"
+    },
+    {
+      "sample_id": "job1050574_age_39_female_very_light_001",
+      "user_id": "synthetic_job1050574_age_39_female_very_light_001",
+      "age": 39,
+      "age_group": "30-39",
+      "gender": "female",
+      "skin_color": "light",
+      "image_path": "rgb/job1050574_age_39_female_very_light_001.png"
+    },
+    {
+      "sample_id": "job1050561_age_35_female_tan_brown_003",
+      "user_id": "synthetic_job1050561_age_35_female_tan_brown_003",
+      "age": 35,
+      "age_group": "30-39",
+      "gender": "female",
+      "skin_color": "dark",
+      "image_path": "rgb/job1050561_age_35_female_tan_brown_003.png"
+    },
+    {
+      "sample_id": "job1050574_age_34_female_light_005",
+      "user_id": "synthetic_job1050574_age_34_female_light_005",
+      "age": 34,
+      "age_group": "30-39",
+      "gender": "female",
+      "skin_color": "light",
+      "image_path": "rgb/job1050574_age_34_female_light_005.png"
+    },
+    {
+      "sample_id": "job1050561_age_36_female_dark_009",
+      "user_id": "synthetic_job1050561_age_36_female_dark_009",
+      "age": 36,
+      "age_group": "30-39",
+      "gender": "female",
+      "skin_color": "dark",
+      "image_path": "rgb/job1050561_age_36_female_dark_009.png"
+    },
+    {
+      "sample_id": "job1050561_age_41_female_very_light_001",
+      "user_id": "synthetic_job1050561_age_41_female_very_light_001",
+      "age": 41,
+      "age_group": "40-49",
+      "gender": "female",
+      "skin_color": "light",
+      "image_path": "rgb/job1050561_age_41_female_very_light_001.png"
+    },
+    {
+      "sample_id": "job1050452_age_46_female_tan_brown_000",
+      "user_id": "synthetic_job1050452_age_46_female_tan_brown_000",
+      "age": 46,
+      "age_group": "40-49",
+      "gender": "female",
+      "skin_color": "dark",
+      "image_path": "rgb/job1050452_age_46_female_tan_brown_000.png"
+    },
+    {
+      "sample_id": "job1050574_age_47_male_very_light_007",
+      "user_id": "synthetic_job1050574_age_47_male_very_light_007",
+      "age": 47,
+      "age_group": "40-49",
+      "gender": "male",
+      "skin_color": "light",
+      "image_path": "rgb/job1050574_age_47_male_very_light_007.png"
+    },
+    {
+      "sample_id": "job1050574_age_42_female_tan_brown_005",
+      "user_id": "synthetic_job1050574_age_42_female_tan_brown_005",
+      "age": 42,
+      "age_group": "40-49",
+      "gender": "female",
+      "skin_color": "dark",
+      "image_path": "rgb/job1050574_age_42_female_tan_brown_005.png"
+    },
+    {
+      "sample_id": "job1050574_age_43_male_tan_brown_006",
+      "user_id": "synthetic_job1050574_age_43_male_tan_brown_006",
+      "age": 43,
+      "age_group": "40-49",
+      "gender": "male",
+      "skin_color": "dark",
+      "image_path": "rgb/job1050574_age_43_male_tan_brown_006.png"
+    },
+    {
+      "sample_id": "job1050561_age_48_male_intermediate_004",
+      "user_id": "synthetic_job1050561_age_48_male_intermediate_004",
+      "age": 48,
+      "age_group": "40-49",
+      "gender": "male",
+      "skin_color": "tan",
+      "image_path": "rgb/job1050561_age_48_male_intermediate_004.png"
+    },
+    {
+      "sample_id": "job1050574_age_40_male_very_light_009",
+      "user_id": "synthetic_job1050574_age_40_male_very_light_009",
+      "age": 40,
+      "age_group": "40-49",
+      "gender": "male",
+      "skin_color": "light",
+      "image_path": "rgb/job1050574_age_40_male_very_light_009.png"
+    },
+    {
+      "sample_id": "job1050574_age_42_male_dark_005",
+      "user_id": "synthetic_job1050574_age_42_male_dark_005",
+      "age": 42,
+      "age_group": "40-49",
+      "gender": "male",
+      "skin_color": "dark",
+      "image_path": "rgb/job1050574_age_42_male_dark_005.png"
+    },
+    {
+      "sample_id": "job1050561_age_47_female_dark_007",
+      "user_id": "synthetic_job1050561_age_47_female_dark_007",
+      "age": 47,
+      "age_group": "40-49",
+      "gender": "female",
+      "skin_color": "dark",
+      "image_path": "rgb/job1050561_age_47_female_dark_007.png"
+    },
+    {
+      "sample_id": "job1050574_age_40_female_light_001",
+      "user_id": "synthetic_job1050574_age_40_female_light_001",
+      "age": 40,
+      "age_group": "40-49",
+      "gender": "female",
+      "skin_color": "light",
+      "image_path": "rgb/job1050574_age_40_female_light_001.png"
+    },
+    {
+      "sample_id": "job1050574_age_41_female_intermediate_007",
+      "user_id": "synthetic_job1050574_age_41_female_intermediate_007",
+      "age": 41,
+      "age_group": "40-49",
+      "gender": "female",
+      "skin_color": "tan",
+      "image_path": "rgb/job1050574_age_41_female_intermediate_007.png"
+    },
+    {
+      "sample_id": "job1050452_age_46_female_light_004",
+      "user_id": "synthetic_job1050452_age_46_female_light_004",
+      "age": 46,
+      "age_group": "40-49",
+      "gender": "female",
+      "skin_color": "light",
+      "image_path": "rgb/job1050452_age_46_female_light_004.png"
+    },
+    {
+      "sample_id": "job1050452_age_41_male_tan_brown_004",
+      "user_id": "synthetic_job1050452_age_41_male_tan_brown_004",
+      "age": 41,
+      "age_group": "40-49",
+      "gender": "male",
+      "skin_color": "dark",
+      "image_path": "rgb/job1050452_age_41_male_tan_brown_004.png"
+    },
+    {
+      "sample_id": "job1050452_age_45_male_intermediate_002",
+      "user_id": "synthetic_job1050452_age_45_male_intermediate_002",
+      "age": 45,
+      "age_group": "40-49",
+      "gender": "male",
+      "skin_color": "tan",
+      "image_path": "rgb/job1050452_age_45_male_intermediate_002.png"
+    },
+    {
+      "sample_id": "job1050574_age_47_male_light_003",
+      "user_id": "synthetic_job1050574_age_47_male_light_003",
+      "age": 47,
+      "age_group": "40-49",
+      "gender": "male",
+      "skin_color": "light",
+      "image_path": "rgb/job1050574_age_47_male_light_003.png"
+    },
+    {
+      "sample_id": "job1050561_age_52_male_intermediate_005",
+      "user_id": "synthetic_job1050561_age_52_male_intermediate_005",
+      "age": 52,
+      "age_group": "50-59",
+      "gender": "male",
+      "skin_color": "tan",
+      "image_path": "rgb/job1050561_age_52_male_intermediate_005.png"
+    },
+    {
+      "sample_id": "job1050452_age_56_male_light_005",
+      "user_id": "synthetic_job1050452_age_56_male_light_005",
+      "age": 56,
+      "age_group": "50-59",
+      "gender": "male",
+      "skin_color": "light",
+      "image_path": "rgb/job1050452_age_56_male_light_005.png"
+    },
+    {
+      "sample_id": "job1050561_age_52_male_very_light_003",
+      "user_id": "synthetic_job1050561_age_52_male_very_light_003",
+      "age": 52,
+      "age_group": "50-59",
+      "gender": "male",
+      "skin_color": "light",
+      "image_path": "rgb/job1050561_age_52_male_very_light_003.png"
+    },
+    {
+      "sample_id": "job1050452_age_50_female_very_light_002",
+      "user_id": "synthetic_job1050452_age_50_female_very_light_002",
+      "age": 50,
+      "age_group": "50-59",
+      "gender": "female",
+      "skin_color": "light",
+      "image_path": "rgb/job1050452_age_50_female_very_light_002.png"
+    },
+    {
+      "sample_id": "job1050561_age_54_female_dark_008",
+      "user_id": "synthetic_job1050561_age_54_female_dark_008",
+      "age": 54,
+      "age_group": "50-59",
+      "gender": "female",
+      "skin_color": "dark",
+      "image_path": "rgb/job1050561_age_54_female_dark_008.png"
+    },
+    {
+      "sample_id": "job1050574_age_57_male_dark_000",
+      "user_id": "synthetic_job1050574_age_57_male_dark_000",
+      "age": 57,
+      "age_group": "50-59",
+      "gender": "male",
+      "skin_color": "dark",
+      "image_path": "rgb/job1050574_age_57_male_dark_000.png"
+    },
+    {
+      "sample_id": "job1050561_age_59_male_dark_007",
+      "user_id": "synthetic_job1050561_age_59_male_dark_007",
+      "age": 59,
+      "age_group": "50-59",
+      "gender": "male",
+      "skin_color": "dark",
+      "image_path": "rgb/job1050561_age_59_male_dark_007.png"
+    },
+    {
+      "sample_id": "job1050574_age_59_male_dark_008",
+      "user_id": "synthetic_job1050574_age_59_male_dark_008",
+      "age": 59,
+      "age_group": "50-59",
+      "gender": "male",
+      "skin_color": "dark",
+      "image_path": "rgb/job1050574_age_59_male_dark_008.png"
+    },
+    {
+      "sample_id": "job1050452_age_53_female_light_006",
+      "user_id": "synthetic_job1050452_age_53_female_light_006",
+      "age": 53,
+      "age_group": "50-59",
+      "gender": "female",
+      "skin_color": "light",
+      "image_path": "rgb/job1050452_age_53_female_light_006.png"
+    },
+    {
+      "sample_id": "job1050452_age_58_female_intermediate_003",
+      "user_id": "synthetic_job1050452_age_58_female_intermediate_003",
+      "age": 58,
+      "age_group": "50-59",
+      "gender": "female",
+      "skin_color": "tan",
+      "image_path": "rgb/job1050452_age_58_female_intermediate_003.png"
+    },
+    {
+      "sample_id": "job1050561_age_55_female_light_004",
+      "user_id": "synthetic_job1050561_age_55_female_light_004",
+      "age": 55,
+      "age_group": "50-59",
+      "gender": "female",
+      "skin_color": "light",
+      "image_path": "rgb/job1050561_age_55_female_light_004.png"
+    },
+    {
+      "sample_id": "job1050452_age_51_female_tan_brown_007",
+      "user_id": "synthetic_job1050452_age_51_female_tan_brown_007",
+      "age": 51,
+      "age_group": "50-59",
+      "gender": "female",
+      "skin_color": "dark",
+      "image_path": "rgb/job1050452_age_51_female_tan_brown_007.png"
+    },
+    {
+      "sample_id": "job1050561_age_50_male_very_light_001",
+      "user_id": "synthetic_job1050561_age_50_male_very_light_001",
+      "age": 50,
+      "age_group": "50-59",
+      "gender": "male",
+      "skin_color": "light",
+      "image_path": "rgb/job1050561_age_50_male_very_light_001.png"
+    },
+    {
+      "sample_id": "job1050561_age_58_male_intermediate_004",
+      "user_id": "synthetic_job1050561_age_58_male_intermediate_004",
+      "age": 58,
+      "age_group": "50-59",
+      "gender": "male",
+      "skin_color": "tan",
+      "image_path": "rgb/job1050561_age_58_male_intermediate_004.png"
+    },
+    {
+      "sample_id": "job1050574_age_50_female_dark_009",
+      "user_id": "synthetic_job1050574_age_50_female_dark_009",
+      "age": 50,
+      "age_group": "50-59",
+      "gender": "female",
+      "skin_color": "dark",
+      "image_path": "rgb/job1050574_age_50_female_dark_009.png"
+    },
+    {
+      "sample_id": "job1050561_age_61_female_very_light_006",
+      "user_id": "synthetic_job1050561_age_61_female_very_light_006",
+      "age": 61,
+      "age_group": "60+",
+      "gender": "female",
+      "skin_color": "light",
+      "image_path": "rgb/job1050561_age_61_female_very_light_006.png"
+    },
+    {
+      "sample_id": "job1050561_age_75_male_dark_002",
+      "user_id": "synthetic_job1050561_age_75_male_dark_002",
+      "age": 75,
+      "age_group": "60+",
+      "gender": "male",
+      "skin_color": "dark",
+      "image_path": "rgb/job1050561_age_75_male_dark_002.png"
+    },
+    {
+      "sample_id": "job1050561_age_72_female_tan_brown_004",
+      "user_id": "synthetic_job1050561_age_72_female_tan_brown_004",
+      "age": 72,
+      "age_group": "60+",
+      "gender": "female",
+      "skin_color": "dark",
+      "image_path": "rgb/job1050561_age_72_female_tan_brown_004.png"
+    },
+    {
+      "sample_id": "job1050561_age_65_male_dark_002",
+      "user_id": "synthetic_job1050561_age_65_male_dark_002",
+      "age": 65,
+      "age_group": "60+",
+      "gender": "male",
+      "skin_color": "dark",
+      "image_path": "rgb/job1050561_age_65_male_dark_002.png"
+    },
+    {
+      "sample_id": "job1050574_age_66_female_dark_002",
+      "user_id": "synthetic_job1050574_age_66_female_dark_002",
+      "age": 66,
+      "age_group": "60+",
+      "gender": "female",
+      "skin_color": "dark",
+      "image_path": "rgb/job1050574_age_66_female_dark_002.png"
+    },
+    {
+      "sample_id": "job1050452_age_72_female_very_light_001",
+      "user_id": "synthetic_job1050452_age_72_female_very_light_001",
+      "age": 72,
+      "age_group": "60+",
+      "gender": "female",
+      "skin_color": "light",
+      "image_path": "rgb/job1050452_age_72_female_very_light_001.png"
+    },
+    {
+      "sample_id": "job1050574_age_62_female_intermediate_008",
+      "user_id": "synthetic_job1050574_age_62_female_intermediate_008",
+      "age": 62,
+      "age_group": "60+",
+      "gender": "female",
+      "skin_color": "tan",
+      "image_path": "rgb/job1050574_age_62_female_intermediate_008.png"
+    },
+    {
+      "sample_id": "job1050561_age_60_male_light_006",
+      "user_id": "synthetic_job1050561_age_60_male_light_006",
+      "age": 60,
+      "age_group": "60+",
+      "gender": "male",
+      "skin_color": "light",
+      "image_path": "rgb/job1050561_age_60_male_light_006.png"
+    },
+    {
+      "sample_id": "job1050574_age_68_male_light_004",
+      "user_id": "synthetic_job1050574_age_68_male_light_004",
+      "age": 68,
+      "age_group": "60+",
+      "gender": "male",
+      "skin_color": "light",
+      "image_path": "rgb/job1050574_age_68_male_light_004.png"
+    },
+    {
+      "sample_id": "job1050574_age_71_male_light_003",
+      "user_id": "synthetic_job1050574_age_71_male_light_003",
+      "age": 71,
+      "age_group": "60+",
+      "gender": "male",
+      "skin_color": "light",
+      "image_path": "rgb/job1050574_age_71_male_light_003.png"
+    },
+    {
+      "sample_id": "job1050452_age_75_male_intermediate_001",
+      "user_id": "synthetic_job1050452_age_75_male_intermediate_001",
+      "age": 75,
+      "age_group": "60+",
+      "gender": "male",
+      "skin_color": "tan",
+      "image_path": "rgb/job1050452_age_75_male_intermediate_001.png"
+    },
+    {
+      "sample_id": "job1050452_age_63_female_tan_brown_005",
+      "user_id": "synthetic_job1050452_age_63_female_tan_brown_005",
+      "age": 63,
+      "age_group": "60+",
+      "gender": "female",
+      "skin_color": "dark",
+      "image_path": "rgb/job1050452_age_63_female_tan_brown_005.png"
+    },
+    {
+      "sample_id": "job1050574_age_63_female_light_008",
+      "user_id": "synthetic_job1050574_age_63_female_light_008",
+      "age": 63,
+      "age_group": "60+",
+      "gender": "female",
+      "skin_color": "light",
+      "image_path": "rgb/job1050574_age_63_female_light_008.png"
+    },
+    {
+      "sample_id": "job1050574_age_71_male_tan_brown_003",
+      "user_id": "synthetic_job1050574_age_71_male_tan_brown_003",
+      "age": 71,
+      "age_group": "60+",
+      "gender": "male",
+      "skin_color": "dark",
+      "image_path": "rgb/job1050574_age_71_male_tan_brown_003.png"
+    },
+    {
+      "sample_id": "job1050452_age_73_male_intermediate_001",
+      "user_id": "synthetic_job1050452_age_73_male_intermediate_001",
+      "age": 73,
+      "age_group": "60+",
+      "gender": "male",
+      "skin_color": "tan",
+      "image_path": "rgb/job1050452_age_73_male_intermediate_001.png"
+    }
+  ]
+}

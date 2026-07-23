@@ -205,12 +205,101 @@ Run all four conditions with EfficientNetV2-S (`v2_s`), one GPU, one seed (42), 
 fold. Confirm dataset membership, split checksums, output files, and metric
 generation before scaling up.
 
+### Completed smoke-test record
+
+The following four image-level smoke jobs completed on `gpu-beast`. Each used
+one GPU, 16 allocated CPU cores, 64 GB memory, seed 42, no K-fold file
+(`KFOLDS=1`), two epochs, patience 2, per-process batch size 4, four data
+workers, no mask application, and no age oversampling. The model was
+EfficientNetV2-S (`v2_s`, native 384 x 384 input). The loss was Gaussian NLL
+only (`NLL=1`, `MSE=0`, `MAE=0`) with square-root inverse-frequency age loss
+weights (`p=0.5`), clipped at the training-fold 5th/95th percentiles.
+
+| ID | Slurm job | Started (BST) | Elapsed | Train datasets | Evaluation datasets | Locked test split | Run directory | Result |
+| --- | ---: | --- | --- | --- | --- | --- | --- | --- |
+| SS | 1050642 | 2026-07-23 16:37:51 | 00:04:21 | `synthetic_dorsal` | `synthetic_dorsal` | `splits/synthetic_test_images.json` | `runs/q2_smoke_ss_v2s_seed42` | Completed, exit 0 |
+| RR | 1050645 | 2026-07-23 16:43:04 | 00:01:59 | `handrgbd archive primary prolific` | `handrgbd archive primary prolific` | `splits/held_out_test.json` | `runs/q2_smoke_rr_v2s_seed42_retry` | Completed, exit 0 |
+| SR | 1050646 | 2026-07-23 16:43:05 | 00:04:55 | `synthetic_dorsal` | `handrgbd archive primary prolific` | `splits/held_out_test.json` | `runs/q2_smoke_sr_v2s_seed42_retry` | Completed, exit 0 |
+| RS | 1050647 | 2026-07-23 16:43:34 | 00:02:38 | `handrgbd archive primary prolific` | `synthetic_dorsal` | `splits/synthetic_test_images.json` | `runs/q2_smoke_rs_v2s_seed42_retry` | Completed, exit 0 |
+
+The first RR/SR/RS submissions used the same default rendezvous port and were
+cancelled before training. The recorded retry jobs use distinct master ports
+and are the valid smoke-test results.
+
 ### Stage 2: main matrix
 
-Run EfficientNetV2-S (`v2_s`) with one GPU per job, seeds 42/43/44, and five
-folds. This produces 60 condition/seed/fold training runs (4 conditions x 3
-seeds x 5 folds). Use independent single-GPU jobs rather than multi-GPU DDP so the
-8-GPU `gpu-beast` node can run several conditions concurrently.
+Run EfficientNetV2-S (`v2_s`) with **two GPUs per job**, seed 42, and five
+folds. This produces **20 training runs** (4 conditions x 5 folds). Submit one
+two-GPU DDP Slurm job per condition; each scheduler job executes its five folds
+sequentially. The 8-GPU `gpu-beast` node can therefore run the four condition
+jobs concurrently. Request each job with `sbatch --gres=gpu:2`, allocate 16
+CPU cores, and assign every simultaneous job a distinct `MASTER_PORT`.
+
+### Main-matrix job and result snapshot
+
+The jobs below were submitted on 23 July 2026. Each job uses two GPUs, 16 CPU
+cores, seed 42, EfficientNetV2-S (`v2_s`), 384 x 384 input, per-process batch
+size 4, eight data workers, up to 240 epochs, and patience 10. A scheduler job
+runs its five folds sequentially; a metric is recorded only when that fold's
+held-out evaluation has completed. The live HPC monitor writes the current
+version to `runs/q2_main_results.md` and `runs/q2_main_results.csv`.
+
+**Superseded configuration.** The real conditions below resolved to
+`handrgbd` only, rather than the intended full real source list. Retain them
+only as pipeline-validation results; do not use them for Question 2 analysis.
+| Condition | Slurm job | Started (BST) | Run directory | Fold | Status | MAE | Adult-gate AUC |
+| --- | ---: | --- | --- | ---: | --- | ---: | ---: |
+| RR | 1050650 | 2026-07-23 16:54:57 | `runs/q2_main_rr_v2s_seed42` | 0 | Completed | 6.1499 | 0.8989 |
+| RR | 1050650 | 2026-07-23 16:54:57 | `runs/q2_main_rr_v2s_seed42` | 1 | Completed | 6.0986 | 0.9078 |
+| RR | 1050650 | 2026-07-23 16:54:57 | `runs/q2_main_rr_v2s_seed42` | 2 | Completed | 7.3629 | 0.8947 |
+| RR | 1050650 | 2026-07-23 16:54:57 | `runs/q2_main_rr_v2s_seed42` | 3 | Completed | 6.5572 | 0.8916 |
+| RR | 1050650 | 2026-07-23 16:54:57 | `runs/q2_main_rr_v2s_seed42` | 4 | Completed | 6.9744 | 0.8848 |
+| SS | 1050651 | 2026-07-23 16:54:58 | `runs/q2_main_ss_v2s_seed42` | 0 | Completed | 6.6306 | 0.8868 |
+| SS | 1050651 | 2026-07-23 16:54:58 | `runs/q2_main_ss_v2s_seed42` | 1 | Completed | 5.7070 | 0.8721 |
+| SS | 1050651 | 2026-07-23 16:54:58 | `runs/q2_main_ss_v2s_seed42` | 2 | Completed | 5.4228 | 0.8823 |
+| SS | 1050651 | 2026-07-23 16:54:58 | `runs/q2_main_ss_v2s_seed42` | 3 | Completed | 7.5555 | 0.8772 |
+| SS | 1050651 | 2026-07-23 16:54:58 | `runs/q2_main_ss_v2s_seed42` | 4 | Completed | 6.2330 | 0.8836 |
+| SR | 1050652 | 2026-07-23 16:54:58 | `runs/q2_main_sr_v2s_seed42` | 0 | Completed | 10.4998 | 0.7486 |
+| SR | 1050652 | 2026-07-23 16:54:58 | `runs/q2_main_sr_v2s_seed42` | 1 | Completed | 11.2220 | 0.7403 |
+| SR | 1050652 | 2026-07-23 16:54:58 | `runs/q2_main_sr_v2s_seed42` | 2 | Completed | 10.5238 | 0.7288 |
+| SR | 1050652 | 2026-07-23 16:54:58 | `runs/q2_main_sr_v2s_seed42` | 3 | Completed | 11.2753 | 0.7424 |
+| SR | 1050652 | 2026-07-23 16:54:58 | `runs/q2_main_sr_v2s_seed42` | 4 | Completed | 10.1947 | 0.7375 |
+| RS | 1050653 | 2026-07-23 16:54:58 | `runs/q2_main_rs_v2s_seed42` | 0 | Completed | 11.7395 | 0.7158 |
+| RS | 1050653 | 2026-07-23 16:54:58 | `runs/q2_main_rs_v2s_seed42` | 1 | Completed | 11.1295 | 0.7671 |
+| RS | 1050653 | 2026-07-23 16:54:58 | `runs/q2_main_rs_v2s_seed42` | 2 | Completed | 12.9619 | 0.7360 |
+| RS | 1050653 | 2026-07-23 16:54:58 | `runs/q2_main_rs_v2s_seed42` | 3 | Completed | 11.5755 | 0.7037 |
+| RS | 1050653 | 2026-07-23 16:54:58 | `runs/q2_main_rs_v2s_seed42` | 4 | Completed | 10.5286 | 0.7634 |
+
+### Corrected full-real main-matrix job and result snapshot
+
+These replacement jobs use the actual real source list
+`handrgbd archive primary prolific` wherever a condition requires real data.
+They use the same backbone (`v2_s`), two GPUs, seed 42, five sequential folds,
+384 x 384 input, NLL-only loss, and age-weight exponent `p=0.5` as the prior
+matrix. Metrics will be entered only after a fold's held-out evaluation ends.
+
+| Condition | Slurm job | Started (BST) | Train datasets | Evaluation datasets | Run directory | Fold | Status | MAE | Adult-gate AUC |
+| --- | ---: | --- | --- | --- | --- | ---: | --- | ---: | ---: |
+| RR | 1050658 | 2026-07-23 19:47:36 | `handrgbd archive primary prolific` | `handrgbd archive primary prolific` | `runs/q2_fullreal_rr_v2s_seed42` | 0 | Running | — | — |
+| RR | 1050658 | 2026-07-23 19:47:36 | `handrgbd archive primary prolific` | `handrgbd archive primary prolific` | `runs/q2_fullreal_rr_v2s_seed42` | 1 | Pending | — | — |
+| RR | 1050658 | 2026-07-23 19:47:36 | `handrgbd archive primary prolific` | `handrgbd archive primary prolific` | `runs/q2_fullreal_rr_v2s_seed42` | 2 | Pending | — | — |
+| RR | 1050658 | 2026-07-23 19:47:36 | `handrgbd archive primary prolific` | `handrgbd archive primary prolific` | `runs/q2_fullreal_rr_v2s_seed42` | 3 | Pending | — | — |
+| RR | 1050658 | 2026-07-23 19:47:36 | `handrgbd archive primary prolific` | `handrgbd archive primary prolific` | `runs/q2_fullreal_rr_v2s_seed42` | 4 | Pending | — | — |
+| SS | 1050659 | 2026-07-23 19:53:58 | `synthetic_dorsal` | `synthetic_dorsal` | `runs/q2_fullreal_ss_v2s_seed42` | 0 | Running | — | — |
+| SS | 1050659 | 2026-07-23 19:53:58 | `synthetic_dorsal` | `synthetic_dorsal` | `runs/q2_fullreal_ss_v2s_seed42` | 1 | Pending | — | — |
+| SS | 1050659 | 2026-07-23 19:53:58 | `synthetic_dorsal` | `synthetic_dorsal` | `runs/q2_fullreal_ss_v2s_seed42` | 2 | Pending | — | — |
+| SS | 1050659 | 2026-07-23 19:53:58 | `synthetic_dorsal` | `synthetic_dorsal` | `runs/q2_fullreal_ss_v2s_seed42` | 3 | Pending | — | — |
+| SS | 1050659 | 2026-07-23 19:53:58 | `synthetic_dorsal` | `synthetic_dorsal` | `runs/q2_fullreal_ss_v2s_seed42` | 4 | Pending | — | — |
+| SR | 1050660 | 2026-07-23 19:53:59 | `synthetic_dorsal` | `handrgbd archive primary prolific` | `runs/q2_fullreal_sr_v2s_seed42` | 0 | Running | — | — |
+| SR | 1050660 | 2026-07-23 19:53:59 | `synthetic_dorsal` | `handrgbd archive primary prolific` | `runs/q2_fullreal_sr_v2s_seed42` | 1 | Pending | — | — |
+| SR | 1050660 | 2026-07-23 19:53:59 | `synthetic_dorsal` | `handrgbd archive primary prolific` | `runs/q2_fullreal_sr_v2s_seed42` | 2 | Pending | — | — |
+| SR | 1050660 | 2026-07-23 19:53:59 | `synthetic_dorsal` | `handrgbd archive primary prolific` | `runs/q2_fullreal_sr_v2s_seed42` | 3 | Pending | — | — |
+| SR | 1050660 | 2026-07-23 19:53:59 | `synthetic_dorsal` | `handrgbd archive primary prolific` | `runs/q2_fullreal_sr_v2s_seed42` | 4 | Pending | — | — |
+| RS | 1050661 | 2026-07-23 19:53:59 | `handrgbd archive primary prolific` | `synthetic_dorsal` | `runs/q2_fullreal_rs_v2s_seed42` | 0 | Running | — | — |
+| RS | 1050661 | 2026-07-23 19:53:59 | `handrgbd archive primary prolific` | `synthetic_dorsal` | `runs/q2_fullreal_rs_v2s_seed42` | 1 | Pending | — | — |
+| RS | 1050661 | 2026-07-23 19:53:59 | `handrgbd archive primary prolific` | `synthetic_dorsal` | `runs/q2_fullreal_rs_v2s_seed42` | 2 | Pending | — | — |
+| RS | 1050661 | 2026-07-23 19:53:59 | `handrgbd archive primary prolific` | `synthetic_dorsal` | `runs/q2_fullreal_rs_v2s_seed42` | 3 | Pending | — | — |
+| RS | 1050661 | 2026-07-23 19:53:59 | `handrgbd archive primary prolific` | `synthetic_dorsal` | `runs/q2_fullreal_rs_v2s_seed42` | 4 | Pending | — | — |
 
 ### Stage 3: architecture sensitivity
 
@@ -255,3 +344,69 @@ q2_rs_b0_seed42_fold0
 - **Low RS and low SR:** substantial distribution mismatch.
 Report fold-to-fold and seed-to-seed variation. Do not make a conclusion from
 a single aggregate score.
+
+### Result (seed 42, main matrix complete, 20/20 folds)
+
+| Condition | Folds complete | Mean MAE | Mean AUC | Ratio vs. in-distribution reference |
+| --- | ---: | ---: | ---: | --- |
+| RR | 5/5 | 6.63 | 0.896 | reference |
+| SS | 5/5 | 6.31 | 0.880 | reference |
+| SR | 5/5 | 10.74 | 0.740 | SR/RR = 1.62 |
+| RS | 5/5 | 11.59 | 0.737 | RS/SS = 1.84 |
+
+Means are unweighted averages of the five per-fold MAE/AUC values in the
+main-matrix table above.
+
+- **Reference performance.** RR reaches 6.63 MAE / 0.896 adult-gate AUC
+  (5/5 folds). SS reaches 6.31 MAE / 0.880 AUC (5/5 folds), close to RR —
+  the synthetic distribution is at least as learnable
+  in-domain as real data.
+- **Cross-distribution collapse.** Both cross conditions degrade sharply from
+  their matched reference: SR reaches 10.74 MAE / 0.740 AUC; RS reaches
+  11.59 MAE / 0.737 AUC. This is the "low RS and low SR" pattern above, not
+  the fidelity pattern — RS is not high relative to RR.
+- **Normalised asymmetry.** Compare each cross condition to its own
+  in-distribution reference rather than as a raw MAE difference: SR/RR =
+  1.62 versus RS/SS = 1.84. The direction favours a fidelity gap
+  (real→synthetic transfer degrades proportionally more than synthetic→real).
+- **MAE/AUC dissociation.** SR and RS have nearly identical adult-gate AUC
+  (0.740 vs 0.737) despite the diverging MAE ratio above (1.62 vs 1.84). This
+  is used diagnostically, to separate two artifacts that could otherwise
+  inflate the RS/SS ratio without reflecting a real fidelity gap, from a
+  genuine one: **variance compression** (SS's own test distribution is
+  narrower, so the same absolute error reads as a bigger ratio) and **label
+  leakage** (RS targets are conditioning values, not verified perceived ages,
+  so conditioning/render mismatch adds error unrelated to the model). AUC is
+  comparatively insensitive to both — it is a coarse binary boundary, not a
+  scale-dependent continuous score — yet still tracks SR and RS together.
+  That the extra MAE penalty on the real→synthetic side does not show up in
+  AUC at all is consistent with genuine fine-grained fidelity loss, but the
+  dissociation cannot fully rule out variance compression or label leakage as
+  contributors on MAE and AUC alone.
+- **Caveat — variance compression and label noise.** The RS/SS ratio has not
+  been corrected for either artifact above. Variance compression can be
+  checked directly from the per-fold score distributions; label noise needs
+  bounding against the stage-1 biomarker/rater scatter (the gap between a
+  synthetic image's conditioned age and its perceived age). Until both are
+  bounded, the ratio should be reported as an upper bound on the fidelity
+  gap, not a clean estimate of it.
+- **Caveat — single seed.** All 20 folds above are seed 42 only. Fold-level
+  spread is reported (fold-to-fold MAE ranges from 5.42 to 12.96 across the
+  matrix), but seed-to-seed spread is not yet known; Stage 3's architecture
+  repeat, or a second seed on `v2_s`, is needed before the asymmetry direction
+  is treated as more than a single-run result.
+
+### Bottom line
+
+- **Coverage (can synthetic-trained models generalise to real hands?) — no,
+  not on their own.** SR loses ~4.1 MAE and ~16 AUC points relative to RR.
+- **Fidelity (can real-trained models generalise to synthetic hands?) — no,
+  more so.** RS loses ~5.3 MAE and ~16 AUC points relative to SS, the larger
+  of the two proportional drops (1.84x vs 1.62x).
+- Both directions fail roughly together on the coarse adult-gate boundary
+  (AUC ≈ 0.74 either way) but real→synthetic fails more on fine-grained age,
+  so the result is a genuine two-way distribution mismatch with a mild
+  fidelity-leaning asymmetry, not a synthetic-side shortcut that coverage
+  alone would predict. This does not by itself say whether synthetic data is
+  useful in combination with real training data — that is a different,
+  untested condition (see below).

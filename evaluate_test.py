@@ -25,7 +25,7 @@ import torch
 from torch.utils.data import DataLoader
 
 from dataset.age import AgeDataset
-from dataset.hand_metadata import get_dataset_root, load_combined_metadata, set_dataset_root
+from dataset.hand_metadata import DATASET_SOURCES, get_dataset_root, load_combined_metadata, set_dataset_root
 from dataset.transforms import build_transforms
 from dataset.utils import build_user_skin_color_series, filter_metadata, load_test_split, map_user_series_to_array
 from metrics import (
@@ -105,6 +105,19 @@ def parse_args() -> argparse.Namespace:
         help="Exclude the HaGRIDv2 stop_inverted dataset from evaluation.",
     )
     parser.add_argument(
+        "--no-synthetic-dorsal",
+        action="store_true",
+        default=False,
+        help="Exclude SyntheticDorsalHands from evaluation.",
+    )
+    parser.add_argument(
+        "--datasets",
+        nargs="+",
+        choices=DATASET_SOURCES,
+        default=None,
+        help="Exact dataset sources to load; overrides individual --no-* dataset flags.",
+    )
+    parser.add_argument(
         "--batch-size",
         type=int,
         default=32,
@@ -161,7 +174,9 @@ def main() -> None:
     metadata = filter_metadata(
         load_combined_metadata(
             root=get_dataset_root(),
+            sources=args.datasets,
             include_hagrid=not getattr(args, "no_hagrid", False),
+            include_synthetic_dorsal=not getattr(args, "no_synthetic_dorsal", False),
         ),
         max_samples_per_user=args.max_samples_per_user or None,
         max_samples_per_age_bin=args.max_samples_per_age_bin or None,

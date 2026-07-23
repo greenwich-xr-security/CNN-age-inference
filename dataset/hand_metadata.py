@@ -31,6 +31,9 @@ _ENV_VAR_NAME = "HANDS_DATASETS_ROOT"
 
 PathLike = Union[str, Path]
 
+DATASET_SOURCES = ("handrgbd", "hagrid", "synthetic_dorsal", "primary", "archive")
+DEFAULT_DATASET_SOURCES = ("handrgbd", "hagrid", "synthetic_dorsal")
+
 _DATA_ROOT = Path(os.environ.get(_ENV_VAR_NAME, _DEFAULT_ROOT))
 
 
@@ -580,6 +583,104 @@ def load_handrgbd_metadata(
     return df_out
 
 
+# SyntheticDorsalHands records are generated from several real-source inputs.
+# These columns must be considered when keeping generated images out of a split
+# that holds out a real subject.
+SYNTHETIC_PROVENANCE_COLUMNS = (
+    "skeleton_source_user_id",
+    "skin_source_user_id",
+    "sex_source_user_id",
+    "lighting_source_user_id",
+    "aspect_source_user_id",
+)
+
+_SYNTHETIC_SKIN_LABEL_MAP = {
+    "very_light": "light",
+    "light": "light",
+    "intermediate": "tan",
+    "tan_brown": "dark",
+    "dark": "dark",
+}
+
+
+def load_synthetic_dorsal_metadata(root: Optional[PathLike] = None) -> pd.DataFrame:
+    """Load accepted SyntheticDorsalHands images into the shared metadata schema.
+
+    The canonical CSV contains relative paths, precomputed landmark bounding
+    boxes, and generation provenance.  The filename/sample-id skin descriptor
+    is normalised to this project's ``light``/``tan``/``dark`` labels.
+    """
+    dataset_root = _resolve_root(root)
+    synthetic_root = dataset_root / "SyntheticDorsalHands"
+    metadata_csv = synthetic_root / "reference_synthetic.csv"
+    empty_cols = [
+        "source", "user_id", "age", "gender", "aspect", "image_path",
+        "mask_path", "bbox", "skin_color", "synthetic_skin_label",
+        *SYNTHETIC_PROVENANCE_COLUMNS,
+    ]
+    if not metadata_csv.exists():
+        return pd.DataFrame(columns=empty_cols)
+
+    raw_df = pd.read_csv(metadata_csv)
+    required = {"sample_id", "image_path", "mask_path", "age", "gender", "aspect"}
+    if raw_df.empty or not required.issubset(raw_df.columns):
+        return pd.DataFrame(columns=empty_cols)
+
+    working_df = raw_df.copy()
+    working_df["sample_id"] = working_df["sample_id"].astype(str).str.strip()
+    extracted = working_df["sample_id"].str.extract(
+        r"^job(?P<job_id>\d+)_age_(?P<sample_age>\d+)_(?P<sample_gender>female|male)_(?P<synthetic_skin_label>.+)_(?P<sample_index>\d+)$"
+    )
+    working_df["synthetic_skin_label"] = extracted["synthetic_skin_label"].str.lower()
+    working_df["skin_color"] = working_df["synthetic_skin_label"].map(_SYNTHETIC_SKIN_LABEL_MAP)
+    working_df["aspect_norm"] = working_df["aspect"].apply(_normalise_label)
+    working_df["gender_norm"] = working_df["gender"].apply(_normalise_gender)
+    working_df["age_norm"] = pd.to_numeric(working_df["age"], errors="coerce")
+    working_df["image_path_abs"] = working_df["image_path"].apply(
+        lambda value: synthetic_root / str(value)
+    )
+    working_df["mask_path_abs"] = working_df["mask_path"].apply(
+        lambda value: synthetic_root / str(value)
+    )
+    working_df["bbox_tuple"] = working_df.get("bbox", pd.Series(index=working_df.index)).apply(_parse_bbox)
+
+    valid = (
+        working_df["aspect_norm"].notna()
+        & working_df["gender_norm"].notna()
+        & working_df["age_norm"].notna()
+        & working_df["skin_color"].notna()
+        & working_df["image_path_abs"].apply(Path.is_file)
+        & working_df["mask_path_abs"].apply(Path.is_file)
+    )
+    working_df = working_df.loc[valid].copy()
+    for column in SYNTHETIC_PROVENANCE_COLUMNS:
+        if column not in working_df.columns:
+            working_df[column] = pd.NA
+
+    df_out = pd.DataFrame(
+        {
+            "source": "synthetic_dorsal",
+            "user_id": "synthetic_" + working_df["sample_id"],
+            "age": working_df["age_norm"].astype(int),
+            "gender": working_df["gender_norm"],
+            "aspect": working_df["aspect_norm"],
+            "image_path": working_df["image_path_abs"],
+            "mask_path": working_df["mask_path_abs"],
+            "bbox": working_df["bbox_tuple"],
+            "skin_color": working_df["skin_color"],
+            "synthetic_skin_label": working_df["synthetic_skin_label"],
+        }
+    )
+    for column in SYNTHETIC_PROVENANCE_COLUMNS:
+        df_out[column] = working_df[column].astype("string")
+    df_out = df_out.reset_index(drop=True)
+    print(
+        f"SyntheticDorsalHands -> images: {len(df_out)} | "
+        f"skin colours: {df_out['skin_color'].value_counts().to_dict()}"
+    )
+    return df_out
+
+
 def load_hagrid_stop_inverted_metadata(root: Optional[PathLike] = None) -> pd.DataFrame:
     """Load HaGRIDv2 stop_inverted gesture crops as a dorsal-hand source.
 
@@ -696,23 +797,48 @@ def _limit_users_per_age(df: pd.DataFrame, *, max_users_per_year: int = 15) -> p
 def load_combined_metadata(
     root: Optional[PathLike] = None,
     *,
+    sources: Optional[tuple[str, ...] | list[str]] = None,
     handrgbd_include_wall3: bool = False,
+    include_handrgbd: bool = True,
     include_hagrid: bool = True,
+    include_synthetic_dorsal: bool = True,
     include_primary: bool = False,
     include_archive: bool = False,
     max_users_per_year: Optional[int] = None,
 ) -> pd.DataFrame:
-    handrgbd_df = load_handrgbd_metadata(root=root, include_wall3=handrgbd_include_wall3)
-    sources = [handrgbd_df]
-    if include_primary:
-        sources.insert(0, load_primary_metadata(root=root))
-    if include_archive:
-        insert_at = 1 if include_primary else 0
-        sources.insert(insert_at, load_archive_metadata(root=root))
-    if include_hagrid:
-        hagrid_df = load_hagrid_stop_inverted_metadata(root=root)
-        sources.append(hagrid_df)
-    combined = pd.concat(sources, ignore_index=True)
+    if sources is None:
+        selected_sources = []
+        if include_handrgbd:
+            selected_sources.append("handrgbd")
+        if include_hagrid:
+            selected_sources.append("hagrid")
+        if include_synthetic_dorsal:
+            selected_sources.append("synthetic_dorsal")
+        if include_primary:
+            selected_sources.append("primary")
+        if include_archive:
+            selected_sources.append("archive")
+    else:
+        selected_sources = [str(source).strip().lower() for source in sources]
+        unknown_sources = sorted(set(selected_sources) - set(DATASET_SOURCES))
+        if unknown_sources:
+            raise ValueError(
+                f"Unknown dataset source(s): {unknown_sources}. "
+                f"Choose from {list(DATASET_SOURCES)}."
+            )
+        selected_sources = list(dict.fromkeys(selected_sources))
+
+    loaders = {
+        "handrgbd": lambda: load_handrgbd_metadata(root=root, include_wall3=handrgbd_include_wall3),
+        "hagrid": lambda: load_hagrid_stop_inverted_metadata(root=root),
+        "synthetic_dorsal": lambda: load_synthetic_dorsal_metadata(root=root),
+        "primary": lambda: load_primary_metadata(root=root),
+        "archive": lambda: load_archive_metadata(root=root),
+    }
+    frames = [loaders[source]() for source in selected_sources]
+    if not frames:
+        return pd.DataFrame(columns=["source", "user_id", "age", "gender", "aspect", "image_path"])
+    combined = pd.concat(frames, ignore_index=True)
     combined = combined.drop_duplicates(subset="image_path")
     if max_users_per_year:
         combined = _limit_users_per_age(combined, max_users_per_year=max_users_per_year)
@@ -788,11 +914,25 @@ def _cli_main() -> None:
         default=False,
         help="Exclude the HaGRIDv2 stop_inverted dataset.",
     )
+    parser.add_argument(
+        "--no-synthetic-dorsal",
+        action="store_true",
+        help="Exclude the SyntheticDorsalHands dataset.",
+    )
+    parser.add_argument(
+        "--datasets",
+        nargs="+",
+        choices=DATASET_SOURCES,
+        default=None,
+        help="Exact dataset sources to inspect; overrides individual --no-* dataset flags.",
+    )
     args = parser.parse_args()
 
     combined = load_combined_metadata(
         root=args.root,
+        sources=args.datasets,
         include_hagrid=not args.no_hagrid,
+        include_synthetic_dorsal=not args.no_synthetic_dorsal,
         max_users_per_year=args.max_users_per_year or None,
     )
     filtered = filter_metadata(

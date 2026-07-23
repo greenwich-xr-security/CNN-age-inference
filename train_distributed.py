@@ -14,7 +14,7 @@ from sklearn.model_selection import train_test_split
 from tqdm import tqdm
 
 from dataset.age import AgeDataset
-from dataset.hand_metadata import get_dataset_root, load_combined_metadata, set_dataset_root
+from dataset.hand_metadata import DATASET_SOURCES, get_dataset_root, load_combined_metadata, set_dataset_root
 from dataset.samplers import DistributedGroupedBatchSampler
 from dataset.transforms import build_transforms
 from dataset.utils import (
@@ -188,6 +188,20 @@ def parse_args() -> argparse.Namespace:
         help="Exclude the HaGRIDv2 stop_inverted dataset from training.",
     )
     parser.add_argument(
+        "--no-synthetic-dorsal",
+        action="store_true",
+        help=(
+            "Exclude SyntheticDorsalHands from the combined dataset."
+        ),
+    )
+    parser.add_argument(
+        "--datasets",
+        nargs="+",
+        choices=DATASET_SOURCES,
+        default=None,
+        help="Exact dataset sources to load; overrides individual --no-* dataset flags.",
+    )
+    parser.add_argument(
         "--epochs",
         type=int,
         default=DEFAULT_EPOCHS,
@@ -352,7 +366,9 @@ def build_datasets(args: argparse.Namespace, seed: int, img_size: int):
     metadata = filter_metadata(
         load_combined_metadata(
             root=active_root,
+            sources=getattr(args, "datasets", None),
             include_hagrid=not getattr(args, "no_hagrid", False),
+            include_synthetic_dorsal=not getattr(args, "no_synthetic_dorsal", False),
         ),
         max_samples_per_user=args.max_samples_per_user or None,
         max_samples_per_age_bin=args.max_samples_per_age_bin or None,
@@ -406,7 +422,7 @@ def build_datasets(args: argparse.Namespace, seed: int, img_size: int):
         if len(train_meta) != before:
             print(f"[data] Oversampled train set from {before} to {len(train_meta)} samples.")
 
-    train_ds = AgeDataset(train_meta, transform=train_transform)
+    train_ds = AgeDataset(train_meta, transform=train_transform, use_masks=args.use_masks)
     val_ds = AgeDataset(val_meta, transform=test_transform, use_masks=args.use_masks)
     val_user_skin = build_user_skin_color_series(val_meta)
     return train_ds, val_ds, active_root, len(train_meta), len(val_meta), fold_info, val_user_skin
@@ -421,7 +437,9 @@ def load_filtered_test_metadata(args: argparse.Namespace, active_root) -> pd.Dat
     all_meta = filter_metadata(
         load_combined_metadata(
             root=active_root,
+            sources=getattr(args, "datasets", None),
             include_hagrid=not getattr(args, "no_hagrid", False),
+            include_synthetic_dorsal=not getattr(args, "no_synthetic_dorsal", False),
         ),
         max_samples_per_user=args.max_samples_per_user or None,
         max_samples_per_age_bin=args.max_samples_per_age_bin or None,

@@ -3,6 +3,21 @@
 This repository contains code for training and evaluating convolutional neural networks (CNNs) for age inference from hand dorsal img data.
 ---
 
+### SyntheticDorsalHands augmentation
+
+Dataset selection is shared across training, evaluation, and split creation.
+Pass an exact source list with, for example,
+`--datasets handrgbd hagrid synthetic_dorsal primary archive`. The distributed
+submission script exposes the same list through its `DATASETS` variable.
+SyntheticDorsalHands' supplied masks and landmark-derived bounding boxes are
+used automatically by `--use-masks`.
+
+The loader derives the shared `skin_color` labels from the filename stem:
+`very_light`/`light` -> `light`, `intermediate` -> `tan`, and
+`tan_brown`/`dark` -> `dark`.
+
+---
+
 
 ### 1. Create a virtual environment
 

@@ -1,10 +1,13 @@
 """Dataset package for hand age inference."""
 from .hand_metadata import (
+    DATASET_SOURCES,
+    DEFAULT_DATASET_SOURCES,
     get_dataset_root,
     load_archive_metadata,
     load_combined_metadata,
     load_handrgbd_metadata,
     load_primary_metadata,
+    load_synthetic_dorsal_metadata,
     set_dataset_root,
 )
 from .age import AgeDataset
@@ -12,11 +15,14 @@ from .transforms import build_transforms
 from .utils import filter_metadata
 
 __all__ = [
+    "DATASET_SOURCES",
+    "DEFAULT_DATASET_SOURCES",
     "get_dataset_root",
     "load_archive_metadata",
     "load_combined_metadata",
     "load_handrgbd_metadata",
     "load_primary_metadata",
+    "load_synthetic_dorsal_metadata",
     "set_dataset_root",
     "AgeDataset",
     "build_transforms",

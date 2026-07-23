@@ -12,7 +12,7 @@ import argparse
 import math
 from pathlib import Path
 
-from dataset.hand_metadata import get_dataset_root, load_combined_metadata, set_dataset_root
+from dataset.hand_metadata import DATASET_SOURCES, get_dataset_root, load_combined_metadata, set_dataset_root
 from dataset.utils import (
     build_user_age_strata,
     build_user_age_skin_strata,
@@ -70,6 +70,19 @@ def parse_args() -> argparse.Namespace:
         help="Exclude the HaGRIDv2 stop_inverted dataset when building the split.",
     )
     parser.add_argument(
+        "--no-synthetic-dorsal",
+        action="store_true",
+        default=False,
+        help="Exclude SyntheticDorsalHands when building the split.",
+    )
+    parser.add_argument(
+        "--datasets",
+        nargs="+",
+        choices=DATASET_SOURCES,
+        default=None,
+        help="Exact dataset sources to load; overrides individual --no-* dataset flags.",
+    )
+    parser.add_argument(
         "--stratify-mode",
         type=str,
         default="age_bins",
@@ -117,7 +130,9 @@ def main() -> None:
     metadata = filter_metadata(
         load_combined_metadata(
             root=get_dataset_root(),
+            sources=args.datasets,
             include_hagrid=not args.no_hagrid,
+            include_synthetic_dorsal=not args.no_synthetic_dorsal,
         ),
         max_samples_per_user=args.max_samples_per_user,
     )

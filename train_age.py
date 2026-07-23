@@ -12,6 +12,7 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 from dataset.age import AgeDataset
 from dataset.hand_metadata import (
+    DATASET_SOURCES,
     get_dataset_root,
     load_combined_metadata,
     set_dataset_root,
@@ -187,6 +188,20 @@ def main() -> None:
         "--use-masks",
         action="store_true",
         help="Apply dataset masks (if available) to black out backgrounds during loading.",
+    )
+    parser.add_argument(
+        "--no-synthetic-dorsal",
+        action="store_true",
+        help=(
+            "Exclude SyntheticDorsalHands from the combined dataset."
+        ),
+    )
+    parser.add_argument(
+        "--datasets",
+        nargs="+",
+        choices=DATASET_SOURCES,
+        default=None,
+        help="Exact dataset sources to load; overrides individual --no-* dataset flags.",
     )
     parser.add_argument(
         "--epochs",
@@ -373,7 +388,11 @@ def main() -> None:
         fp.write(f"resolved_use_masks={int(args.use_masks)}\n")
     train_transform, test_transform = build_transforms(img_size)
     metadata = filter_metadata(
-        load_combined_metadata(root=active_root),
+        load_combined_metadata(
+            root=active_root,
+            sources=args.datasets,
+            include_synthetic_dorsal=not args.no_synthetic_dorsal,
+        ),
         max_samples_per_user=args.max_samples_per_user,
     )
     _append_dataset_stats(config_path, "dataset", metadata)

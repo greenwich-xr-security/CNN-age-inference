@@ -165,7 +165,7 @@ def filter_metadata(
     df: pd.DataFrame,
     *,
     max_samples_per_user: int | None = None,
-    max_samples_per_age_bin: int | None = 200,
+    max_samples_per_age_bin: int | None = None,
 ) -> pd.DataFrame:
     """Keep dorsal images with known ages, cast ages to float, and apply diversity-aware sample caps."""
     df = df[df["aspect"].str.contains("dorsal", case=False, na=False)]
@@ -466,19 +466,26 @@ def compute_age_weight_map(
     *,
     eps: float = 1.0,
     power: float = 1.0,
-    min_w: float = 0.25,
-    max_w: float = 5.0,
+    clip_lower_quantile: float = 0.05,
+    clip_upper_quantile: float = 0.95,
     normalise: bool = True,
 ) -> dict[int, float]:
     """
     Build an inverse-frequency weight map keyed by rounded integer age.
 
-    weight(age) = ((count(age) + eps) ** -power), optionally normalised to mean 1 and clipped.
+    Raw weights are clipped at distribution-relative quantiles calculated from
+    ``ages`` (normally the active training fold), then normalised to mean one.
     """
     if eps < 0:
         raise ValueError("eps must be non-negative.")
     if power < 0:
         raise ValueError("power must be non-negative.")
+    if not 0.0 <= clip_lower_quantile <= 1.0:
+        raise ValueError("clip_lower_quantile must be in [0, 1].")
+    if not 0.0 <= clip_upper_quantile <= 1.0:
+        raise ValueError("clip_upper_quantile must be in [0, 1].")
+    if clip_lower_quantile > clip_upper_quantile:
+        raise ValueError("clip_lower_quantile must not exceed clip_upper_quantile.")
     weights: dict[int, float] = {}
     age_series = pd.Series(list(ages), dtype=float).dropna()
     if age_series.empty:
@@ -487,10 +494,13 @@ def compute_age_weight_map(
     age_int = age_series.round().astype(int)
     counts = age_int.value_counts()
     raw_weights = (counts + eps) ** (-power)
-    if normalise and not raw_weights.empty:
-        raw_weights = raw_weights / raw_weights.mean()
+    clipped = raw_weights.clip(
+        lower=raw_weights.quantile(clip_lower_quantile),
+        upper=raw_weights.quantile(clip_upper_quantile),
+    )
+    if normalise and not clipped.empty:
+        clipped = clipped / clipped.mean()
 
-    clipped = raw_weights.clip(lower=min_w, upper=max_w)
     for age_value, weight in clipped.items():
         weights[int(age_value)] = float(weight)
     return weights

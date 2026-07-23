@@ -152,20 +152,20 @@ def main() -> None:
     parser.add_argument(
         "--age-weight-power",
         type=float,
-        default=1.0,
-        help="Exponent for inverse-frequency age weights (default: 1.0).",
+        default=0.5,
+        help="Exponent for inverse-frequency age weights (default: 0.5, square-root correction).",
     )
     parser.add_argument(
-        "--age-weight-min",
+        "--age-weight-clip-lower-quantile",
         type=float,
-        default=0.25,
-        help="Lower clip for age loss weights (default: 0.25).",
+        default=0.05,
+        help="Lower quantile used to clip raw age weights within the training fold (default: 0.05).",
     )
     parser.add_argument(
-        "--age-weight-max",
+        "--age-weight-clip-upper-quantile",
         type=float,
-        default=4.0,
-        help="Upper clip for age loss weights (default: 4.0).",
+        default=0.95,
+        help="Upper quantile used to clip raw age weights within the training fold (default: 0.95).",
     )
     parser.add_argument(
         "--age-oversample",
@@ -380,8 +380,8 @@ def main() -> None:
         fp.write(f"resolved_age_reweight_loss={int(args.age_reweight_loss)}\n")
         fp.write(f"resolved_age_weight_eps={args.age_weight_eps}\n")
         fp.write(f"resolved_age_weight_power={args.age_weight_power}\n")
-        fp.write(f"resolved_age_weight_min={args.age_weight_min}\n")
-        fp.write(f"resolved_age_weight_max={args.age_weight_max}\n")
+        fp.write(f"resolved_age_weight_clip_lower_quantile={args.age_weight_clip_lower_quantile}\n")
+        fp.write(f"resolved_age_weight_clip_upper_quantile={args.age_weight_clip_upper_quantile}\n")
         fp.write(f"resolved_age_oversample={int(args.age_oversample)}\n")
         fp.write(f"resolved_age_oversample_target={args.age_oversample_target}\n")
         fp.write(f"resolved_age_oversample_max_multiplier={args.age_oversample_max_multiplier}\n")
@@ -443,13 +443,16 @@ def main() -> None:
             train_meta["age"],
             eps=args.age_weight_eps,
             power=args.age_weight_power,
-            min_w=args.age_weight_min,
-            max_w=args.age_weight_max,
+            clip_lower_quantile=args.age_weight_clip_lower_quantile,
+            clip_upper_quantile=args.age_weight_clip_upper_quantile,
             normalise=True,
         )
         if age_weight_map:
             values = list(age_weight_map.values())
             print(f"[loss] Age reweighting enabled (min={min(values):.3f}, max={max(values):.3f}).")
+            with config_path.open("a", encoding="utf-8") as fp:
+                fp.write(f"resolved_age_weight_min={min(values)}\n")
+                fp.write(f"resolved_age_weight_max={max(values)}\n")
         else:
             print("[loss] Age reweighting requested but no weights were computed.")
 

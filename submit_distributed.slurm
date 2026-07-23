@@ -80,9 +80,9 @@ RUN_NAME="${RUN_NAME:-}"
 # Age imbalance controls
 AGE_REWEIGHT="${AGE_REWEIGHT:-1}"                     # enabled by default for HandRGBD-only age balancing
 AGE_WEIGHT_EPS="${AGE_WEIGHT_EPS:-1.0}"
-AGE_WEIGHT_POWER="${AGE_WEIGHT_POWER:-1.0}"
-AGE_WEIGHT_MIN="${AGE_WEIGHT_MIN:-0.25}"
-AGE_WEIGHT_MAX="${AGE_WEIGHT_MAX:-4.0}"
+AGE_WEIGHT_POWER="${AGE_WEIGHT_POWER:-0.5}"          # square-root inverse-frequency correction
+AGE_WEIGHT_CLIP_LOWER_QUANTILE="${AGE_WEIGHT_CLIP_LOWER_QUANTILE:-0.05}"
+AGE_WEIGHT_CLIP_UPPER_QUANTILE="${AGE_WEIGHT_CLIP_UPPER_QUANTILE:-0.95}"
 AGE_OVERSAMPLE="${AGE_OVERSAMPLE:-0}"                 # set >0 to oversample rare ages in train split
 AGE_OVERSAMPLE_TARGET="${AGE_OVERSAMPLE_TARGET:-}"    # optional explicit target per age (int)
 AGE_OVERSAMPLE_MAX_MULT="${AGE_OVERSAMPLE_MAX_MULT:-3.0}"
@@ -182,7 +182,7 @@ for USER_GROUP_SIZE in ${USER_GROUP_SIZES}; do
             $( [[ "${USE_MASKS}" -gt 0 ]] && echo "--use-masks" ) \
             --train-datasets ${TRAIN_DATASETS} \
             --eval-datasets ${EVAL_DATASETS} \
-            $( [[ "${AGE_REWEIGHT}" -gt 0 ]] && echo "--age-reweight-loss --age-weight-eps ${AGE_WEIGHT_EPS} --age-weight-power ${AGE_WEIGHT_POWER} --age-weight-min ${AGE_WEIGHT_MIN} --age-weight-max ${AGE_WEIGHT_MAX}" ) \
+            $( [[ "${AGE_REWEIGHT}" -gt 0 ]] && echo "--age-reweight-loss --age-weight-eps ${AGE_WEIGHT_EPS} --age-weight-power ${AGE_WEIGHT_POWER} --age-weight-clip-lower-quantile ${AGE_WEIGHT_CLIP_LOWER_QUANTILE} --age-weight-clip-upper-quantile ${AGE_WEIGHT_CLIP_UPPER_QUANTILE}" ) \
             $( [[ "${AGE_OVERSAMPLE}" -gt 0 ]] && echo "--age-oversample --age-oversample-max-multiplier ${AGE_OVERSAMPLE_MAX_MULT}" ) \
             $( [[ -n "${AGE_OVERSAMPLE_TARGET}" ]] && echo "--age-oversample-target ${AGE_OVERSAMPLE_TARGET}" ) \
             --fold-file "${FOLD_FILE}" \
@@ -238,7 +238,7 @@ for USER_GROUP_SIZE in ${USER_GROUP_SIZES}; do
           $( [[ "${USE_MASKS}" -gt 0 ]] && echo "--use-masks" ) \
           --train-datasets ${TRAIN_DATASETS} \
           --eval-datasets ${EVAL_DATASETS} \
-          $( [[ "${AGE_REWEIGHT}" -gt 0 ]] && echo "--age-reweight-loss --age-weight-eps ${AGE_WEIGHT_EPS} --age-weight-power ${AGE_WEIGHT_POWER} --age-weight-min ${AGE_WEIGHT_MIN} --age-weight-max ${AGE_WEIGHT_MAX}" ) \
+          $( [[ "${AGE_REWEIGHT}" -gt 0 ]] && echo "--age-reweight-loss --age-weight-eps ${AGE_WEIGHT_EPS} --age-weight-power ${AGE_WEIGHT_POWER} --age-weight-clip-lower-quantile ${AGE_WEIGHT_CLIP_LOWER_QUANTILE} --age-weight-clip-upper-quantile ${AGE_WEIGHT_CLIP_UPPER_QUANTILE}" ) \
           $( [[ "${AGE_OVERSAMPLE}" -gt 0 ]] && echo "--age-oversample --age-oversample-max-multiplier ${AGE_OVERSAMPLE_MAX_MULT}" ) \
           $( [[ -n "${AGE_OVERSAMPLE_TARGET}" ]] && echo "--age-oversample-target ${AGE_OVERSAMPLE_TARGET}" ) \
           --test-users-file "${TEST_SPLIT_FILE}" \

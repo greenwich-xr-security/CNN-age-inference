@@ -899,8 +899,8 @@ def _cli_main() -> None:
     parser.add_argument(
         "--max-samples-per-age-bin",
         type=int,
-        default=200,
-        help="Maximum total samples per integer age year (default: 200; set 0 to disable).",
+        default=0,
+        help="Maximum total samples per integer age year (default: 0 = disabled).",
     )
     parser.add_argument(
         "--max-users-per-year",

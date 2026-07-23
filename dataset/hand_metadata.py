@@ -31,7 +31,7 @@ _ENV_VAR_NAME = "HANDS_DATASETS_ROOT"
 
 PathLike = Union[str, Path]
 
-DATASET_SOURCES = ("handrgbd", "hagrid", "synthetic_dorsal", "primary", "archive")
+DATASET_SOURCES = ("handrgbd", "hagrid", "synthetic_dorsal", "primary", "archive", "prolific")
 DEFAULT_DATASET_SOURCES = ("handrgbd", "hagrid", "synthetic_dorsal")
 
 _DATA_ROOT = Path(os.environ.get(_ENV_VAR_NAME, _DEFAULT_ROOT))
@@ -681,6 +681,69 @@ def load_synthetic_dorsal_metadata(root: Optional[PathLike] = None) -> pd.DataFr
     return df_out
 
 
+def load_prolific_metadata(root: Optional[PathLike] = None) -> pd.DataFrame:
+    """Load ProlificHands dorsal images into the shared metadata schema."""
+    dataset_root = _resolve_root(root)
+    prolific_root = dataset_root / "ProlificHands"
+    metadata_csv = prolific_root / "reference_prolific.csv"
+    empty_cols = [
+        "source", "user_id", "age", "gender", "aspect", "image_path",
+        "mask_path", "bbox", "skin_color",
+    ]
+    if not metadata_csv.exists():
+        return pd.DataFrame(columns=empty_cols)
+
+    raw_df = pd.read_csv(metadata_csv)
+    required = {"participant_id", "age", "gender", "aspect", "rgb_path"}
+    if raw_df.empty or not required.issubset(raw_df.columns):
+        return pd.DataFrame(columns=empty_cols)
+
+    working_df = raw_df.copy()
+    working_df["participant_id"] = working_df["participant_id"].astype(str).str.strip()
+    working_df["aspect_norm"] = working_df["aspect"].apply(_normalise_label)
+    working_df["gender_norm"] = working_df["gender"].apply(_normalise_gender)
+    working_df["age_norm"] = pd.to_numeric(working_df["age"], errors="coerce")
+    working_df["image_path_abs"] = working_df["rgb_path"].apply(
+        lambda value: prolific_root / str(value).replace("\\", "/")
+    )
+    if "mask_path" in working_df.columns:
+        working_df["mask_path_abs"] = working_df["mask_path"].apply(
+            lambda value: prolific_root / str(value).replace("\\", "/")
+        )
+    else:
+        working_df["mask_path_abs"] = pd.NA
+    working_df["bbox_tuple"] = working_df.get("bbox", pd.Series(index=working_df.index)).apply(_parse_bbox)
+    working_df["skin_color"] = working_df.get("skin_color", pd.Series(index=working_df.index, dtype="object"))
+
+    valid = (
+        working_df["aspect_norm"].notna()
+        & working_df["gender_norm"].notna()
+        & working_df["age_norm"].notna()
+        & working_df["image_path_abs"].apply(Path.is_file)
+    )
+    working_df = working_df.loc[valid].copy()
+    working_df["mask_path_abs"] = working_df["mask_path_abs"].where(
+        working_df["mask_path_abs"].apply(lambda path: isinstance(path, Path) and path.is_file()),
+        pd.NA,
+    )
+
+    df_out = pd.DataFrame(
+        {
+            "source": "prolific",
+            "user_id": "prolific_" + working_df["participant_id"],
+            "age": working_df["age_norm"].astype(int),
+            "gender": working_df["gender_norm"],
+            "aspect": working_df["aspect_norm"],
+            "image_path": working_df["image_path_abs"],
+            "mask_path": working_df["mask_path_abs"],
+            "bbox": working_df["bbox_tuple"],
+            "skin_color": working_df["skin_color"],
+        }
+    ).reset_index(drop=True)
+    print(f"ProlificHands -> users: {df_out['user_id'].nunique()} | images: {len(df_out)}")
+    return df_out
+
+
 def load_hagrid_stop_inverted_metadata(root: Optional[PathLike] = None) -> pd.DataFrame:
     """Load HaGRIDv2 stop_inverted gesture crops as a dorsal-hand source.
 
@@ -804,6 +867,7 @@ def load_combined_metadata(
     include_synthetic_dorsal: bool = True,
     include_primary: bool = False,
     include_archive: bool = False,
+    include_prolific: bool = False,
     max_users_per_year: Optional[int] = None,
 ) -> pd.DataFrame:
     if sources is None:
@@ -818,6 +882,8 @@ def load_combined_metadata(
             selected_sources.append("primary")
         if include_archive:
             selected_sources.append("archive")
+        if include_prolific:
+            selected_sources.append("prolific")
     else:
         selected_sources = [str(source).strip().lower() for source in sources]
         unknown_sources = sorted(set(selected_sources) - set(DATASET_SOURCES))
@@ -834,6 +900,7 @@ def load_combined_metadata(
         "synthetic_dorsal": lambda: load_synthetic_dorsal_metadata(root=root),
         "primary": lambda: load_primary_metadata(root=root),
         "archive": lambda: load_archive_metadata(root=root),
+        "prolific": lambda: load_prolific_metadata(root=root),
     }
     frames = [loaders[source]() for source in selected_sources]
     if not frames:

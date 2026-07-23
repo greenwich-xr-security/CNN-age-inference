@@ -93,7 +93,7 @@ EMBED_CONTRAST_MARGIN="${EMBED_CONTRAST_MARGIN:-1.0}"
 EMBED_CONTRAST_AGE_THRESH="${EMBED_CONTRAST_AGE_THRESH:-5.0}"
 USE_MASKS="${USE_MASKS:-0}"                        # set >0 to apply dataset masks (black background)
 # Space-separated list passed unchanged to every split, fold, and training command.
-# Choices: handrgbd hagrid synthetic_dorsal primary archive
+# Choices: handrgbd hagrid synthetic_dorsal primary archive prolific
 DATASETS="${DATASETS:-handrgbd hagrid synthetic_dorsal}" # legacy shared selection
 TRAIN_DATASETS="${TRAIN_DATASETS:-${DATASETS}}"
 EVAL_DATASETS="${EVAL_DATASETS:-${DATASETS}}"

@@ -101,13 +101,13 @@ comparing pretrained models under materially different input settings.
 | Real | `handrgbd` | handRGBD | Real training and locked real evaluation |
 | Real | `archive` | Archive | Real training and locked real evaluation |
 | Real | `primary` | 11kHands | Real training and fallback locked-test source |
-| Real, planned | — | ProlificHands | Included in the paper protocol, but not yet implemented in this loader |
+| Real | `prolific` | ProlificHands | Real training and locked real evaluation |
 | Synthetic | `synthetic_dorsal` | SyntheticDorsalHands | Synthetic training and separate synthetic hold-out evaluation |
 | Excluded | `hagrid` | HaGRIDv2 | Not part of the paper protocol; do not use in Question 2 |
 
 `SyntheticDorsalHands` is generated data. All other sources in the table are
 real-image corpora. The real distribution for this experiment is therefore
-handRGBD + Archive + 11kHands, plus ProlificHands once its loader is added.
+handRGBD + Archive + 11kHands + ProlificHands.
 
 ### Real test set
 
@@ -144,7 +144,7 @@ training data and from every synthetic conditioning pool.
 | Exclude held-out IDs from real validation | Supported | Validation IDs are selected only after the held-out IDs are removed from evaluation metadata. |
 | Evaluate on the locked real IDs only | Supported | Final test metadata uses `--eval-datasets` and filters to the canonical IDs. |
 | Record which locked split was used | Supported | Distributed configuration records path, format, user count, and SHA-256. |
-| Include all 150 canonical real subjects | **Gap** | The canonical split includes 3 Prolific subjects, but the current loader has no `prolific` source. Add that loader before claiming the full 150-subject result. |
+| Include all 150 canonical real subjects | Supported | The `prolific` loader resolves the three ProlificHands subjects in the canonical split. |
 | Exclude held-out real people from synthetic conditioning provenance | **Gap** | Synthetic provenance columns are loaded but are not checked against `test_user_ids` by the CNN pipeline. Generation must guarantee this exclusion and the training loader should validate it before SR/SS runs. |
 | Prevent synthetic data from entering the locked real test | Supported when configured | Use real-only `--eval-datasets` for RR/SR and the canonical real split. Do not rely on the legacy shared `--datasets` default. |
 
@@ -180,7 +180,7 @@ The distributed pipeline accepts independent source lists:
 For this paper, the real source list is:
 
 ```text
-handrgbd archive primary
+handrgbd archive primary prolific
 ```
 
 Do not include HaGRID in this experiment unless the protocol is formally
@@ -188,10 +188,10 @@ updated to include it.
 
 | ID | `TRAIN_DATASETS` | `EVAL_DATASETS` | Split file |
 | --- | --- | --- | --- |
-| RR | `handrgbd archive primary` | `handrgbd archive primary` | `splits/held_out_test.json` |
+| RR | `handrgbd archive primary prolific` | `handrgbd archive primary prolific` | `splits/held_out_test.json` |
 | SS | `synthetic_dorsal` | `synthetic_dorsal` | `splits/synthetic_test_users.json` |
-| SR | `synthetic_dorsal` | `handrgbd archive primary` | `splits/held_out_test.json` |
-| RS | `handrgbd archive primary` | `synthetic_dorsal` | `splits/synthetic_test_users.json` |
+| SR | `synthetic_dorsal` | `handrgbd archive primary prolific` | `splits/held_out_test.json` |
+| RS | `handrgbd archive primary prolific` | `synthetic_dorsal` | `splits/synthetic_test_users.json` |
 
 ## HPC campaign
 

@@ -2,6 +2,7 @@
 from .hand_metadata import (
     DATASET_SOURCES,
     DEFAULT_DATASET_SOURCES,
+    load_prolific_metadata,
     get_dataset_root,
     load_archive_metadata,
     load_combined_metadata,
@@ -17,6 +18,7 @@ from .utils import filter_metadata
 __all__ = [
     "DATASET_SOURCES",
     "DEFAULT_DATASET_SOURCES",
+    "load_prolific_metadata",
     "get_dataset_root",
     "load_archive_metadata",
     "load_combined_metadata",

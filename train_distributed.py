@@ -89,6 +89,15 @@ def parse_args() -> argparse.Namespace:
         default=".",
         help="Directory where checkpoints and plots will be saved.",
     )
+    parser.add_argument("--train-users-file", type=str, default=None, help="JSON file containing allowed training user IDs.")
+    parser.add_argument("--val-users-file", type=str, default=None, help="JSON file containing validation user IDs.")
+    parser.add_argument("--shuffle-train-labels", action="store_true", help="Permute training age labels once using --seed.")
+    parser.add_argument(
+        "--init-checkpoint",
+        type=str,
+        default=None,
+        help="Optional model checkpoint to load before training; the optimizer is always freshly initialized.",
+    )
     parser.add_argument(
         "--model",
         type=str,
@@ -409,8 +418,26 @@ def build_datasets(args: argparse.Namespace, seed: int, img_size: int):
         after = eval_metadata["user_id"].nunique()
         print(f"[data] Excluded {before - after} held-out test users. Remaining: {after}")
 
+    def _load_user_ids(path: str) -> set[str]:
+        import json
+        with Path(path).expanduser().open("r", encoding="utf-8") as fp:
+            payload = json.load(fp)
+        values = payload.get("user_ids", payload) if isinstance(payload, dict) else payload
+        if not isinstance(values, list):
+            raise ValueError(f"User file must be a JSON list or {{'user_ids': [...]}}: {path}")
+        return {str(value) for value in values}
+
+    explicit_train_ids = _load_user_ids(args.train_users_file) if args.train_users_file else None
+    explicit_val_ids = _load_user_ids(args.val_users_file) if args.val_users_file else None
+    if explicit_train_ids is not None:
+        train_metadata = train_metadata[train_metadata["user_id"].astype(str).isin(explicit_train_ids)]
+    if explicit_val_ids is not None:
+        eval_metadata = eval_metadata[eval_metadata["user_id"].astype(str).isin(explicit_val_ids)]
+
     fold_info = None
-    if args.fold_file:
+    if explicit_val_ids is not None:
+        val_ids = explicit_val_ids
+    elif args.fold_file:
         if args.fold_index is None:
             raise ValueError("--fold-index is required when --fold-file is set.")
         fold_data = load_kfold_splits(args.fold_file)
@@ -439,6 +466,9 @@ def build_datasets(args: argparse.Namespace, seed: int, img_size: int):
     train_meta = train_metadata[
         ~train_metadata["user_id"].astype(str).isin({str(uid) for uid in val_ids})
     ]
+    if args.shuffle_train_labels:
+        train_meta = train_meta.copy()
+        train_meta["age"] = train_meta["age"].sample(frac=1.0, random_state=args.seed).to_numpy()
 
     if args.age_oversample:
         before = len(train_meta)
@@ -700,6 +730,21 @@ def main() -> None:
             print("Split mode: Unstratified per-user split (random).")
 
     model = model_builder().to(device)
+    if args.init_checkpoint:
+        checkpoint_path = Path(args.init_checkpoint).expanduser()
+        if not checkpoint_path.is_file():
+            raise FileNotFoundError(f"Initial checkpoint not found: {checkpoint_path}")
+        state = torch.load(checkpoint_path, map_location=device)
+        if isinstance(state, dict) and "state_dict" in state:
+            state = state["state_dict"]
+        if not isinstance(state, dict):
+            raise TypeError("Initial checkpoint must contain a model state dictionary.")
+        state = {key.removeprefix("module."): value for key, value in state.items()}
+        missing, unexpected = model.load_state_dict(state, strict=False)
+        if is_main:
+            print(f"[init] Loaded initial checkpoint: {checkpoint_path}")
+            if missing or unexpected:
+                print(f"[init] Missing keys: {missing}; unexpected keys: {unexpected}")
     ddp_model = DistributedDataParallel(
         model,
         device_ids=[local_rank] if device.type == "cuda" else None,

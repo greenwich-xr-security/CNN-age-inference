@@ -104,6 +104,20 @@ INCLUDE_PROLIFIC="${INCLUDE_PROLIFIC:-1}"          # set >0 to include ProlificH
 INCLUDE_PRIMARY="${INCLUDE_PRIMARY:-0}"            # set >0 to include 11kHands primary
 INCLUDE_ARCHIVE="${INCLUDE_ARCHIVE:-0}"            # set >0 to include archive dataset
 INCLUDE_LUCID="${INCLUDE_LUCID:-1}"                # set 0 to disable LUICID training merge
+
+# SyntheticDorsalHands has one generated image per sample, rather than multiple
+# images per person.  User groups larger than one would therefore duplicate an
+# image during training, while evaluation groups larger than one would drop it
+# (the aggregation step discards incomplete groups).  Keep synthetic runs at
+# image level, regardless of the generic real-data defaults above.
+if [[ "${INCLUDE_SYNTHETIC_DORSAL}" -gt 0 ]]; then
+  if [[ "${USER_GROUP_SIZES}" != "1" || "${AGG_SIZES}" != "1" ]]; then
+    echo ">>> SyntheticDorsalHands detected: forcing USER_GROUP_SIZES=1 and AGG_SIZES=1."
+  fi
+  USER_GROUP_SIZES="1"
+  AGG_SIZES="1"
+fi
+
 # Normals auxiliary prior experiment (set NORMALS_AUX=1 to enable)
 NORMALS_AUX="${NORMALS_AUX:-0}"
 LOSS_WEIGHT_NORMALS="${LOSS_WEIGHT_NORMALS:-0.1}"

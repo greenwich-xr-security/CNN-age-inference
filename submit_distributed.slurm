@@ -37,8 +37,13 @@ extract_gpu_count() {
   return 1
 }
 
+# Each Slurm allocation needs its own c10d TCP store.  A fixed port makes
+# simultaneous single-node jobs on the same host join/corrupt each other's
+# rendezvous.  Keep explicit overrides available, but derive stable,
+# collision-resistant defaults from the scheduler job ID.
 MASTER_ADDR=${MASTER_ADDR:-$(hostname -s)}
-MASTER_PORT=${MASTER_PORT:-29500}
+MASTER_PORT=${MASTER_PORT:-$((20000 + (${SLURM_JOB_ID:-0} % 20000)))}
+RDZV_ID=${RDZV_ID:-slurm-${SLURM_JOB_ID:-$$}}
 NNODES=${SLURM_JOB_NUM_NODES:-1}
 if ! GPUS_PER_NODE="$(extract_gpu_count "${SLURM_GPUS_ON_NODE:-}")"; then
   if ! GPUS_PER_NODE="$(extract_gpu_count "${SLURM_GPUS_PER_NODE:-}")"; then
@@ -51,7 +56,7 @@ if ! GPUS_PER_NODE="$(extract_gpu_count "${SLURM_GPUS_ON_NODE:-}")"; then
   fi
 fi
 
-export MASTER_ADDR MASTER_PORT
+export MASTER_ADDR MASTER_PORT RDZV_ID
 
 BATCH_SIZE="${BATCH_SIZE:-8}"
 SEED="${SEED:-42}"
@@ -154,6 +159,7 @@ for USER_GROUP_SIZE in ${USER_GROUP_SIZES}; do
             --nproc_per_node="${GPUS_PER_NODE}" \
             --rdzv_backend=c10d \
             --rdzv_endpoint="${MASTER_ADDR}:${MASTER_PORT}" \
+            --rdzv_id="${RDZV_ID}" \
             "${PROJECT_ROOT}/train_distributed.py" \
             --data-root "${DATA_ROOT}" \
             --output-dir "${RUN_OUT}" \
@@ -210,6 +216,7 @@ for USER_GROUP_SIZE in ${USER_GROUP_SIZES}; do
           --nproc_per_node="${GPUS_PER_NODE}" \
           --rdzv_backend=c10d \
           --rdzv_endpoint="${MASTER_ADDR}:${MASTER_PORT}" \
+          --rdzv_id="${RDZV_ID}" \
           "${PROJECT_ROOT}/train_distributed.py" \
           --data-root "${DATA_ROOT}" \
           --output-dir "${RUN_OUT}" \

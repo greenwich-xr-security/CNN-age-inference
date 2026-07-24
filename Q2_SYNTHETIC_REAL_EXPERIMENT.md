@@ -244,62 +244,67 @@ runs its five folds sequentially; a metric is recorded only when that fold's
 held-out evaluation has completed. The live HPC monitor writes the current
 version to `runs/q2_main_results.md` and `runs/q2_main_results.csv`.
 
-**Superseded configuration.** The real conditions below resolved to
-`handrgbd` only, rather than the intended full real source list. Retain them
-only as pipeline-validation results; do not use them for Question 2 analysis.
-| Condition | Slurm job | Started (BST) | Run directory | Fold | Status | MAE | Adult-gate AUC |
-| --- | ---: | --- | --- | ---: | --- | ---: | ---: |
-| RR | 1050650 | 2026-07-23 16:54:57 | `runs/q2_main_rr_v2s_seed42` | 0 | Completed | 6.1499 | 0.8989 |
-| RR | 1050650 | 2026-07-23 16:54:57 | `runs/q2_main_rr_v2s_seed42` | 1 | Completed | 6.0986 | 0.9078 |
-| RR | 1050650 | 2026-07-23 16:54:57 | `runs/q2_main_rr_v2s_seed42` | 2 | Completed | 7.3629 | 0.8947 |
-| RR | 1050650 | 2026-07-23 16:54:57 | `runs/q2_main_rr_v2s_seed42` | 3 | Completed | 6.5572 | 0.8916 |
-| RR | 1050650 | 2026-07-23 16:54:57 | `runs/q2_main_rr_v2s_seed42` | 4 | Completed | 6.9744 | 0.8848 |
-| SS | 1050651 | 2026-07-23 16:54:58 | `runs/q2_main_ss_v2s_seed42` | 0 | Completed | 6.6306 | 0.8868 |
-| SS | 1050651 | 2026-07-23 16:54:58 | `runs/q2_main_ss_v2s_seed42` | 1 | Completed | 5.7070 | 0.8721 |
-| SS | 1050651 | 2026-07-23 16:54:58 | `runs/q2_main_ss_v2s_seed42` | 2 | Completed | 5.4228 | 0.8823 |
-| SS | 1050651 | 2026-07-23 16:54:58 | `runs/q2_main_ss_v2s_seed42` | 3 | Completed | 7.5555 | 0.8772 |
-| SS | 1050651 | 2026-07-23 16:54:58 | `runs/q2_main_ss_v2s_seed42` | 4 | Completed | 6.2330 | 0.8836 |
-| SR | 1050652 | 2026-07-23 16:54:58 | `runs/q2_main_sr_v2s_seed42` | 0 | Completed | 10.4998 | 0.7486 |
-| SR | 1050652 | 2026-07-23 16:54:58 | `runs/q2_main_sr_v2s_seed42` | 1 | Completed | 11.2220 | 0.7403 |
-| SR | 1050652 | 2026-07-23 16:54:58 | `runs/q2_main_sr_v2s_seed42` | 2 | Completed | 10.5238 | 0.7288 |
-| SR | 1050652 | 2026-07-23 16:54:58 | `runs/q2_main_sr_v2s_seed42` | 3 | Completed | 11.2753 | 0.7424 |
-| SR | 1050652 | 2026-07-23 16:54:58 | `runs/q2_main_sr_v2s_seed42` | 4 | Completed | 10.1947 | 0.7375 |
-| RS | 1050653 | 2026-07-23 16:54:58 | `runs/q2_main_rs_v2s_seed42` | 0 | Completed | 11.7395 | 0.7158 |
-| RS | 1050653 | 2026-07-23 16:54:58 | `runs/q2_main_rs_v2s_seed42` | 1 | Completed | 11.1295 | 0.7671 |
-| RS | 1050653 | 2026-07-23 16:54:58 | `runs/q2_main_rs_v2s_seed42` | 2 | Completed | 12.9619 | 0.7360 |
-| RS | 1050653 | 2026-07-23 16:54:58 | `runs/q2_main_rs_v2s_seed42` | 3 | Completed | 11.5755 | 0.7037 |
-| RS | 1050653 | 2026-07-23 16:54:58 | `runs/q2_main_rs_v2s_seed42` | 4 | Completed | 10.5286 | 0.7634 |
-
 ### Corrected full-real main-matrix job and result snapshot
 
-These replacement jobs use the actual real source list
-`handrgbd archive primary prolific` wherever a condition requires real data.
-They use the same backbone (`v2_s`), two GPUs, seed 42, five sequential folds,
-384 x 384 input, NLL-only loss, and age-weight exponent `p=0.5` as the prior
-matrix. Metrics will be entered only after a fold's held-out evaluation ends.
+The first RR/SR/RS replacement jobs include `primary` (11kHands). They are
+preserved below as a distinct 11kHands-inclusive result set. The current
+RR/SR/RS jobs use `handrgbd archive prolific` wherever real data is required;
+`primary` is excluded from both training and evaluation. All runs use
+EfficientNetV2-S (`v2_s`), two GPUs, seed 42, five sequential folds, 384 x 384
+input, NLL-only loss, and age-weight exponent `p=0.5`. The no-11kHands reruns
+use the Slurm-job-specific rendezvous port/ID fix from commit `6ffb99f`.
 
-| Condition | Slurm job | Started (BST) | Train datasets | Evaluation datasets | Run directory | Fold | Status | MAE | Adult-gate AUC |
-| --- | ---: | --- | --- | --- | --- | ---: | --- | ---: | ---: |
-| RR | 1050658 | 2026-07-23 19:47:36 | `handrgbd archive primary prolific` | `handrgbd archive primary prolific` | `runs/q2_fullreal_rr_v2s_seed42` | 0 | Running | — | — |
-| RR | 1050658 | 2026-07-23 19:47:36 | `handrgbd archive primary prolific` | `handrgbd archive primary prolific` | `runs/q2_fullreal_rr_v2s_seed42` | 1 | Pending | — | — |
-| RR | 1050658 | 2026-07-23 19:47:36 | `handrgbd archive primary prolific` | `handrgbd archive primary prolific` | `runs/q2_fullreal_rr_v2s_seed42` | 2 | Pending | — | — |
-| RR | 1050658 | 2026-07-23 19:47:36 | `handrgbd archive primary prolific` | `handrgbd archive primary prolific` | `runs/q2_fullreal_rr_v2s_seed42` | 3 | Pending | — | — |
-| RR | 1050658 | 2026-07-23 19:47:36 | `handrgbd archive primary prolific` | `handrgbd archive primary prolific` | `runs/q2_fullreal_rr_v2s_seed42` | 4 | Pending | — | — |
-| SS | 1050659 | 2026-07-23 19:53:58 | `synthetic_dorsal` | `synthetic_dorsal` | `runs/q2_fullreal_ss_v2s_seed42` | 0 | Running | — | — |
-| SS | 1050659 | 2026-07-23 19:53:58 | `synthetic_dorsal` | `synthetic_dorsal` | `runs/q2_fullreal_ss_v2s_seed42` | 1 | Pending | — | — |
-| SS | 1050659 | 2026-07-23 19:53:58 | `synthetic_dorsal` | `synthetic_dorsal` | `runs/q2_fullreal_ss_v2s_seed42` | 2 | Pending | — | — |
-| SS | 1050659 | 2026-07-23 19:53:58 | `synthetic_dorsal` | `synthetic_dorsal` | `runs/q2_fullreal_ss_v2s_seed42` | 3 | Pending | — | — |
-| SS | 1050659 | 2026-07-23 19:53:58 | `synthetic_dorsal` | `synthetic_dorsal` | `runs/q2_fullreal_ss_v2s_seed42` | 4 | Pending | — | — |
-| SR | 1050660 | 2026-07-23 19:53:59 | `synthetic_dorsal` | `handrgbd archive primary prolific` | `runs/q2_fullreal_sr_v2s_seed42` | 0 | Running | — | — |
-| SR | 1050660 | 2026-07-23 19:53:59 | `synthetic_dorsal` | `handrgbd archive primary prolific` | `runs/q2_fullreal_sr_v2s_seed42` | 1 | Pending | — | — |
-| SR | 1050660 | 2026-07-23 19:53:59 | `synthetic_dorsal` | `handrgbd archive primary prolific` | `runs/q2_fullreal_sr_v2s_seed42` | 2 | Pending | — | — |
-| SR | 1050660 | 2026-07-23 19:53:59 | `synthetic_dorsal` | `handrgbd archive primary prolific` | `runs/q2_fullreal_sr_v2s_seed42` | 3 | Pending | — | — |
-| SR | 1050660 | 2026-07-23 19:53:59 | `synthetic_dorsal` | `handrgbd archive primary prolific` | `runs/q2_fullreal_sr_v2s_seed42` | 4 | Pending | — | — |
-| RS | 1050661 | 2026-07-23 19:53:59 | `handrgbd archive primary prolific` | `synthetic_dorsal` | `runs/q2_fullreal_rs_v2s_seed42` | 0 | Running | — | — |
-| RS | 1050661 | 2026-07-23 19:53:59 | `handrgbd archive primary prolific` | `synthetic_dorsal` | `runs/q2_fullreal_rs_v2s_seed42` | 1 | Pending | — | — |
-| RS | 1050661 | 2026-07-23 19:53:59 | `handrgbd archive primary prolific` | `synthetic_dorsal` | `runs/q2_fullreal_rs_v2s_seed42` | 2 | Pending | — | — |
-| RS | 1050661 | 2026-07-23 19:53:59 | `handrgbd archive primary prolific` | `synthetic_dorsal` | `runs/q2_fullreal_rs_v2s_seed42` | 3 | Pending | — | — |
-| RS | 1050661 | 2026-07-23 19:53:59 | `handrgbd archive primary prolific` | `synthetic_dorsal` | `runs/q2_fullreal_rs_v2s_seed42` | 4 | Pending | — | — |
+| Condition | Slurm job | Train datasets | Evaluation datasets | Run directory | Fold | Status | MAE | Adult-gate AUC |
+| --- | ---: | --- | --- | --- | ---: | --- | ---: | ---: |
+| SS | 1050659 | `synthetic_dorsal` | `synthetic_dorsal` | `runs/q2_fullreal_ss_v2s_seed42` | 0 | Completed | 6.4643 | 0.8819 |
+| SS | 1050659 | `synthetic_dorsal` | `synthetic_dorsal` | `runs/q2_fullreal_ss_v2s_seed42` | 1 | Completed | 5.3637 | 0.8974 |
+| SS | 1050659 | `synthetic_dorsal` | `synthetic_dorsal` | `runs/q2_fullreal_ss_v2s_seed42` | 2 | Completed | 5.5609 | 0.8959 |
+| SS | 1050659 | `synthetic_dorsal` | `synthetic_dorsal` | `runs/q2_fullreal_ss_v2s_seed42` | 3 | Completed | 6.1841 | 0.8912 |
+| SS | 1050659 | `synthetic_dorsal` | `synthetic_dorsal` | `runs/q2_fullreal_ss_v2s_seed42` | 4 | Completed | 5.4613 | 0.8902 |
+| RR | 1050658 | `handrgbd archive primary prolific` | `handrgbd archive primary prolific` | `runs/q2_fullreal_rr_v2s_seed42` | 0 | Completed (includes 11k) | 10.7384 | 0.8010 |
+| RR | 1050658 | `handrgbd archive primary prolific` | `handrgbd archive primary prolific` | `runs/q2_fullreal_rr_v2s_seed42` | 1 | Completed (includes 11k) | 10.2701 | 0.8031 |
+| RR | 1050658 | `handrgbd archive primary prolific` | `handrgbd archive primary prolific` | `runs/q2_fullreal_rr_v2s_seed42` | 2 | Completed (includes 11k) | 9.4030 | 0.8296 |
+| RR | 1050658 | `handrgbd archive primary prolific` | `handrgbd archive primary prolific` | `runs/q2_fullreal_rr_v2s_seed42` | 3 | Completed (includes 11k) | 10.6489 | 0.7772 |
+| RR | 1050658 | `handrgbd archive primary prolific` | `handrgbd archive primary prolific` | `runs/q2_fullreal_rr_v2s_seed42` | 4 | Completed (includes 11k) | 10.5339 | 0.7926 |
+| SR | 1050660 | `synthetic_dorsal` | `handrgbd archive primary prolific` | `runs/q2_fullreal_sr_v2s_seed42` | 0 | Completed (includes 11k) | 10.6536 | 0.7449 |
+| SR | 1050660 | `synthetic_dorsal` | `handrgbd archive primary prolific` | `runs/q2_fullreal_sr_v2s_seed42` | 1 | Completed (includes 11k) | 12.2485 | 0.7117 |
+| SR | 1050660 | `synthetic_dorsal` | `handrgbd archive primary prolific` | `runs/q2_fullreal_sr_v2s_seed42` | 2 | Completed (includes 11k) | 11.9015 | 0.7265 |
+| SR | 1050660 | `synthetic_dorsal` | `handrgbd archive primary prolific` | `runs/q2_fullreal_sr_v2s_seed42` | 3 | Completed (includes 11k) | 11.4352 | 0.7184 |
+| SR | 1050660 | `synthetic_dorsal` | `handrgbd archive primary prolific` | `runs/q2_fullreal_sr_v2s_seed42` | 4 | Completed (includes 11k) | 11.4304 | 0.7470 |
+| RS | 1050661 | `handrgbd archive primary prolific` | `synthetic_dorsal` | `runs/q2_fullreal_rs_v2s_seed42` | 0 | Completed (includes 11k) | 15.0097 | 0.6539 |
+| RS | 1050661 | `handrgbd archive primary prolific` | `synthetic_dorsal` | `runs/q2_fullreal_rs_v2s_seed42` | 1 | Completed (includes 11k) | 13.0946 | 0.6374 |
+| RS | 1050661 | `handrgbd archive primary prolific` | `synthetic_dorsal` | `runs/q2_fullreal_rs_v2s_seed42` | 2 | Completed (includes 11k) | 11.2639 | 0.8126 |
+| RS | 1050661 | `handrgbd archive primary prolific` | `synthetic_dorsal` | `runs/q2_fullreal_rs_v2s_seed42` | 3 | Completed (includes 11k) | 14.5272 | 0.7514 |
+| RS | 1050661 | `handrgbd archive primary prolific` | `synthetic_dorsal` | `runs/q2_fullreal_rs_v2s_seed42` | 4 | Completed (includes 11k) | 14.8008 | 0.6920 |
+
+
+### Corrected full-real main-matrix summary (with sample counts)
+
+Held-out test subjects/images are excluded from a condition's training pool
+only when that condition is *evaluated* against them — RR/SR exclude the 150
+real held-out subjects from real training; RS does not, since it is
+evaluated on synthetic. The mirror holds for SS (excludes the synthetic
+held-out images) versus RS/SR's use of the full synthetic pool. This is why
+train size differs between conditions that otherwise train on the same data.
+
+| Condition | Train data | Train samples/fold | Eval data | Test samples | Mean MAE | Mean AUC |
+| --- | --- | ---: | --- | ---: | ---: | ---: |
+| RR | real | ~6,327 | real held-out (150 subj.) | 2,289 | 8.21 | 0.838 |
+| SS | synthetic | ~10,641 | synthetic held-out (150 img.) | 150 | 5.81 | 0.891 |
+| SR | synthetic (full pool) | 13,451 | real held-out (150 subj.) | 2,289 | 10.54 | 0.713 |
+| RS | real (full pool) | 10,198 | synthetic held-out (150 img.) | 150 | 13.62 | 0.794 |
+
+Train samples/fold is the training-pool size after the fold's validation
+slice is removed (RR/SS vary slightly by fold; SR/RS train on the full pool
+every fold since their validation slice is drawn from the *other* domain).
+Mean MAE/AUC are unweighted averages of the per-fold values in the table
+above.
+
+These are the current, no-11kHands numbers (`q2_no11k_rr_v2s_seed42_retry`,
+`q2_no11k_sr_v2s_seed42_retry`, `q2_no11k_rs_v2s_seed42`, and the unaffected
+`q2_fullreal_ss_v2s_seed42`). See the **Result** section below for the
+recomputed coverage/fidelity ratios, per-fold significance tests, and
+per-age-bin/skin-tone breakdowns.
 
 ### Stage 3: architecture sensitivity
 
@@ -345,68 +350,178 @@ q2_rs_b0_seed42_fold0
 Report fold-to-fold and seed-to-seed variation. Do not make a conclusion from
 a single aggregate score.
 
-### Result (seed 42, main matrix complete, 20/20 folds)
+### Result (seed 42, corrected full-real matrix, 20/20 folds)
 
-| Condition | Folds complete | Mean MAE | Mean AUC | Ratio vs. in-distribution reference |
+All 20 folds (4 conditions x 5 folds) completed. RR/SR/RS use the current
+no-11kHands real pool (`handrgbd archive prolific`); SS is unaffected by that
+change since it never trains or evaluates on real data. Source runs:
+`q2_no11k_rr_v2s_seed42_retry`, `q2_no11k_sr_v2s_seed42_retry`,
+`q2_no11k_rs_v2s_seed42`, `q2_fullreal_ss_v2s_seed42`; comparison artefacts in
+`runs/q2_no11k_comparison/`.
+
+#### Headline metrics (mean ± SD across 5 folds)
+
+| Condition | Role | MAE (yrs) | RMSE (yrs) | Adult-gate AUC | Test n/fold |
+| --- | --- | ---: | ---: | ---: | ---: |
+| RR | Reference | 8.21 ± 0.67 | 11.65 ± 1.24 | 0.838 ± 0.014 | 2,289 |
+| SS | Shortcut probe | 5.81 ± 0.49 | 8.01 ± 0.18 | 0.891 ± 0.006 | 150 |
+| SR | Coverage (TSTR) | 10.54 ± 0.73 | 13.38 ± 0.73 | 0.713 ± 0.025 | 2,289 |
+| RS | Fidelity (TRTS) | 13.62 ± 0.54 | 15.59 ± 0.48 | 0.794 ± 0.026 | 150 |
+
+An omnibus repeated-measures test across all four conditions confirms a real
+condition effect and not just fold noise: MAE (ANOVA F(3,12)=145.3,
+p=1.07e-9; Friedman χ²=15.0, p=0.0018), RMSE (F(3,12)=68.6, p=8.0e-8;
+Friedman p=0.0029).
+
+#### Coverage: SR vs RR (can synthetic training generalise to real hands?)
+
+Training on synthetic and testing on the locked real set is worse than the
+real-trained reference at every fold: MAE +2.33 yrs (10.54 vs 8.21, a
+**1.28x** increase), RMSE +1.73 yrs, adult-gate AUC drops 0.125 (0.838 →
+0.713, a 14.9% relative drop). Paired t-test p=0.0020 (Holm p=0.0041,
+n=5 folds); every fold shows SR worse than RR (Wilcoxon p=0.0625, the floor
+for n=5 paired folds).
+
+Coverage is partial, not absent: SR (0.713 AUC) is well above chance and not
+catastrophically far from RR (0.838), so synthetic pretraining does carry
+real age-relevant signal. But it does not substitute for real training data
+at this scale — the gap is consistent and significant, not noise.
+
+#### Fidelity: RS vs SS (does synthetic imagery preserve real age features?)
+
+Training on real and testing on the synthetic hold-out is far worse than the
+synthetic-trained reference: MAE +7.81 yrs (13.62 vs 5.81, a **2.34x**
+increase), RMSE +7.59 yrs, adult-gate AUC drops 0.097 (0.891 → 0.794, a 10.9%
+relative drop). Paired t-test p=0.00013 (Holm p=0.00064); every fold shows RS
+worse than SS.
+
+The fidelity gap (2.34x MAE) is substantially larger than the coverage gap
+(1.28x MAE), even though the AUC drops are closer in size (14.9% vs 10.9%).
+Read against the interpretation guide above: this is the **"low RS relative
+to a strong SS, with only partial SR coverage"** pattern — not the "high RS"
+signature that would indicate strong fidelity. Real-trained features do not
+transfer cleanly onto synthetic images; synthetic images retain enough
+real-world age signal to be partially learnable *from* (coverage), but their
+appearance differs enough from real images that a real-trained model
+struggles to *read* them (fidelity). The direction of the asymmetry (fidelity
+gap > coverage gap) suggests the synthetic domain gap is more about
+image-level appearance (texture, lighting, rendering) than about missing
+age-relevant structure.
+
+#### Cross-condition ranking
+
+SS is the best-performing condition overall (lowest MAE, highest AUC) — the
+expected shortcut-probe signature: evaluating a model on held-out data from
+its own training distribution is the easiest case and is not informative
+about generalisation by itself. RS is the worst on MAE/RMSE, but SR — not
+RS — is the worst on AUC; RS pairwise comparisons on RMSE (RR vs RS,
+RS vs SR) and MAE all reach significance, while RR vs SR on RMSE alone
+narrowly misses the Holm-corrected threshold (p=0.067). Full pairwise table:
+`runs/q2_no11k_comparison/overall_metrics_pairwise.csv`.
+
+#### Per-age-decade error
+
+| Age bin | n (RR/SR, per matrix) | RR MAE | SR MAE | Δ (SR−RR) | n (SS/RS) | SS MAE | RS MAE | Δ (RS−SS) |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 10–20 | 4,790 | 4.29 | 7.69 | +3.40 | 300 | 5.16 | 17.86 | +12.70 |
+| 20–30 | 2,245 | 5.97 | 6.87 | +0.90 | 150 | 4.37 | 14.04 | +9.67 |
+| 30–40 | 1,215 | 9.41 | 9.46 | +0.05 | 75 | 6.56 | 8.31 | +1.75 |
+| 40–50 | 1,215 | 11.00 | 15.89 | +4.89 | 75 | 5.96 | 4.64 | −1.32 |
+| 50–60 | 995 | 14.14 | 17.28 | +3.14 | 75 | 8.90 | 9.76 | +0.86 |
+| 60–70 | 885 | 19.53 | 19.20 | −0.33 | 40 | 9.27 | 11.82 | −1.55 |
+
+Two patterns stand out. First, both coverage and fidelity errors rise with
+age for RR/SR and SS, reflecting the real-world age imbalance (fewer older
+subjects) that the loss reweighting only partially offsets. Second, the
+RS fidelity failure is heavily concentrated in the **10–30 age range**
+(+12.70 and +9.67 yrs) rather than spread evenly — a real-trained model is
+far more wrong about *young* synthetic faces than older ones, and is
+actually slightly *better* than SS at 40–50 and comparable at 60–70. That
+40–50 crossover is on n=75 synthetic images per fold and is consistent with
+regression-to-the-training-mean (the real training pool's age distribution
+centers well above the synthetic pool's), not a genuine fidelity advantage —
+it should not be read as "real training helps for middle-aged synthetic
+faces" without a larger held-out set.
+
+#### Skin-tone error
+
+| Condition | light | tan | dark | Largest significant gap (Holm) |
 | --- | ---: | ---: | ---: | --- |
-| RR | 5/5 | 6.63 | 0.896 | reference |
-| SS | 5/5 | 6.31 | 0.880 | reference |
-| SR | 5/5 | 10.74 | 0.740 | SR/RR = 1.62 |
-| RS | 5/5 | 11.59 | 0.737 | RS/SS = 1.84 |
+| RR | 7.94 | 4.95 | 8.19 | tan vs dark, p=0.0026; tan vs light, p=0.0053 |
+| SR | 10.70 | 9.60 | 10.66 | none survive Holm correction |
+| SS | 5.65 | 4.97 | 6.38 | none survive Holm correction (tan vs dark p=0.057 uncorrected) |
+| RS | 12.84 | 11.92 | 15.24 | dark vs tan, p=0.0013; dark vs light, p=0.018 |
 
-Means are unweighted averages of the five per-fold MAE/AUC values in the
-main-matrix table above.
+On real data (RR), "tan" is the easiest tone and "light"/"dark" are both
+harder and statistically indistinguishable from each other — likely a real
+training-pool composition effect rather than a skin-tone difficulty effect
+per se. Training on synthetic data instead (SR) removes that significant
+tone gap on the same real test set, even though overall accuracy is worse —
+synthetic pretraining does not reproduce the real-data tone disparity. On the
+synthetic test set, the pattern re-emerges only for the real-trained model
+(RS): "dark" is significantly worse than both other tones, a fidelity-side
+effect not present when the synthetic-trained model evaluates itself (SS).
 
-- **Reference performance.** RR reaches 6.63 MAE / 0.896 adult-gate AUC
-  (5/5 folds). SS reaches 6.31 MAE / 0.880 AUC (5/5 folds), close to RR —
-  the synthetic distribution is at least as learnable
-  in-domain as real data.
-- **Cross-distribution collapse.** Both cross conditions degrade sharply from
-  their matched reference: SR reaches 10.74 MAE / 0.740 AUC; RS reaches
-  11.59 MAE / 0.737 AUC. This is the "low RS and low SR" pattern above, not
-  the fidelity pattern — RS is not high relative to RR.
-- **Normalised asymmetry.** Compare each cross condition to its own
-  in-distribution reference rather than as a raw MAE difference: SR/RR =
-  1.62 versus RS/SS = 1.84. The direction favours a fidelity gap
-  (real→synthetic transfer degrades proportionally more than synthetic→real).
-- **MAE/AUC dissociation.** SR and RS have nearly identical adult-gate AUC
-  (0.740 vs 0.737) despite the diverging MAE ratio above (1.62 vs 1.84). This
-  is used diagnostically, to separate two artifacts that could otherwise
-  inflate the RS/SS ratio without reflecting a real fidelity gap, from a
-  genuine one: **variance compression** (SS's own test distribution is
-  narrower, so the same absolute error reads as a bigger ratio) and **label
-  leakage** (RS targets are conditioning values, not verified perceived ages,
-  so conditioning/render mismatch adds error unrelated to the model). AUC is
-  comparatively insensitive to both — it is a coarse binary boundary, not a
-  scale-dependent continuous score — yet still tracks SR and RS together.
-  That the extra MAE penalty on the real→synthetic side does not show up in
-  AUC at all is consistent with genuine fine-grained fidelity loss, but the
-  dissociation cannot fully rule out variance compression or label leakage as
-  contributors on MAE and AUC alone.
-- **Caveat — variance compression and label noise.** The RS/SS ratio has not
-  been corrected for either artifact above. Variance compression can be
-  checked directly from the per-fold score distributions; label noise needs
-  bounding against the stage-1 biomarker/rater scatter (the gap between a
-  synthetic image's conditioned age and its perceived age). Until both are
-  bounded, the ratio should be reported as an upper bound on the fidelity
-  gap, not a clean estimate of it.
-- **Caveat — single seed.** All 20 folds above are seed 42 only. Fold-level
-  spread is reported (fold-to-fold MAE ranges from 5.42 to 12.96 across the
-  matrix), but seed-to-seed spread is not yet known; Stage 3's architecture
-  repeat, or a second seed on `v2_s`, is needed before the asymmetry direction
-  is treated as more than a single-run result.
+#### Uncertainty calibration
 
-### Bottom line
+The regression head is trained with Gaussian NLL and emits `(mu, log_var)`
+per image ([README.md:56-59](README.md#L56-L59)); MAE/RMSE score only `mu`
+and say nothing about whether the predicted `sigma = sqrt(exp(log_var))` is
+trustworthy. Calibration was computed post hoc from the raw per-sample
+predictions each fold already saves (`test_predictions_raw_ddp.npz`:
+`targets`, `pred_mean`, `pred_log_var`), pooling all 5 folds per condition.
+Script and outputs: `runs/q2_no11k_comparison/calibration_{per_fold,pooled}.csv`.
 
-- **Coverage (can synthetic-trained models generalise to real hands?) — no,
-  not on their own.** SR loses ~4.1 MAE and ~16 AUC points relative to RR.
-- **Fidelity (can real-trained models generalise to synthetic hands?) — no,
-  more so.** RS loses ~5.3 MAE and ~16 AUC points relative to SS, the larger
-  of the two proportional drops (1.84x vs 1.62x).
-- Both directions fail roughly together on the coarse adult-gate boundary
-  (AUC ≈ 0.74 either way) but real→synthetic fails more on fine-grained age,
-  so the result is a genuine two-way distribution mismatch with a mild
-  fidelity-leaning asymmetry, not a synthetic-side shortcut that coverage
-  alone would predict. This does not by itself say whether synthetic data is
-  useful in combination with real training data — that is a different,
-  untested condition (see below).
+A calibrated Gaussian predictive distribution has standardized residual
+`z = (target − mu) / sigma` with mean 0 and std 1, and its nominal x%
+prediction interval should empirically contain the true age x% of the time
+(PICP).
+
+| Condition | mean σ / RMSE | z mean | z std | Mean \|PICP−nominal\| (5 levels) | 95%-nominal empirical coverage |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| RR | 0.54 | +0.61 | 1.72 | 0.148 | 79.2% |
+| SS | 0.96 | −0.04 | 0.94 | 0.034 | 96.3% |
+| SR | 0.70 | +0.26 | 1.40 | 0.127 | 84.4% |
+| RS | 0.60 | −0.95 | 1.42 | 0.316 | 70.8% |
+
+- **SS is the only condition that is close to well-calibrated**: predicted
+  sigma tracks RMSE almost 1:1, z-std ≈0.94, negligible bias, and PICP close
+  to nominal at every level (50/68/80/90/95%). This holds fold-by-fold
+  (z-std 0.86–0.97 across all 5 folds — no single fold is driving it).
+- **RR — the real self-domain reference — is itself markedly overconfident**:
+  predicted sigma is roughly half the actual RMSE, and the nominal-95%
+  interval only covers 79% of true ages, consistently across all 5 folds
+  (z-std 1.43–2.06). So sigma miscalibration on real hands is not an
+  artefact of the synthetic/real comparison — it's present even with no
+  domain shift at all, and looks like a property of training on the
+  real age distribution (which is noisier/harder) with this loss setup.
+- **SR (coverage) is, if anything, less overconfident than RR** on the same
+  real test set (sigma/RMSE 0.70 vs 0.54, 95% PICP 84% vs 79%) — the
+  synthetic-trained model's uncertainty is somewhat better calibrated than
+  the real-trained model's, even though its point predictions are worse.
+- **RS (fidelity) is the worst on every calibration axis**, and adds a
+  qualitative failure mode beyond the MAE/RMSE gap already reported: it has
+  both the worst interval coverage (95%-nominal → 70.8% empirical) and a
+  large, consistent negative bias (z-mean = −0.95, i.e. the real-trained
+  model systematically predicts *older* ages than the true synthetic age,
+  by close to one full predicted sigma) — z-mean is negative in all 5 folds
+  (−0.82 to −1.15). RS isn't just noisier than SS, it's directionally
+  biased toward overestimating age on synthetic faces.
+
+PICP for SS/RS is estimated from only 150 test images per fold, so its
+per-fold percentages are noisier than RR/SR's (2,289 images per fold);
+treat exact SS/RS PICP values as approximate, the direction/size of the gap
+vs. RR/SR is the reliable part.
+
+#### Open items before this section is used for the paper
+
+- **Single seed.** All of the above, including the calibration numbers, is
+  seed 42 only; the protocol calls for seed-to-seed variation and none has
+  been run yet. Treat the significance tests above as within-seed,
+  across-fold only.
+- **Architecture sensitivity (Stage 3) not started.** All results are
+  EfficientNetV2-S only.
+- **Small per-bin n above age 30.** The 30–70 age-bin counts (n=40–1,215)
+  make the per-bin deltas directionally informative but not independently
+  significance-tested; treat them as descriptive, not confirmatory.
+

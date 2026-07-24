@@ -1,0 +1,12 @@
+{
+  "user_ids": [
+    "handrgbd_323",
+    "handrgbd_382",
+    "handrgbd_277",
+    "handrgbd_338",
+    "handrgbd_228",
+    "handrgbd_306"
+  ],
+  "seed": 42,
+  "fraction": 0.01
+}

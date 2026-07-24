@@ -112,6 +112,8 @@ TEST_SPLIT_FILE="${TEST_SPLIT_FILE:-${OUTPUT_ROOT}/test_users.json}"
 TEST_SPLIT_SIZE="${TEST_SPLIT_SIZE:-0.15}"
 SPLIT_STRATIFY_MODE="${SPLIT_STRATIFY_MODE:-age_bins}"  # age_bins | age_bins_skin_color | adult | none
 RUN_TEST_EVAL="${RUN_TEST_EVAL:-1}"
+# Optional warm-start checkpoint.  Training always creates a fresh optimizer.
+INIT_CHECKPOINT="${INIT_CHECKPOINT:-}"
 
 # ── Create held-out test split (once, before any training) ───────────────────
 if [[ ! -f "${TEST_SPLIT_FILE}" ]]; then
@@ -194,6 +196,7 @@ for USER_GROUP_SIZE in ${USER_GROUP_SIZES}; do
             --fold-file "${FOLD_FILE}" \
             --fold-index "${FOLD_IDX}" \
             --test-users-file "${TEST_SPLIT_FILE}" \
+            $( [[ -n "${INIT_CHECKPOINT}" ]] && echo "--init-checkpoint ${INIT_CHECKPOINT}" ) \
             --dist-backend nccl
           echo ">>> Training for ${MODEL_NAME} seed=${SEED_VAL} fold=${FOLD_IDX} complete. Artifacts in ${RUN_OUT}"
         done
@@ -249,6 +252,7 @@ for USER_GROUP_SIZE in ${USER_GROUP_SIZES}; do
           $( [[ "${AGE_OVERSAMPLE}" -gt 0 ]] && echo "--age-oversample --age-oversample-max-multiplier ${AGE_OVERSAMPLE_MAX_MULT}" ) \
           $( [[ -n "${AGE_OVERSAMPLE_TARGET}" ]] && echo "--age-oversample-target ${AGE_OVERSAMPLE_TARGET}" ) \
           --test-users-file "${TEST_SPLIT_FILE}" \
+          $( [[ -n "${INIT_CHECKPOINT}" ]] && echo "--init-checkpoint ${INIT_CHECKPOINT}" ) \
           --dist-backend nccl
         echo ">>> Training for ${MODEL_NAME} seed=${SEED_VAL} complete. Artifacts in ${RUN_OUT}"
       fi

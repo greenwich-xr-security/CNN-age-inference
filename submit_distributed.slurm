@@ -99,6 +99,7 @@ EMBED_CONTRAST_AGE_THRESH="${EMBED_CONTRAST_AGE_THRESH:-5.0}"
 USE_MASKS="${USE_MASKS:-0}"                        # set >0 to apply dataset masks (black background)
 INCLUDE_HANDRGBD="${INCLUDE_HANDRGBD:-1}"          # set 0 to exclude HandRGBD
 INCLUDE_HAGRID="${INCLUDE_HAGRID:-0}"              # set >0 to include HaGRIDv2
+INCLUDE_SYNTHETIC_DORSAL="${INCLUDE_SYNTHETIC_DORSAL:-0}" # set >0 to include SyntheticDorsalHands
 INCLUDE_PROLIFIC="${INCLUDE_PROLIFIC:-1}"          # set >0 to include ProlificHands
 INCLUDE_PRIMARY="${INCLUDE_PRIMARY:-0}"            # set >0 to include 11kHands primary
 INCLUDE_ARCHIVE="${INCLUDE_ARCHIVE:-0}"            # set >0 to include archive dataset
@@ -124,11 +125,12 @@ RUN_TEST_EVAL="${RUN_TEST_EVAL:-1}"
 DATASET_ARGS=()
 [[ "${INCLUDE_HANDRGBD}" -gt 0 ]] && DATASET_ARGS+=(--include-handrgbd)
 [[ "${INCLUDE_HAGRID}" -gt 0 ]] && DATASET_ARGS+=(--include-hagrid)
+[[ "${INCLUDE_SYNTHETIC_DORSAL}" -gt 0 ]] && DATASET_ARGS+=(--include-synthetic-dorsal)
 [[ "${INCLUDE_PROLIFIC}" -gt 0 ]] && DATASET_ARGS+=(--include-prolific)
 [[ "${INCLUDE_PRIMARY}" -gt 0 ]] && DATASET_ARGS+=(--include-primary)
 [[ "${INCLUDE_ARCHIVE}" -gt 0 ]] && DATASET_ARGS+=(--include-archive)
 if [[ "${#DATASET_ARGS[@]}" -eq 0 ]]; then
-  echo "ERROR: enable at least one split dataset with INCLUDE_HANDRGBD, INCLUDE_HAGRID, INCLUDE_PROLIFIC, INCLUDE_PRIMARY, or INCLUDE_ARCHIVE." >&2
+  echo "ERROR: enable at least one split dataset with INCLUDE_HANDRGBD, INCLUDE_HAGRID, INCLUDE_SYNTHETIC_DORSAL, INCLUDE_PROLIFIC, INCLUDE_PRIMARY, or INCLUDE_ARCHIVE." >&2
   exit 1
 fi
 

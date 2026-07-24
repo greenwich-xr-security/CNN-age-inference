@@ -32,6 +32,22 @@ _ENV_VAR_NAME = "HANDS_DATASETS_ROOT"
 
 PathLike = Union[str, Path]
 
+SYNTHETIC_PROVENANCE_COLUMNS = (
+    "skeleton_source_user_id",
+    "skin_source_user_id",
+    "sex_source_user_id",
+    "lighting_source_user_id",
+    "aspect_source_user_id",
+)
+
+_SYNTHETIC_SKIN_LABEL_MAP = {
+    "very_light": "light",
+    "light": "light",
+    "intermediate": "tan",
+    "tan_brown": "dark",
+    "dark": "dark",
+}
+
 _DATA_ROOT = Path(os.environ.get(_ENV_VAR_NAME, _DEFAULT_ROOT))
 
 
@@ -766,6 +782,98 @@ def load_hagrid_stop_inverted_metadata(root: Optional[PathLike] = None) -> pd.Da
     return df_out
 
 
+def load_synthetic_dorsal_metadata(root: Optional[PathLike] = None) -> pd.DataFrame:
+    """Load SyntheticDorsalHands images into the shared metadata schema.
+
+    Synthetic images are independent samples rather than repeated subjects, so
+    each ``sample_id`` is used as its stable synthetic user ID.  The source CSV
+    stores an RGB triplet/ITA in ``skin_color``; the categorical skin label is
+    recovered from the canonical filename instead.
+    """
+    dataset_root = _resolve_root(root)
+    synthetic_root = dataset_root / "SyntheticDorsalHands"
+    csv_path = synthetic_root / "reference_synthetic.csv"
+    empty_cols = [
+        "source", "user_id", "age", "gender", "aspect", "image_path",
+        "mask_path", "bbox", "skin_color", "synthetic_skin_label",
+        *SYNTHETIC_PROVENANCE_COLUMNS,
+    ]
+    if not csv_path.exists():
+        print(f"[SyntheticDorsalHands] CSV not found: {csv_path}")
+        return pd.DataFrame(columns=empty_cols)
+
+    raw_df = pd.read_csv(csv_path)
+    required = {"sample_id", "image_path", "age", "gender", "aspect"}
+    if raw_df.empty or not required.issubset(raw_df.columns):
+        return pd.DataFrame(columns=empty_cols)
+
+    working_df = raw_df.copy()
+    working_df["sample_id"] = working_df["sample_id"].astype(str).str.strip()
+    extracted = working_df["sample_id"].str.extract(
+        r"^job\d+_age_\d+_(?:female|male)_(?P<skin_label>.+)_\d+$"
+    )
+    working_df["synthetic_skin_label"] = extracted["skin_label"].str.lower()
+    working_df["skin_color_norm"] = working_df["synthetic_skin_label"].map(
+        _SYNTHETIC_SKIN_LABEL_MAP
+    )
+    working_df["aspect_norm"] = working_df["aspect"].apply(_normalise_label)
+    working_df["gender_norm"] = working_df["gender"].apply(_normalise_gender)
+    working_df["age_norm"] = pd.to_numeric(working_df["age"], errors="coerce")
+    working_df["image_path_abs"] = working_df["image_path"].apply(
+        lambda value: synthetic_root / str(value).replace("\\", "/")
+    )
+    if "mask_path" in working_df.columns:
+        working_df["mask_path_abs"] = working_df["mask_path"].apply(
+            lambda value: synthetic_root / str(value).replace("\\", "/")
+        )
+    else:
+        working_df["mask_path_abs"] = pd.NA
+    working_df["bbox_tuple"] = working_df.get(
+        "bbox", pd.Series(index=working_df.index, dtype="object")
+    ).apply(_parse_bbox)
+
+    valid = (
+        working_df["aspect_norm"].notna()
+        & working_df["gender_norm"].notna()
+        & working_df["age_norm"].notna()
+        & working_df["skin_color_norm"].notna()
+        & working_df["image_path_abs"].apply(Path.is_file)
+    )
+    working_df = working_df.loc[valid].copy()
+    working_df["mask_path_abs"] = working_df["mask_path_abs"].where(
+        working_df["mask_path_abs"].apply(
+            lambda path: isinstance(path, Path) and path.is_file()
+        ),
+        pd.NA,
+    )
+    for column in SYNTHETIC_PROVENANCE_COLUMNS:
+        if column not in working_df.columns:
+            working_df[column] = pd.NA
+
+    df_out = pd.DataFrame(
+        {
+            "source": "synthetic_dorsal",
+            "user_id": "synthetic_" + working_df["sample_id"],
+            "age": working_df["age_norm"].astype(int),
+            "gender": working_df["gender_norm"],
+            "aspect": working_df["aspect_norm"],
+            "image_path": working_df["image_path_abs"],
+            "mask_path": working_df["mask_path_abs"],
+            "bbox": working_df["bbox_tuple"],
+            "skin_color": working_df["skin_color_norm"],
+            "synthetic_skin_label": working_df["synthetic_skin_label"],
+        }
+    )
+    for column in SYNTHETIC_PROVENANCE_COLUMNS:
+        df_out[column] = working_df[column].astype("string")
+    df_out = df_out.reset_index(drop=True)
+    print(
+        f"SyntheticDorsalHands -> images: {len(df_out)} | "
+        f"skin colours: {df_out['skin_color'].value_counts().to_dict()}"
+    )
+    return df_out
+
+
 def load_prolific_metadata(root: Optional[PathLike] = None) -> pd.DataFrame:
     """Load the ProlificHands export as an optional hand age source."""
     dataset_root = _resolve_root(root)
@@ -980,6 +1088,7 @@ def load_combined_metadata(
     include_handrgbd: bool = True,
     handrgbd_include_wall3: bool = False,
     include_hagrid: bool = False,
+    include_synthetic_dorsal: bool = False,
     include_prolific: bool = False,
     include_primary: bool = False,
     include_archive: bool = False,
@@ -996,6 +1105,8 @@ def load_combined_metadata(
     if include_hagrid:
         hagrid_df = load_hagrid_stop_inverted_metadata(root=root)
         sources.append(hagrid_df)
+    if include_synthetic_dorsal:
+        sources.append(load_synthetic_dorsal_metadata(root=root))
     if include_prolific:
         prolific_df = load_prolific_metadata(root=root)
         sources.append(prolific_df)
@@ -1084,6 +1195,12 @@ def _cli_main() -> None:
         help="Include the HaGRIDv2 stop_inverted dataset.",
     )
     parser.add_argument(
+        "--include-synthetic-dorsal",
+        action="store_true",
+        default=False,
+        help="Include the SyntheticDorsalHands dataset.",
+    )
+    parser.add_argument(
         "--include-prolific",
         action="store_true",
         default=False,
@@ -1107,6 +1224,7 @@ def _cli_main() -> None:
         root=args.root,
         include_handrgbd=args.include_handrgbd,
         include_hagrid=args.include_hagrid,
+        include_synthetic_dorsal=args.include_synthetic_dorsal,
         include_prolific=args.include_prolific,
         include_primary=args.include_primary,
         include_archive=args.include_archive,
@@ -1146,6 +1264,7 @@ def _cli_main() -> None:
                 "archive": "#dd8452",
                 "handrgbd": "#55a868",
                 "hagrid": "#c44e52",
+                "synthetic_dorsal": "#937860",
                 "prolific": "#8172b2",
             }
             palette = colour_map or default_colour_map

@@ -109,12 +109,13 @@ Dataset selection uses positive include flags consistently:
 |---|---|---|
 | HandRGBD | `--include-handrgbd` | `INCLUDE_HANDRGBD=1` |
 | HaGRIDv2 stop_inverted | `--include-hagrid` | `INCLUDE_HAGRID=1` |
+| SyntheticDorsalHands | `--include-synthetic-dorsal` | `INCLUDE_SYNTHETIC_DORSAL=1` |
 | ProlificHands | `--include-prolific` | `INCLUDE_PROLIFIC=1` |
 | 11kHands primary | `--include-primary` | `INCLUDE_PRIMARY=1` |
 | Archive | `--include-archive` | `INCLUDE_ARCHIVE=1` |
 | LUICIDHands training merge | `--include-lucid` | `INCLUDE_LUCID=1` |
 
-The distributed SLURM defaults are `INCLUDE_HANDRGBD=1`, `INCLUDE_PROLIFIC=1`, `INCLUDE_LUCID=1`, with HaGRID/primary/archive disabled unless explicitly enabled. ProlificHands is loaded from `HandsDatasets/ProlificHands/reference_prolific.csv`, uses masked RGB derivatives when present, and otherwise follows the same dorsal-image, known-age metadata filtering as the other age datasets.
+The distributed SLURM defaults are `INCLUDE_HANDRGBD=1`, `INCLUDE_PROLIFIC=1`, `INCLUDE_LUCID=1`, with HaGRID, SyntheticDorsalHands, primary, and archive disabled unless explicitly enabled. ProlificHands is loaded from `HandsDatasets/ProlificHands/reference_prolific.csv`, uses masked RGB derivatives when present, and otherwise follows the same dorsal-image, known-age metadata filtering as the other age datasets.
 
 #### Training loss
 
@@ -165,6 +166,7 @@ NORMALS_AUX=1 LOSS_WEIGHT_NORMALS=0.05 MODELS="b4" sbatch submit_distributed.slu
 | `LUCID_FRACTION` | `0.4` | Target fraction of each batch from LUICIDHands |
 | `INCLUDE_HANDRGBD` | `1` | Include HandRGBD in SLURM splits/training |
 | `INCLUDE_HAGRID` | `0` | Include HaGRIDv2 stop_inverted in SLURM splits/training |
+| `INCLUDE_SYNTHETIC_DORSAL` | `0` | Include SyntheticDorsalHands in SLURM splits/training |
 | `INCLUDE_PROLIFIC` | `1` | Include ProlificHands in distributed SLURM splits/training |
 | `INCLUDE_PRIMARY` | `0` | Include 11kHands primary in SLURM splits/training |
 | `INCLUDE_ARCHIVE` | `0` | Include archive dataset in SLURM splits/training |

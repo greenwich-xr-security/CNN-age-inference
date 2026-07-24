@@ -82,6 +82,12 @@ def parse_args() -> argparse.Namespace:
         help="Include the optional ProlificHands dataset when building the split.",
     )
     parser.add_argument(
+        "--include-synthetic-dorsal",
+        action="store_true",
+        default=False,
+        help="Include SyntheticDorsalHands when building the split.",
+    )
+    parser.add_argument(
         "--include-primary",
         action="store_true",
         default=False,
@@ -143,6 +149,7 @@ def main() -> None:
             root=get_dataset_root(),
             include_handrgbd=args.include_handrgbd,
             include_hagrid=args.include_hagrid,
+            include_synthetic_dorsal=args.include_synthetic_dorsal,
             include_prolific=args.include_prolific,
             include_primary=args.include_primary,
             include_archive=args.include_archive,

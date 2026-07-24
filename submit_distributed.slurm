@@ -122,19 +122,21 @@ TEST_SPLIT_SIZE="${TEST_SPLIT_SIZE:-0.15}"
 SPLIT_STRATIFY_MODE="${SPLIT_STRATIFY_MODE:-age_bins}"  # age_bins | age_bins_skin_color | adult | none
 RUN_TEST_EVAL="${RUN_TEST_EVAL:-1}"
 
-DATASET_ARGS=()
-[[ "${INCLUDE_HANDRGBD}" -gt 0 ]] && DATASET_ARGS+=(--include-handrgbd)
-[[ "${INCLUDE_HAGRID}" -gt 0 ]] && DATASET_ARGS+=(--include-hagrid)
-[[ "${INCLUDE_SYNTHETIC_DORSAL}" -gt 0 ]] && DATASET_ARGS+=(--include-synthetic-dorsal)
-[[ "${INCLUDE_PROLIFIC}" -gt 0 ]] && DATASET_ARGS+=(--include-prolific)
-[[ "${INCLUDE_PRIMARY}" -gt 0 ]] && DATASET_ARGS+=(--include-primary)
-[[ "${INCLUDE_ARCHIVE}" -gt 0 ]] && DATASET_ARGS+=(--include-archive)
-if [[ "${#DATASET_ARGS[@]}" -eq 0 ]]; then
-  echo "ERROR: enable at least one split dataset with INCLUDE_HANDRGBD, INCLUDE_HAGRID, INCLUDE_SYNTHETIC_DORSAL, INCLUDE_PROLIFIC, INCLUDE_PRIMARY, or INCLUDE_ARCHIVE." >&2
+# Real sources define the held-out test set. SyntheticDorsalHands can be added
+# to the training and k-fold validation pool, but never to that final test set.
+TEST_DATASET_ARGS=()
+[[ "${INCLUDE_HANDRGBD}" -gt 0 ]] && TEST_DATASET_ARGS+=(--include-handrgbd)
+[[ "${INCLUDE_HAGRID}" -gt 0 ]] && TEST_DATASET_ARGS+=(--include-hagrid)
+[[ "${INCLUDE_PROLIFIC}" -gt 0 ]] && TEST_DATASET_ARGS+=(--include-prolific)
+[[ "${INCLUDE_PRIMARY}" -gt 0 ]] && TEST_DATASET_ARGS+=(--include-primary)
+[[ "${INCLUDE_ARCHIVE}" -gt 0 ]] && TEST_DATASET_ARGS+=(--include-archive)
+if [[ "${#TEST_DATASET_ARGS[@]}" -eq 0 ]]; then
+  echo "ERROR: enable at least one real test dataset with INCLUDE_HANDRGBD, INCLUDE_HAGRID, INCLUDE_PROLIFIC, INCLUDE_PRIMARY, or INCLUDE_ARCHIVE." >&2
   exit 1
 fi
 
-TRAIN_DATASET_ARGS=("${DATASET_ARGS[@]}")
+TRAIN_DATASET_ARGS=("${TEST_DATASET_ARGS[@]}")
+[[ "${INCLUDE_SYNTHETIC_DORSAL}" -gt 0 ]] && TRAIN_DATASET_ARGS+=(--include-synthetic-dorsal)
 [[ "${INCLUDE_LUCID}" -gt 0 ]] && TRAIN_DATASET_ARGS+=(--include-lucid)
 
 # ── Create held-out test split (once, before any training) ───────────────────
@@ -147,7 +149,7 @@ if [[ ! -f "${TEST_SPLIT_FILE}" ]]; then
     --out-file "${TEST_SPLIT_FILE}" \
     --max-samples-per-user "${MAX_SAMPLES_PER_USER}" \
     --stratify-mode "${SPLIT_STRATIFY_MODE}" \
-    "${DATASET_ARGS[@]}"
+    "${TEST_DATASET_ARGS[@]}"
 else
   echo ">>> Using existing test split: ${TEST_SPLIT_FILE}"
 fi
@@ -174,7 +176,7 @@ for USER_GROUP_SIZE in ${USER_GROUP_SIZES}; do
             --test-users-file "${TEST_SPLIT_FILE}" \
             --max-samples-per-user "${MAX_SAMPLES_PER_USER}" \
             --stratify-mode "${SPLIT_STRATIFY_MODE}" \
-            "${DATASET_ARGS[@]}" \
+            "${TRAIN_DATASET_ARGS[@]}" \
             $( [[ "${FOLD_OVERWRITE}" -gt 0 ]] && echo "--overwrite" )
         fi
         for ((FOLD_IDX=0; FOLD_IDX<KFOLDS; FOLD_IDX++)); do

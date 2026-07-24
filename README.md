@@ -117,6 +117,8 @@ Dataset selection uses positive include flags consistently:
 
 The distributed SLURM defaults are `INCLUDE_HANDRGBD=1`, `INCLUDE_PROLIFIC=1`, `INCLUDE_LUCID=1`, with HaGRID, SyntheticDorsalHands, primary, and archive disabled unless explicitly enabled. ProlificHands is loaded from `HandsDatasets/ProlificHands/reference_prolific.csv`, uses masked RGB derivatives when present, and otherwise follows the same dorsal-image, known-age metadata filtering as the other age datasets.
 
+When `INCLUDE_SYNTHETIC_DORSAL=1`, SyntheticDorsalHands is included in training and k-fold validation only. The locked held-out test split is always constructed from the enabled real datasets, so synthetic samples cannot enter final test metrics.
+
 #### Training loss
 
 ```

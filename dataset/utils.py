@@ -166,14 +166,32 @@ def filter_metadata(
     max_samples_per_user: int | None = None,
     max_samples_per_age_bin: int | None = 200,
 ) -> pd.DataFrame:
-    """Keep dorsal images with known ages, cast ages to float, and apply diversity-aware sample caps."""
+    """Keep dorsal images with known ages and cap only real-source samples.
+
+    SyntheticDorsalHands contains independent generated samples rather than
+    repeated identities.  It is deliberately excluded from both caps: a
+    per-user cap is not meaningful and an age-bin cap would silently remove
+    much of the synthetic distribution.
+    """
     df = df[df["aspect"].str.contains("dorsal", case=False, na=False)]
     df = df[df["age"].notna()]
     df = df.copy()
     df["age"] = df["age"].astype(float)
-    df = _limit_samples_per_user(df, max_samples_per_user)
-    df = _limit_samples_per_age_bin(df, max_samples_per_age_bin)
-    return df.reset_index(drop=True)
+
+    synthetic_mask = df["source"].astype(str).eq("synthetic_dorsal")
+    real_df = df.loc[~synthetic_mask].copy()
+    synthetic_df = df.loc[synthetic_mask].copy()
+
+    real_df = _limit_samples_per_user(real_df, max_samples_per_user)
+    real_df = _limit_samples_per_age_bin(real_df, max_samples_per_age_bin)
+
+    if not synthetic_df.empty:
+        print(
+            f"SyntheticDorsalHands bypassed per-user and per-age-bin caps: "
+            f"retained {len(synthetic_df)} images."
+        )
+
+    return pd.concat([real_df, synthetic_df], ignore_index=True)
 
 
 def _format_age_bin_label(lower: int, upper: int) -> str:

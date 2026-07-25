@@ -11,7 +11,7 @@ from pathlib import Path
 import numpy as np
 
 import matplotlib
-from metrics import compute_adult_probabilities
+from metrics import compute_adult_probabilities, compute_age_gate_curves_direct_threshold
 
 
 matplotlib.use("Agg")
@@ -140,6 +140,28 @@ def parse_args() -> argparse.Namespace:
         "--skip-variability",
         action="store_true",
         help="Skip intra-user variability comparison (requires <split>_predictions_raw_ddp.npz).",
+    )
+    parser.add_argument(
+        "--age-gate-mode",
+        type=str,
+        default="auto",
+        choices=["auto", "probability", "age_threshold"],
+        help=(
+            "How to rebuild adult-gate ROC curves. 'auto' uses direct age-threshold ROC "
+            "when adult_prob is a binary placeholder, otherwise probability ROC."
+        ),
+    )
+    parser.add_argument(
+        "--age-gate-threshold-min",
+        type=float,
+        default=10.0,
+        help="Minimum predicted-age threshold for --age-gate-mode age_threshold (default: 10).",
+    )
+    parser.add_argument(
+        "--age-gate-threshold-max",
+        type=float,
+        default=30.0,
+        help="Maximum predicted-age threshold for --age-gate-mode age_threshold (default: 30).",
     )
     return parser.parse_args()
 
@@ -341,6 +363,80 @@ def load_adult_gate_scores(path: Path) -> tuple[np.ndarray, np.ndarray]:
         raise ValueError(f"Missing adult gate scores in {path}")
     mask = np.isfinite(targets) & np.isfinite(adult_prob)
     return targets[mask], adult_prob[mask]
+
+
+def adult_prob_is_binary_placeholder(adult_prob: np.ndarray) -> bool:
+    finite = np.asarray(adult_prob, dtype=float)
+    finite = finite[np.isfinite(finite)]
+    if finite.size == 0:
+        return False
+    unique = np.unique(finite)
+    return unique.size <= 2 and np.all(np.isin(unique, [0.0, 1.0]))
+
+
+def normalize_roc_points(fprs: np.ndarray, tprs: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    fprs_arr = np.asarray(fprs, dtype=float)
+    tprs_arr = np.asarray(tprs, dtype=float)
+    mask = np.isfinite(fprs_arr) & np.isfinite(tprs_arr)
+    fprs_arr = fprs_arr[mask]
+    tprs_arr = tprs_arr[mask]
+    if fprs_arr.size == 0:
+        return np.asarray([0.0, 1.0]), np.asarray([0.0, 1.0])
+
+    order = np.argsort(fprs_arr)
+    fprs_sorted = fprs_arr[order]
+    tprs_sorted = tprs_arr[order]
+    uniq_fprs = np.unique(fprs_sorted)
+    uniq_tprs = np.asarray(
+        [np.max(tprs_sorted[fprs_sorted == fpr]) for fpr in uniq_fprs],
+        dtype=float,
+    )
+    return uniq_fprs, uniq_tprs
+
+
+def load_adult_gate_curve(
+    path: Path,
+    *,
+    mode: str = "auto",
+    age_min: float = 10.0,
+    age_max: float = 30.0,
+    num_thresholds: int = 201,
+) -> tuple[np.ndarray, np.ndarray, float]:
+    data = np.load(path)
+    if "targets" not in data:
+        raise ValueError(f"Missing required keys in {path}")
+
+    targets = np.asarray(data["targets"], dtype=float)
+    pred_mean = np.asarray(data["pred_mean"], dtype=float) if "pred_mean" in data else None
+    adult_prob = np.asarray(data["adult_prob"], dtype=float) if "adult_prob" in data else None
+
+    use_age_threshold = mode == "age_threshold"
+    if mode == "auto" and adult_prob is not None and pred_mean is not None:
+        use_age_threshold = adult_prob_is_binary_placeholder(adult_prob)
+
+    if use_age_threshold:
+        if pred_mean is None:
+            raise ValueError(f"Missing pred_mean for age-threshold ROC in {path}")
+        mask = np.isfinite(targets) & np.isfinite(pred_mean)
+        gate = compute_age_gate_curves_direct_threshold(
+            targets[mask],
+            pred_mean[mask],
+            age_min=age_min,
+            age_max=age_max,
+            num_thresholds=num_thresholds,
+        )["adult_gate"]
+        fprs, tprs = normalize_roc_points(
+            np.asarray(gate["fpr"], dtype=float),
+            np.asarray(gate["tpr"], dtype=float),
+        )
+        return (
+            fprs,
+            tprs,
+            float(gate["auc"]),
+        )
+
+    gate_targets, gate_scores = load_adult_gate_scores(path)
+    return compute_adult_gate_roc(gate_targets, gate_scores, num_thresholds=num_thresholds)
 
 
 def compute_adult_gate_roc(
@@ -981,8 +1077,13 @@ def main() -> None:
                 }
             )
             try:
-                gate_targets, adult_prob = load_adult_gate_scores(pred_path)
-                roc_fpr, roc_tpr, roc_auc = compute_adult_gate_roc(gate_targets, adult_prob)
+                roc_fpr, roc_tpr, roc_auc = load_adult_gate_curve(
+                    pred_path,
+                    mode=args.age_gate_mode,
+                    age_min=args.age_gate_threshold_min,
+                    age_max=args.age_gate_threshold_max,
+                    num_thresholds=201,
+                )
                 roc_pauc, roc_pauc_norm = compute_partial_auc(roc_fpr, roc_tpr, max_fpr=0.1)
                 roc_fold_data.setdefault(run_dir.name, []).append(
                     {

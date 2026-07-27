@@ -306,6 +306,12 @@ def main() -> None:
         help="Weight for the Gaussian NLL component (default: 0.5; set to 1.0 for legacy behaviour).",
     )
     parser.add_argument(
+        "--loss-weight-crps",
+        type=float,
+        default=0.0,
+        help="Weight for the Gaussian CRPS component (default: 0.0).",
+    )
+    parser.add_argument(
         "--loss-weight-mse",
         type=float,
         default=0.25,
@@ -388,6 +394,7 @@ def main() -> None:
     args = parser.parse_args()
     loss_weights = LossWeights(
         nll=args.loss_weight_nll,
+        crps=args.loss_weight_crps,
         mse=args.loss_weight_mse,
         mae=args.loss_weight_mae,
     )

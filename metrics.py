@@ -35,14 +35,20 @@ class LossWeights:
     """Container for regression loss weights."""
 
     nll: float = 1.0
+    crps: float = 0.0
     mse: float = 0.0
     mae: float = 0.0
 
     def validate(self) -> None:
-        for name, value in (("nll", self.nll), ("mse", self.mse), ("mae", self.mae)):
+        for name, value in (
+            ("nll", self.nll),
+            ("crps", self.crps),
+            ("mse", self.mse),
+            ("mae", self.mae),
+        ):
             if value < 0:
                 raise ValueError(f"{name} weight must be non-negative (got {value}).")
-        if self.nll + self.mse + self.mae <= 0:
+        if self.nll + self.crps + self.mse + self.mae <= 0:
             raise ValueError("At least one loss weight must be greater than zero.")
 
 
@@ -68,6 +74,27 @@ def gaussian_nll_loss(
     log_var = torch.clamp(pred_log_var, min=LOG_VAR_MIN, max=LOG_VAR_MAX)
     inv_var = torch.exp(-log_var)
     loss = 0.5 * (log_var + (target - pred_mean) ** 2 * inv_var)
+    return _reduce_mean(loss, sample_weights)
+
+
+def gaussian_crps_loss(
+    pred_mean: torch.Tensor,
+    pred_log_var: torch.Tensor,
+    target: torch.Tensor,
+    sample_weights: torch.Tensor | None = None,
+) -> torch.Tensor:
+    """Continuous ranked probability score for a Gaussian forecast.
+
+    This is a strictly proper scoring rule for the full predictive
+    distribution.  It evaluates both the predicted age mean and uncertainty
+    without the log-density sensitivity of Gaussian NLL.
+    """
+    log_var = torch.clamp(pred_log_var, min=LOG_VAR_MIN, max=LOG_VAR_MAX)
+    std = torch.exp(0.5 * log_var)
+    z = (target - pred_mean) / std
+    normal_cdf = 0.5 * (1.0 + torch.erf(z / math.sqrt(2.0)))
+    normal_pdf = torch.exp(-0.5 * z.square()) / math.sqrt(2.0 * math.pi)
+    loss = std * (z * (2.0 * normal_cdf - 1.0) + 2.0 * normal_pdf - 1.0 / math.sqrt(math.pi))
     return _reduce_mean(loss, sample_weights)
 
 
@@ -156,11 +183,14 @@ def weighted_regression_loss(
     weights: LossWeights,
     sample_weights: torch.Tensor | None = None,
 ) -> torch.Tensor:
-    """Return weighted combination of Gaussian NLL, MSE, and MAE components."""
+    """Return weighted combination of Gaussian NLL, CRPS, MSE, and MAE."""
     total_loss: torch.Tensor | None = None
     if weights.nll > 0:
         nll = gaussian_nll_loss(pred_mean, pred_log_var, target, sample_weights)
         total_loss = weights.nll * nll
+    if weights.crps > 0:
+        crps = gaussian_crps_loss(pred_mean, pred_log_var, target, sample_weights)
+        total_loss = crps * weights.crps if total_loss is None else total_loss + weights.crps * crps
     if weights.mse > 0:
         mse = mse_loss(pred_mean, target, sample_weights)
         total_loss = mse * weights.mse if total_loss is None else total_loss + weights.mse * mse

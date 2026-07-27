@@ -63,6 +63,7 @@ EPOCHS="${EPOCHS:-240}"
 
 # Losses copied from the best saved run (v2_medium_newdata_ug4_dark_128_wd02_embed08).
 LOSS_WEIGHT_NLL="${LOSS_WEIGHT_NLL:-0.6}"
+LOSS_WEIGHT_CRPS="${LOSS_WEIGHT_CRPS:-0.0}"
 LOSS_WEIGHT_MSE="${LOSS_WEIGHT_MSE:-0.4}"
 LOSS_WEIGHT_MAE="${LOSS_WEIGHT_MAE:-0.9}"
 LOSS_WEIGHT_SPREAD="${LOSS_WEIGHT_SPREAD:-0.5}"
@@ -215,6 +216,7 @@ for USER_GROUP_SIZE in ${USER_GROUP_SIZES}; do
             --patience "${PATIENCE}" \
             --max-samples-per-user "${MAX_SAMPLES_PER_USER}" \
             --loss-weight-nll "${LOSS_WEIGHT_NLL}" \
+            --loss-weight-crps "${LOSS_WEIGHT_CRPS}" \
             --loss-weight-mse "${LOSS_WEIGHT_MSE}" \
             --loss-weight-mae "${LOSS_WEIGHT_MAE}" \
             --loss-weight-spread "${LOSS_WEIGHT_SPREAD}" \
@@ -279,6 +281,7 @@ for USER_GROUP_SIZE in ${USER_GROUP_SIZES}; do
           --patience "${PATIENCE}" \
           --max-samples-per-user "${MAX_SAMPLES_PER_USER}" \
           --loss-weight-nll "${LOSS_WEIGHT_NLL}" \
+          --loss-weight-crps "${LOSS_WEIGHT_CRPS}" \
           --loss-weight-mse "${LOSS_WEIGHT_MSE}" \
           --loss-weight-mae "${LOSS_WEIGHT_MAE}" \
           --loss-weight-spread "${LOSS_WEIGHT_SPREAD}" \

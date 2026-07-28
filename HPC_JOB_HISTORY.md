@@ -1,85 +1,60 @@
 # HPC job history
 
-## Active and queued jobs
+All completed runs below used EfficientNet-V2-S at 384 px, seed 42, five folds,
+four GPUs, 16 CPU cores, 64 GB RAM, and batch size 16 per GPU unless noted.
 
-| Slurm job | Run directory | Purpose | Resources | State |
+## Job registry
+
+| Job | State / elapsed | Dataset and split | Objective / change | Purpose |
 | --- | --- | --- | --- | --- |
-| `1050704` | `runs/v2s_handrgbd_prolific_only_nll_4gpu_16cpu_20260727_384` | Pure Gaussian-NLL counterpart to job `1050688` | 4 GPUs, 16 CPU cores, 64 GB RAM; batch 16 per GPU | `RUNNING` |
-| `1050705` | `runs/v2s_handrgbd_prolific_only_crps_4gpu_16cpu_20260727_384` | Pure Gaussian-CRPS counterpart to job `1050704` | 4 GPUs, 16 CPU cores, 64 GB RAM; batch 16 per GPU | `RUNNING` |
-| `1050710` | `runs/v2s_handrgbd_prolific_synthetic_trainval_nll_4gpu_16cpu_20260727_384` | Pure Gaussian-NLL real + SyntheticDorsalHands counterpart to job `1050689` | 4 GPUs, 16 CPU cores, 64 GB RAM; batch 16 per GPU | `PENDING` (resources) |
+| `1050688` | Completed / 2:53:46 | Real only; original capped 15% test | Historical mixed loss | Baseline real-only run |
+| `1050689` | Completed / 3:34:49 | Real + SyntheticDorsalHands; original capped 15% test | Historical mixed loss | Original synthetic-data comparison |
+| `1050704` | Completed / 6:00:31 | Real only; original capped 15% test | Pure Gaussian NLL | Clean loss baseline |
+| `1050705` | Completed / 2:37:17 | Real only; original capped 15% test | Pure Gaussian CRPS | Proper-score loss comparison |
+| `1050710` | Completed / 4:12:21 | Real + synthetic; original capped 15% test | Pure Gaussian NLL | Clean synthetic-data comparison |
+| `1050711` | Completed / 5:55:39 | Real only; original capped 15% test | NLL + embedding variance (0.8) | Test same-user latent consistency |
+| `1050749` | Cancelled / 00:22:53 | Superseded uncapped real-only plan | Pure NLL | Replaced before training by fixed 20%-test split |
+| `1050750` | Cancelled / 00:22:53 | Superseded uncapped real + synthetic plan | Pure NLL | Replaced before training by fixed 20%-test split |
+| `1050753` | Completed / 5:18:12 | Real only; uncapped fixed 20% test | Pure Gaussian NLL | Effect of removing both real-data caps |
+| `1050754` | Completed / 3:51:07 | Real + synthetic; uncapped fixed 20% test | Pure Gaussian NLL | Synthetic comparison without real-data caps |
 
-This run reuses the fixed 96-user real test split, HandRGBD + ProlificHands
-data, 20-images-per-user and 200-images-per-age caps, V2-S at 384 px, five
-folds, seed 42, 240 epochs, and patience 10. Its only objective is Gaussian
-NLL: MSE, MAE, within-user spread, and embedding losses are all disabled.
-Job `1050705` has the identical protocol but uses CRPS as its only regression
-objective. Together, the two runs compare the MAE/RMSE and adult-gate trade-offs
-of two clean probabilistic objectives against the mixed-loss job `1050688`.
+Historical mixed loss: NLL 0.6 + MAE 0.9 + prediction spread 0.5 +
+embedding variance 0.8 + embedding contrast 0.8. Pure objectives disable all
+other listed losses. “Capped” means maximum 20 images per real user and 200
+real images per integer age; synthetic images bypassed those caps by design.
 
-Job `1050710` extends the pure-NLL comparison to HandRGBD + ProlificHands +
-SyntheticDorsalHands, using the same locked real-user test split as `1050689`.
-It keeps only image-level aggregation (`n=1`) because synthetic images do not
-have compatible user groups; all non-NLL losses and age reweighting are disabled.
-It was submitted on 2026-07-27 and is awaiting the four-GPU allocation.
+## Results: original capped 15% test split
 
-Submitted on 2026-07-24 to answer the real-versus-synthetic distribution
-question. Both jobs use EfficientNet-V2-S at 384 px, five folds, seed 42,
-240 epochs with patience 10, and the same fixed real-user test split:
+All values are unweighted means of five held-out fold results at image-level
+aggregation (`n=1`). FPR and Adult FNR use each fold's best operating point
+with FPR <= 5%, then average the achieved values.
 
-`runs/v2s_handrgbd_prolific_only_2gpu_20260724_384/test_users.json`.
+| Training data | Objective | MAE (years) | RMSE (years) | Adult-gate AUC | Mean FPR | Adult FNR |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| Real only | Historical mixed (`1050688`) | 5.064 | 6.532 | 0.9679 | 4.47% | 13.11% |
+| Real only | Pure NLL (`1050704`) | **4.891** | **6.391** | 0.9578 | 4.57% | 16.94% |
+| Real only | NLL + EmbedVar (`1050711`) | 5.090 | 6.649 | 0.9589 | 4.57% | 14.40% |
+| Real only | Pure CRPS (`1050705`) | 5.076 | 6.673 | 0.9598 | 4.29% | 14.24% |
+| Real + synthetic | Historical mixed (`1050689`) | 4.636 | **6.093** | 0.9544 | 4.57% | 16.28% |
+| Real + synthetic | Pure NLL (`1050710`) | **4.592** | 6.220 | **0.9632** | 4.57% | **15.08%** |
 
-| Slurm job | Run directory | Training data | Resources | DDP port |
-| --- | --- | --- | --- | --- |
-| `1050688` | `runs/v2s_handrgbd_prolific_only_4gpu_16cpu_20260724_384` | HandRGBD + ProlificHands | 4 GPUs, 16 CPU cores, 64 GB RAM; batch 16 per GPU | 29685 |
-| `1050689` | `runs/v2s_handrgbd_prolific_synthetic_trainval_4gpu_16cpu_20260724_384` | HandRGBD + ProlificHands + SyntheticDorsalHands | 4 GPUs, 16 CPU cores, 64 GB RAM; batch 16 per GPU | 29686 |
+## Results: uncapped fixed 20% test split
 
-## Completion status
+The test users and images differ from the table above, so compare only the two
+rows in this table with each other, not with the capped 15% test results.
 
-Both jobs completed successfully on 2026-07-24 with exit code 0.
+| Training data | Objective | MAE (years) | RMSE (years) | Adult-gate AUC | Mean FPR | Adult FNR |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| Real only | Pure NLL (`1050753`) | 5.017 | 6.706 | 0.9483 | 4.74% | 18.33% |
+| Real + synthetic | Pure NLL (`1050754`) | **4.683** | **6.293** | **0.9594** | 4.78% | **17.91%** |
 
-| Slurm job | State | Elapsed time | Verified allocation |
-| --- | --- | --- | --- |
-| `1050688` | `COMPLETED` | 2:53:46 | 4 GPUs, 16 CPUs, 64 GB RAM |
-| `1050689` | `COMPLETED` | 3:34:49 | 4 GPUs, 16 CPUs, 64 GB RAM |
+## Fixed uncapped split manifests
 
-## Held-out test results
+The uncapped runs use 20% held-out real users and five folds over the remaining
+80%, giving 64% train / 16% validation / 20% test users per fold.
 
-Each fold was evaluated on the same locked real-data test set of 96 users and
-1,069 images. Values below are the unweighted mean of the five per-fold test
-metrics at image-level aggregation (`n=1`).
-
-| Training data | MAE (years) | RMSE (years) | Adult-gate AUC |
-| --- | ---: | ---: | ---: |
-| HandRGBD + ProlificHands | 5.064 | 6.532 | 0.968 |
-| HandRGBD + ProlificHands + SyntheticDorsalHands | 4.636 | 6.093 | 0.954 |
-
-Adding SyntheticDorsalHands improved point age estimation: MAE decreased by
-0.428 years (8.4%) and RMSE by 0.439 years (6.7%). Every fold had lower test
-MAE with synthetic training data. Adult-gate ranking did not improve: AUC
-decreased by 0.0135 (0.968 to 0.954). The synthetic data is therefore
-promising for age regression accuracy, but should not yet be adopted for an
-adult/minor gate without further gate-specific tuning and evaluation.
-
-## Data-handling details
-
-- Real data retains the pipeline's per-user cap of 20 images and per-age cap
-  of 200 images.
-- SyntheticDorsalHands is uncapped: all 13,451 images remain in the
-  training/validation pool.
-- Synthetic samples are image-level rather than identity-level. The
-  submission script automatically uses `USER_GROUP_SIZES=1` and
-  `AGG_SIZES=1` whenever SyntheticDorsalHands is included, preventing
-  artificial duplication in training and dropped samples during evaluation.
-- The 96 fixed real held-out users are excluded from both training and
-  validation. Synthetic images are not part of that real-user test set.
-
-## Monitoring
-
-```bash
-ssh -l 'rb3434w@staff' 100.96.122.39 "tail -f ~/CNN-age-inference/logs/v2s-hrgbd-prolific-4g16c-1050688.log"
-ssh -l 'rb3434w@staff' 100.96.122.39 "tail -f ~/CNN-age-inference/logs/v2s-hrgbd-pro-synth-4g16c-1050689.log"
-```
-
-The preceding 4-GPU/4-core attempts were cancelled because GPU utilisation
-showed data-loader starvation. These replacement jobs allocated 16 CPU cores
-to support four DDP ranks and two loader workers per rank.
+| File | Used by |
+| --- | --- |
+| `splits/test_users_uncapped_20pct_seed42.json` | Both uncapped runs; 128 fixed held-out real users |
+| `splits/folds_k5_uncapped_test20_real_seed42.json` | `1050753` real-only run |
+| `splits/folds_k5_uncapped_test20_real_synthetic_seed42.json` | `1050754` real + synthetic run |

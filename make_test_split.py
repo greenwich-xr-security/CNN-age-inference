@@ -59,6 +59,12 @@ def parse_args() -> argparse.Namespace:
         help="Maximum samples per user after dorsal filtering (default: 20; set 0 to disable).",
     )
     parser.add_argument(
+        "--max-samples-per-age-bin",
+        type=int,
+        default=200,
+        help="Maximum samples per integer age year after filtering (default: 200; set 0 to disable).",
+    )
+    parser.add_argument(
         "--no-stratify",
         action="store_true",
         help="Disable split stratification entirely.",
@@ -154,7 +160,8 @@ def main() -> None:
             include_primary=args.include_primary,
             include_archive=args.include_archive,
         ),
-        max_samples_per_user=args.max_samples_per_user,
+        max_samples_per_user=args.max_samples_per_user or None,
+        max_samples_per_age_bin=args.max_samples_per_age_bin or None,
     )
 
     stratify_mode = "none" if args.no_stratify else args.stratify_mode

@@ -6,6 +6,7 @@ from .hand_metadata import (
     load_handrgbd_metadata,
     load_primary_metadata,
     load_synthetic_dorsal_metadata,
+    load_synthetic_dorsal_hands2_metadata,
     set_dataset_root,
 )
 from .age import AgeDataset
@@ -19,6 +20,7 @@ __all__ = [
     "load_handrgbd_metadata",
     "load_primary_metadata",
     "load_synthetic_dorsal_metadata",
+    "load_synthetic_dorsal_hands2_metadata",
     "set_dataset_root",
     "AgeDataset",
     "build_transforms",

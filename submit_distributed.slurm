@@ -102,19 +102,20 @@ USE_MASKS="${USE_MASKS:-0}"                        # set >0 to apply dataset mas
 INCLUDE_HANDRGBD="${INCLUDE_HANDRGBD:-1}"          # set 0 to exclude HandRGBD
 INCLUDE_HAGRID="${INCLUDE_HAGRID:-0}"              # set >0 to include HaGRIDv2
 INCLUDE_SYNTHETIC_DORSAL="${INCLUDE_SYNTHETIC_DORSAL:-0}" # set >0 to include SyntheticDorsalHands
+INCLUDE_SYNTHETIC_DORSAL2="${INCLUDE_SYNTHETIC_DORSAL2:-0}" # set >0 to include SyntheticDorsalHands2
 INCLUDE_PROLIFIC="${INCLUDE_PROLIFIC:-1}"          # set >0 to include ProlificHands
 INCLUDE_PRIMARY="${INCLUDE_PRIMARY:-0}"            # set >0 to include 11kHands primary
 INCLUDE_ARCHIVE="${INCLUDE_ARCHIVE:-0}"            # set >0 to include archive dataset
 INCLUDE_LUCID="${INCLUDE_LUCID:-1}"                # set 0 to disable LUICID training merge
 
-# SyntheticDorsalHands has one generated image per sample, rather than multiple
-# images per person.  User groups larger than one would therefore duplicate an
-# image during training, while evaluation groups larger than one would drop it
-# (the aggregation step discards incomplete groups).  Keep synthetic runs at
-# image level, regardless of the generic real-data defaults above.
-if [[ "${INCLUDE_SYNTHETIC_DORSAL}" -gt 0 ]]; then
+# SyntheticDorsalHands datasets have one generated image per sample, rather
+# than multiple images per person. User groups larger than one would therefore
+# duplicate an image during training, while evaluation groups larger than one
+# would drop it (the aggregation step discards incomplete groups). Keep
+# synthetic runs at image level, regardless of the generic real-data defaults.
+if [[ "${INCLUDE_SYNTHETIC_DORSAL}" -gt 0 || "${INCLUDE_SYNTHETIC_DORSAL2}" -gt 0 ]]; then
   if [[ "${USER_GROUP_SIZES}" != "1" || "${AGG_SIZES}" != "1" ]]; then
-    echo ">>> SyntheticDorsalHands detected: forcing USER_GROUP_SIZES=1 and AGG_SIZES=1."
+    echo ">>> SyntheticDorsalHands source detected: forcing USER_GROUP_SIZES=1 and AGG_SIZES=1."
   fi
   USER_GROUP_SIZES="1"
   AGG_SIZES="1"
@@ -138,8 +139,9 @@ TEST_SPLIT_SIZE="${TEST_SPLIT_SIZE:-0.15}"
 SPLIT_STRATIFY_MODE="${SPLIT_STRATIFY_MODE:-age_bins}"  # age_bins | age_bins_skin_color | adult | none
 RUN_TEST_EVAL="${RUN_TEST_EVAL:-1}"
 
-# Real sources define the held-out test set. SyntheticDorsalHands can be added
-# to the training and k-fold validation pool, but never to that final test set.
+# Real sources define the held-out test set. SyntheticDorsalHands sources can
+# be added to the training and k-fold validation pool, but never to that final
+# test set.
 TEST_DATASET_ARGS=()
 [[ "${INCLUDE_HANDRGBD}" -gt 0 ]] && TEST_DATASET_ARGS+=(--include-handrgbd)
 [[ "${INCLUDE_HAGRID}" -gt 0 ]] && TEST_DATASET_ARGS+=(--include-hagrid)
@@ -153,6 +155,7 @@ fi
 
 TRAIN_DATASET_ARGS=("${TEST_DATASET_ARGS[@]}")
 [[ "${INCLUDE_SYNTHETIC_DORSAL}" -gt 0 ]] && TRAIN_DATASET_ARGS+=(--include-synthetic-dorsal)
+[[ "${INCLUDE_SYNTHETIC_DORSAL2}" -gt 0 ]] && TRAIN_DATASET_ARGS+=(--include-synthetic-dorsal2)
 [[ "${INCLUDE_LUCID}" -gt 0 ]] && TRAIN_DATASET_ARGS+=(--include-lucid)
 
 # ── Create held-out test split (once, before any training) ───────────────────

@@ -100,6 +100,12 @@ def parse_args() -> argparse.Namespace:
         help="Include SyntheticDorsalHands when building folds.",
     )
     parser.add_argument(
+        "--include-synthetic-dorsal2",
+        action="store_true",
+        default=False,
+        help="Include SyntheticDorsalHands2 when building folds.",
+    )
+    parser.add_argument(
         "--include-primary",
         action="store_true",
         default=False,
@@ -159,6 +165,7 @@ def main() -> None:
             include_handrgbd=args.include_handrgbd,
             include_hagrid=args.include_hagrid,
             include_synthetic_dorsal=args.include_synthetic_dorsal,
+            include_synthetic_dorsal2=args.include_synthetic_dorsal2,
             include_prolific=args.include_prolific,
             include_primary=args.include_primary,
             include_archive=args.include_archive,

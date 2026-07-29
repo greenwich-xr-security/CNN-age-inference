@@ -129,6 +129,12 @@ def parse_args() -> argparse.Namespace:
         help="Include SyntheticDorsalHands when resolving held-out test users.",
     )
     parser.add_argument(
+        "--include-synthetic-dorsal2",
+        action="store_true",
+        default=False,
+        help="Include SyntheticDorsalHands2 when resolving held-out test users.",
+    )
+    parser.add_argument(
         "--include-primary",
         action="store_true",
         default=False,
@@ -200,6 +206,7 @@ def main() -> None:
             include_handrgbd=getattr(args, "include_handrgbd", False),
             include_hagrid=getattr(args, "include_hagrid", False),
             include_synthetic_dorsal=getattr(args, "include_synthetic_dorsal", False),
+            include_synthetic_dorsal2=getattr(args, "include_synthetic_dorsal2", False),
             include_prolific=getattr(args, "include_prolific", False),
             include_primary=getattr(args, "include_primary", False),
             include_archive=getattr(args, "include_archive", False),

@@ -202,6 +202,12 @@ def parse_args() -> argparse.Namespace:
         help="Include SyntheticDorsalHands in training/validation/test metadata.",
     )
     parser.add_argument(
+        "--include-synthetic-dorsal2",
+        action="store_true",
+        default=False,
+        help="Include SyntheticDorsalHands2 in training/validation/test metadata.",
+    )
+    parser.add_argument(
         "--include-prolific",
         action="store_true",
         default=False,
@@ -466,6 +472,7 @@ def build_datasets(args: argparse.Namespace, seed: int, img_size: int):
             include_handrgbd=getattr(args, "include_handrgbd", False),
             include_hagrid=getattr(args, "include_hagrid", False),
             include_synthetic_dorsal=getattr(args, "include_synthetic_dorsal", False),
+            include_synthetic_dorsal2=getattr(args, "include_synthetic_dorsal2", False),
             include_prolific=getattr(args, "include_prolific", False),
             include_primary=getattr(args, "include_primary", False),
             include_archive=getattr(args, "include_archive", False),
@@ -575,6 +582,7 @@ def load_filtered_test_metadata(args: argparse.Namespace, active_root) -> pd.Dat
             include_handrgbd=getattr(args, "include_handrgbd", False),
             include_hagrid=getattr(args, "include_hagrid", False),
             include_synthetic_dorsal=getattr(args, "include_synthetic_dorsal", False),
+            include_synthetic_dorsal2=getattr(args, "include_synthetic_dorsal2", False),
             include_prolific=getattr(args, "include_prolific", False),
             include_primary=getattr(args, "include_primary", False),
             include_archive=getattr(args, "include_archive", False),

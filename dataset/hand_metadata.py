@@ -874,6 +874,73 @@ def load_synthetic_dorsal_metadata(root: Optional[PathLike] = None) -> pd.DataFr
     return df_out
 
 
+def load_synthetic_dorsal_hands2_metadata(root: Optional[PathLike] = None) -> pd.DataFrame:
+    """Load SyntheticDorsalHands2 images by parsing filenames in the rgb/ directory.
+
+    Unlike V1 (which uses a reference CSV), V2 encodes all metadata in the filename:
+    ``job{jobid}_age_{age}_{sex}_{ita_group}_{idx}.png``.  Each image is an
+    independent generated sample, so each gets its own synthetic user ID.
+    """
+    dataset_root = _resolve_root(root)
+    synthetic_root = dataset_root / "SyntheticDorsalHands2"
+    rgb_root = synthetic_root / "rgb"
+
+    empty_cols = [
+        "source", "user_id", "age", "gender", "aspect", "image_path",
+        "skin_color", "synthetic_skin_label",
+    ]
+    if not rgb_root.exists():
+        print(f"[SyntheticDorsalHands2] rgb folder not found: {rgb_root}")
+        return pd.DataFrame(columns=empty_cols)
+
+    ita_groups = "|".join(re.escape(k) for k in _SYNTHETIC_SKIN_LABEL_MAP)
+    pattern = re.compile(
+        rf"^(job\d+)_age_(\d+)_(female|male)_({ita_groups})_(\d+)\.png$"
+    )
+    records = []
+    for img_path in rgb_root.glob("*.png"):
+        m = pattern.match(img_path.name)
+        if m is None:
+            continue
+        age = int(m.group(2))
+        sex = m.group(3)
+        ita_group = m.group(4)
+        records.append({
+            "sample_id": img_path.stem,
+            "image_path": img_path,
+            "age": age,
+            "gender": sex,
+            "ita_group": ita_group,
+        })
+
+    if not records:
+        print(f"[SyntheticDorsalHands2] No matching images found in {rgb_root}")
+        return pd.DataFrame(columns=empty_cols)
+
+    df = pd.DataFrame(records)
+    df["skin_color"] = df["ita_group"].map(_SYNTHETIC_SKIN_LABEL_MAP)
+    df["synthetic_skin_label"] = df["ita_group"]
+
+    df_out = pd.DataFrame(
+        {
+            "source": "synthetic_dorsal2",
+            "user_id": "synthetic2_" + df["sample_id"],
+            "age": df["age"],
+            "gender": df["gender"],
+            "aspect": "dorsal",
+            "image_path": df["image_path"],
+            "skin_color": df["skin_color"],
+            "synthetic_skin_label": df["synthetic_skin_label"],
+        }
+    )
+    df_out = df_out.reset_index(drop=True)
+    print(
+        f"SyntheticDorsalHands2 -> images: {len(df_out)} | "
+        f"skin colours: {df_out['skin_color'].value_counts().to_dict()}"
+    )
+    return df_out
+
+
 def load_prolific_metadata(root: Optional[PathLike] = None) -> pd.DataFrame:
     """Load the ProlificHands export as an optional hand age source."""
     dataset_root = _resolve_root(root)
@@ -1089,6 +1156,7 @@ def load_combined_metadata(
     handrgbd_include_wall3: bool = False,
     include_hagrid: bool = False,
     include_synthetic_dorsal: bool = False,
+    include_synthetic_dorsal2: bool = False,
     include_prolific: bool = False,
     include_primary: bool = False,
     include_archive: bool = False,
@@ -1107,6 +1175,8 @@ def load_combined_metadata(
         sources.append(hagrid_df)
     if include_synthetic_dorsal:
         sources.append(load_synthetic_dorsal_metadata(root=root))
+    if include_synthetic_dorsal2:
+        sources.append(load_synthetic_dorsal_hands2_metadata(root=root))
     if include_prolific:
         prolific_df = load_prolific_metadata(root=root)
         sources.append(prolific_df)
@@ -1201,6 +1271,12 @@ def _cli_main() -> None:
         help="Include the SyntheticDorsalHands dataset.",
     )
     parser.add_argument(
+        "--include-synthetic-dorsal2",
+        action="store_true",
+        default=False,
+        help="Include the SyntheticDorsalHands2 dataset.",
+    )
+    parser.add_argument(
         "--include-prolific",
         action="store_true",
         default=False,
@@ -1225,6 +1301,7 @@ def _cli_main() -> None:
         include_handrgbd=args.include_handrgbd,
         include_hagrid=args.include_hagrid,
         include_synthetic_dorsal=args.include_synthetic_dorsal,
+        include_synthetic_dorsal2=args.include_synthetic_dorsal2,
         include_prolific=args.include_prolific,
         include_primary=args.include_primary,
         include_archive=args.include_archive,
@@ -1265,6 +1342,7 @@ def _cli_main() -> None:
                 "handrgbd": "#55a868",
                 "hagrid": "#c44e52",
                 "synthetic_dorsal": "#937860",
+                "synthetic_dorsal2": "#b5a48a",
                 "prolific": "#8172b2",
             }
             palette = colour_map or default_colour_map

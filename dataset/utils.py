@@ -178,7 +178,7 @@ def filter_metadata(
     df = df.copy()
     df["age"] = df["age"].astype(float)
 
-    synthetic_mask = df["source"].astype(str).eq("synthetic_dorsal")
+    synthetic_mask = df["source"].astype(str).isin({"synthetic_dorsal", "synthetic_dorsal2"})
     real_df = df.loc[~synthetic_mask].copy()
     synthetic_df = df.loc[synthetic_mask].copy()
 
@@ -186,9 +186,10 @@ def filter_metadata(
     real_df = _limit_samples_per_age_bin(real_df, max_samples_per_age_bin)
 
     if not synthetic_df.empty:
+        counts = synthetic_df["source"].value_counts().to_dict()
         print(
-            f"SyntheticDorsalHands bypassed per-user and per-age-bin caps: "
-            f"retained {len(synthetic_df)} images."
+            f"Synthetic sources bypassed per-user and per-age-bin caps: "
+            f"retained {len(synthetic_df)} images {counts}."
         )
 
     return pd.concat([real_df, synthetic_df], ignore_index=True)

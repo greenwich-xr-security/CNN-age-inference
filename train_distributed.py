@@ -278,6 +278,12 @@ def parse_args() -> argparse.Namespace:
         help="Weight for the Gaussian NLL component (default: 0.5; set to 1.0 for legacy behaviour).",
     )
     parser.add_argument(
+        "--loss-weight-crps",
+        type=float,
+        default=0.0,
+        help="Weight for the Gaussian CRPS component (default: 0.0).",
+    )
+    parser.add_argument(
         "--loss-weight-mse",
         type=float,
         default=0.25,
@@ -659,6 +665,7 @@ def main() -> None:
     args = parse_args()
     loss_weights = LossWeights(
         nll=args.loss_weight_nll,
+        crps=args.loss_weight_crps,
         mse=args.loss_weight_mse,
         mae=args.loss_weight_mae,
     )
@@ -769,6 +776,7 @@ def main() -> None:
             fp.write(f"resolved_patience={args.patience}\n")
             fp.write(f"resolved_user_group_size={args.user_group_size}\n")
             fp.write(f"resolved_loss_weights_nll={loss_weights.nll}\n")
+            fp.write(f"resolved_loss_weights_crps={loss_weights.crps}\n")
             fp.write(f"resolved_loss_weights_mse={loss_weights.mse}\n")
             fp.write(f"resolved_loss_weights_mae={loss_weights.mae}\n")
             fp.write(f"resolved_loss_weight_spread={args.loss_weight_spread}\n")
@@ -799,7 +807,7 @@ def main() -> None:
             f"Epochs: {args.epochs} | Learning rate: {args.lr:.2e} | Seed: {args.seed} | World size: {world_size}"
         )
         print(
-            f"Loss weights -> NLL: {loss_weights.nll:.3f}, "
+            f"Loss weights -> NLL: {loss_weights.nll:.3f}, CRPS: {loss_weights.crps:.3f}, "
             f"MSE: {loss_weights.mse:.3f}, MAE: {loss_weights.mae:.3f}, "
             f"Spread: {args.loss_weight_spread:.3f}, "
             f"Normals: {getattr(args, 'loss_weight_normals', 0.0):.3f}"

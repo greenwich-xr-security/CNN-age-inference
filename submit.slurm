@@ -16,6 +16,7 @@ MODELS="${MODELS:-${MODEL:-b0 b1 b2 b3 b4 b5 b6}}" # choices: b0-b7, v2_{s,m,l},
 BATCH_SIZE="${BATCH_SIZE:-32}"
 SEED="${SEED:-42}"
 LOSS_WEIGHT_NLL="${LOSS_WEIGHT_NLL:-0.9}"
+LOSS_WEIGHT_CRPS="${LOSS_WEIGHT_CRPS:-0.0}"
 LOSS_WEIGHT_MSE="${LOSS_WEIGHT_MSE:-0.05}"
 LOSS_WEIGHT_MAE="${LOSS_WEIGHT_MAE:-0.05}"
 PATIENCE="${PATIENCE:-60}"
@@ -62,6 +63,7 @@ for MODEL_NAME in ${MODELS}; do
         --lr 0.0003 \
         --patience "${PATIENCE}" \
         --loss-weight-nll "${LOSS_WEIGHT_NLL}" \
+        --loss-weight-crps "${LOSS_WEIGHT_CRPS}" \
         --loss-weight-mse "${LOSS_WEIGHT_MSE}" \
         --loss-weight-mae "${LOSS_WEIGHT_MAE}" \
         --eval-aggregation-sizes ${AGG_SIZES} \

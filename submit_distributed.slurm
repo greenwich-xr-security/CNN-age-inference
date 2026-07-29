@@ -63,6 +63,7 @@ EPOCHS="${EPOCHS:-240}"
 
 # Losses copied from the best saved run (v2_medium_newdata_ug4_dark_128_wd02_embed08).
 LOSS_WEIGHT_NLL="${LOSS_WEIGHT_NLL:-0.6}"
+LOSS_WEIGHT_CRPS="${LOSS_WEIGHT_CRPS:-0.0}"
 LOSS_WEIGHT_MSE="${LOSS_WEIGHT_MSE:-0.4}"
 LOSS_WEIGHT_MAE="${LOSS_WEIGHT_MAE:-0.9}"
 LOSS_WEIGHT_SPREAD="${LOSS_WEIGHT_SPREAD:-0.5}"
@@ -83,6 +84,7 @@ NUM_WORKERS="${NUM_WORKERS:-2}"
 RUN_NAME="${RUN_NAME:-v2_medium_newdata_ug4_dark_128_wd02_embed08_prolific}"
 # Age imbalance controls
 MAX_SAMPLES_PER_USER="${MAX_SAMPLES_PER_USER:-20}"    # keep current project default; best saved run used 16
+MAX_SAMPLES_PER_AGE_BIN="${MAX_SAMPLES_PER_AGE_BIN:-200}"
 AGE_REWEIGHT="${AGE_REWEIGHT:-0}"
 AGE_WEIGHT_EPS="${AGE_WEIGHT_EPS:-1.0}"
 AGE_WEIGHT_POWER="${AGE_WEIGHT_POWER:-1.0}"
@@ -162,6 +164,7 @@ if [[ ! -f "${TEST_SPLIT_FILE}" ]]; then
     --seed "${SEED}" \
     --out-file "${TEST_SPLIT_FILE}" \
     --max-samples-per-user "${MAX_SAMPLES_PER_USER}" \
+    --max-samples-per-age-bin "${MAX_SAMPLES_PER_AGE_BIN}" \
     --stratify-mode "${SPLIT_STRATIFY_MODE}" \
     "${TEST_DATASET_ARGS[@]}"
 else
@@ -189,6 +192,7 @@ for USER_GROUP_SIZE in ${USER_GROUP_SIZES}; do
             --out-file "${FOLD_FILE}" \
             --test-users-file "${TEST_SPLIT_FILE}" \
             --max-samples-per-user "${MAX_SAMPLES_PER_USER}" \
+            --max-samples-per-age-bin "${MAX_SAMPLES_PER_AGE_BIN}" \
             --stratify-mode "${SPLIT_STRATIFY_MODE}" \
             "${TRAIN_DATASET_ARGS[@]}" \
             $( [[ "${FOLD_OVERWRITE}" -gt 0 ]] && echo "--overwrite" )
@@ -214,7 +218,9 @@ for USER_GROUP_SIZE in ${USER_GROUP_SIZES}; do
             --seed "${SEED_VAL}" \
             --patience "${PATIENCE}" \
             --max-samples-per-user "${MAX_SAMPLES_PER_USER}" \
+            --max-samples-per-age-bin "${MAX_SAMPLES_PER_AGE_BIN}" \
             --loss-weight-nll "${LOSS_WEIGHT_NLL}" \
+            --loss-weight-crps "${LOSS_WEIGHT_CRPS}" \
             --loss-weight-mse "${LOSS_WEIGHT_MSE}" \
             --loss-weight-mae "${LOSS_WEIGHT_MAE}" \
             --loss-weight-spread "${LOSS_WEIGHT_SPREAD}" \
@@ -279,6 +285,7 @@ for USER_GROUP_SIZE in ${USER_GROUP_SIZES}; do
           --patience "${PATIENCE}" \
           --max-samples-per-user "${MAX_SAMPLES_PER_USER}" \
           --loss-weight-nll "${LOSS_WEIGHT_NLL}" \
+          --loss-weight-crps "${LOSS_WEIGHT_CRPS}" \
           --loss-weight-mse "${LOSS_WEIGHT_MSE}" \
           --loss-weight-mae "${LOSS_WEIGHT_MAE}" \
           --loss-weight-spread "${LOSS_WEIGHT_SPREAD}" \

@@ -9,7 +9,6 @@ import numpy as np
 import torch
 import torch.distributed as dist
 import torch.nn as nn
-import torch.nn.functional as F
 from torch.nn.parallel import DistributedDataParallel
 from torch.utils.data import DataLoader, DistributedSampler
 from tqdm import tqdm
@@ -19,13 +18,13 @@ from dataset.ssl import HandSSLPairDataset
 from dataset.ssl_transforms import DinoAugmentationConfig, DinoMultiCropTransform
 from dataset.utils import filter_metadata_ssl
 from models import resolve_backbone_builder
-from models.dino import DINOHead, DinoNetwork
+from models.byol import BYOLNetwork, BYOLPredictor, BYOLProjector, byol_loss
 
 DEFAULT_BATCH_SIZE = 64
 DEFAULT_EPOCHS = 100
 DEFAULT_LR = 1e-4
 DEFAULT_WEIGHT_DECAY = 1e-4
-DEFAULT_MODEL_VARIANT = "b0"
+DEFAULT_MODEL_VARIANT = "v2_s"
 DEFAULT_SEED = 42
 
 
@@ -74,63 +73,31 @@ def disable_inplace_ops(module: nn.Module) -> None:
             pass
 
 
-class DINOLoss(nn.Module):
-    def __init__(
-        self,
-        out_dim: int,
-        *,
-        student_temp: float,
-        teacher_temp: float,
-        center_momentum: float,
-        num_global_crops: int,
-    ) -> None:
-        super().__init__()
-        self.student_temp = float(student_temp)
-        self.teacher_temp = float(teacher_temp)
-        self.center_momentum = float(center_momentum)
-        self.num_global_crops = int(num_global_crops)
-        self.register_buffer("center", torch.zeros(1, out_dim))
-
-    def set_teacher_temp(self, temp: float) -> None:
-        self.teacher_temp = float(temp)
-
-    def compute_loss(
-        self,
-        student_output: torch.Tensor,
-        teacher_outputs: list[torch.Tensor],
-        *,
-        skip_teacher_index: int | None,
-        total_terms: int,
-    ) -> torch.Tensor:
-        student_log_prob = F.log_softmax(student_output / self.student_temp, dim=-1)
-        total_loss = None
-        for t_idx, t_out in enumerate(teacher_outputs):
-            if skip_teacher_index is not None and t_idx == skip_teacher_index:
-                continue
-            t_prob = F.softmax((t_out - self.center) / self.teacher_temp, dim=-1).detach()
-            term = torch.sum(-t_prob * student_log_prob, dim=-1).mean()
-            total_loss = term if total_loss is None else total_loss + term
-        if total_loss is None:
-            return torch.tensor(0.0, device=student_output.device)
-        return total_loss / float(max(1, total_terms))
-
-    @torch.no_grad()
-    def update_center(self, teacher_outputs: list[torch.Tensor]) -> None:
-        teacher_output = torch.cat(teacher_outputs, dim=0)
-        batch_center = torch.mean(teacher_output, dim=0, keepdim=True)
-        if dist.is_available() and dist.is_initialized():
-            dist.all_reduce(batch_center, op=dist.ReduceOp.SUM)
-            batch_center /= dist.get_world_size()
-        self.center = self.center * self.center_momentum + batch_center * (1 - self.center_momentum)
+def compute_byol_view_loss(
+    online_output: torch.Tensor,
+    target_outputs: list[torch.Tensor],
+    *,
+    skip_target_index: int | None,
+    total_terms: int,
+) -> torch.Tensor:
+    total = None
+    for t_idx, t_out in enumerate(target_outputs):
+        if skip_target_index is not None and t_idx == skip_target_index:
+            continue
+        term = byol_loss(online_output, t_out.detach()).mean()
+        total = term if total is None else total + term
+    if total is None:
+        return torch.tensor(0.0, device=online_output.device)
+    return total / float(max(1, total_terms))
 
 
-def update_teacher(student: nn.Module, teacher: nn.Module, momentum: float) -> None:
-    for param_s, param_t in zip(student.parameters(), teacher.parameters()):
-        param_t.data.mul_(momentum).add_(param_s.data, alpha=1.0 - momentum)
+def update_target(online: nn.Module, target: nn.Module, momentum: float) -> None:
+    for param_o, param_t in zip(online.encoder_parameters(), target.encoder_parameters()):
+        param_t.data.mul_(momentum).add_(param_o.data, alpha=1.0 - momentum)
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Distributed DINO SSL pretraining for hand images.")
+    parser = argparse.ArgumentParser(description="Distributed BYOL SSL pretraining for hand images.")
     parser.add_argument(
         "--data-root",
         type=str,
@@ -140,7 +107,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--output-dir",
         type=str,
-        default="runs/dino_ddp",
+        default="runs/byol_ddp",
         help="Directory where checkpoints and logs will be saved.",
     )
     parser.add_argument(
@@ -148,7 +115,7 @@ def parse_args() -> argparse.Namespace:
         type=str,
         default=DEFAULT_MODEL_VARIANT,
         help=(
-            "Backbone to use. EfficientNet: b0-b7. ConvNeXt: convnext_{tiny,small,base,large,xlarge} "
+            "Backbone to use. EfficientNet: b0-b7, v2_{s,m,l}. ConvNeXt: convnext_{tiny,small,base,large,xlarge} "
             "or aliases cnt,cns,cnb,cnl,cnx."
         ),
     )
@@ -203,8 +170,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--num-local-crops",
         type=int,
-        default=4,
-        help="Number of local crops per sample (default: 4).",
+        default=0,
+        help=(
+            "Number of extra local crops per sample, beyond the 2 global views BYOL compares "
+            "(default: 0, the canonical BYOL 2-view recipe). Local views are only compared "
+            "against the target's 2 global outputs, never against each other."
+        ),
     )
     parser.add_argument(
         "--global-crop-scale",
@@ -227,64 +198,34 @@ def parse_args() -> argparse.Namespace:
         help="Override local crop size (default: 0.6 * img_size).",
     )
     parser.add_argument(
-        "--out-dim",
+        "--projector-hidden-dim",
         type=int,
-        default=8192,
-        help="DINO projection head output dim (default: 8192).",
+        default=4096,
+        help="BYOL projector MLP hidden dim (default: 4096).",
     )
     parser.add_argument(
-        "--hidden-dim",
-        type=int,
-        default=2048,
-        help="DINO MLP hidden dim (default: 2048).",
-    )
-    parser.add_argument(
-        "--bottleneck-dim",
+        "--projector-dim",
         type=int,
         default=256,
-        help="DINO bottleneck dim (default: 256).",
+        help="BYOL projector output dim (default: 256).",
     )
     parser.add_argument(
-        "--student-temp",
-        type=float,
-        default=0.1,
-        help="Student temperature (default: 0.1).",
-    )
-    parser.add_argument(
-        "--teacher-temp",
-        type=float,
-        default=0.04,
-        help="Teacher temperature (default: 0.04).",
-    )
-    parser.add_argument(
-        "--teacher-temp-warmup",
-        type=float,
-        default=0.04,
-        help="Teacher warmup temperature (default: 0.04).",
-    )
-    parser.add_argument(
-        "--teacher-temp-warmup-epochs",
+        "--predictor-hidden-dim",
         type=int,
-        default=5,
-        help="Warmup epochs for teacher temperature (default: 5).",
+        default=4096,
+        help="BYOL predictor MLP hidden dim (default: 4096).",
     )
     parser.add_argument(
-        "--teacher-momentum",
+        "--target-momentum",
         type=float,
         default=0.996,
-        help="Initial teacher EMA momentum (default: 0.996).",
+        help="Initial target-network EMA momentum (default: 0.996).",
     )
     parser.add_argument(
-        "--teacher-momentum-end",
+        "--target-momentum-end",
         type=float,
         default=1.0,
-        help="Final teacher EMA momentum (default: 1.0).",
-    )
-    parser.add_argument(
-        "--center-momentum",
-        type=float,
-        default=0.9,
-        help="Center momentum for DINO loss (default: 0.9).",
+        help="Final target-network EMA momentum (default: 1.0).",
     )
     parser.add_argument(
         "--aug-ramp-fraction",
@@ -344,7 +285,7 @@ def main() -> None:
     model_builder, default_size, model_desc, model_key = resolve_backbone_builder(args.model)
     if args.img_size is not None and args.img_size != default_size and is_main:
         print(
-            f"[dino] Ignoring requested --img-size {args.img_size}; {model_desc} uses {default_size}."
+            f"[byol] Ignoring requested --img-size {args.img_size}; {model_desc} uses {default_size}."
         )
     img_size = default_size
     local_size = args.local_crop_size if args.local_crop_size else max(64, int(img_size * 0.6))
@@ -392,7 +333,7 @@ def main() -> None:
         persistent_workers=args.num_workers > 0,
     )
     if args.num_workers > 0 and args.aug_ramp_fraction > 0 and is_main:
-        print("[dino] Augmentation ramp is most reliable with --num-workers 0.")
+        print("[byol] Augmentation ramp is most reliable with --num-workers 0.")
 
     if is_main:
         print(
@@ -404,70 +345,43 @@ def main() -> None:
             f"World size: {world_size}"
         )
 
-    student_backbone = model_builder()
-    teacher_backbone = model_builder()
-    embed_dim = getattr(student_backbone, "embed_dim", None)
+    online_backbone = model_builder()
+    target_backbone = model_builder()
+    embed_dim = getattr(online_backbone, "embed_dim", None)
     if embed_dim is None:
-        raise RuntimeError("Backbone must expose an embed_dim attribute for DINO.")
+        raise RuntimeError("Backbone must expose an embed_dim attribute for BYOL.")
 
-    student = DinoNetwork(
-        student_backbone,
-        DINOHead(
-            embed_dim,
-            out_dim=args.out_dim,
-            hidden_dim=args.hidden_dim,
-            bottleneck_dim=args.bottleneck_dim,
-        ),
+    online = BYOLNetwork(
+        online_backbone,
+        BYOLProjector(embed_dim, hidden_dim=args.projector_hidden_dim, out_dim=args.projector_dim),
+        BYOLPredictor(args.projector_dim, hidden_dim=args.predictor_hidden_dim),
     ).to(device)
-    teacher = DinoNetwork(
-        teacher_backbone,
-        DINOHead(
-            embed_dim,
-            out_dim=args.out_dim,
-            hidden_dim=args.hidden_dim,
-            bottleneck_dim=args.bottleneck_dim,
-        ),
+    target = BYOLNetwork(
+        target_backbone,
+        BYOLProjector(embed_dim, hidden_dim=args.projector_hidden_dim, out_dim=args.projector_dim),
     ).to(device)
 
-    student.apply(disable_inplace_ops)
-    teacher.apply(disable_inplace_ops)
+    online.apply(disable_inplace_ops)
+    target.apply(disable_inplace_ops)
 
-    teacher.load_state_dict(student.state_dict(), strict=True)
-    for param in teacher.parameters():
+    target.load_state_dict(online.state_dict(), strict=False)
+    for param in target.parameters():
         param.requires_grad = False
 
-    ddp_student = DistributedDataParallel(
-        student,
+    ddp_online = DistributedDataParallel(
+        online,
         device_ids=[local_rank] if device.type == "cuda" else None,
         output_device=local_rank if device.type == "cuda" else None,
         find_unused_parameters=args.find_unused_params,
     )
 
-    optimizer = torch.optim.AdamW(ddp_student.parameters(), lr=args.lr, weight_decay=args.weight_decay)
+    optimizer = torch.optim.AdamW(ddp_online.parameters(), lr=args.lr, weight_decay=args.weight_decay)
     steps_per_epoch = max(1, len(loader))
     total_steps = steps_per_epoch * args.epochs
-    momentum_schedule = cosine_schedule(args.teacher_momentum, args.teacher_momentum_end, total_steps)
+    momentum_schedule = cosine_schedule(args.target_momentum, args.target_momentum_end, total_steps)
 
-    warmup_epochs = max(0, int(args.teacher_temp_warmup_epochs))
-    warmup_steps = min(steps_per_epoch * warmup_epochs, total_steps)
-    if warmup_steps > 0:
-        teacher_temps = (
-            np.linspace(args.teacher_temp_warmup, args.teacher_temp, warmup_steps).tolist()
-            + [args.teacher_temp] * max(0, total_steps - warmup_steps)
-        )
-    else:
-        teacher_temps = [args.teacher_temp] * total_steps
-
-    dino_loss = DINOLoss(
-        out_dim=args.out_dim,
-        student_temp=args.student_temp,
-        teacher_temp=args.teacher_temp,
-        center_momentum=args.center_momentum,
-        num_global_crops=2,
-    ).to(device)
-
-    history_path = output_dir / "dino_history_ddp.log"
-    checkpoint_path = output_dir / f"dino_{model_key}_pretrain_ddp.pth"
+    history_path = output_dir / "byol_history_ddp.log"
+    checkpoint_path = output_dir / f"byol_{model_key}_pretrain_ddp.pth"
     global_step = 0
 
     for epoch in range(1, args.epochs + 1):
@@ -478,9 +392,17 @@ def main() -> None:
             strength = min(1.0, epoch / ramp_epochs)
             multi_crop.set_strength(strength)
 
-        ddp_student.train()
-        ddp_student.module.apply(set_bn_eval)
-        teacher.eval()
+        ddp_online.train()
+        # Backbones start from ImageNet-pretrained weights; keep their BatchNorm running
+        # stats frozen for stability (multi-crop SSL batches are small and non-i.i.d.).
+        # The projector/predictor BatchNorm layers are freshly initialized and must be
+        # allowed to update live -- BYOL relies on them tracking real batch statistics.
+        ddp_online.module.backbone.apply(set_bn_eval)
+        # The target network is never optimized directly (EMA-only), but it stays in
+        # train() mode so its BatchNorm running stats keep evolving from its own forward
+        # passes, same as the online projector/predictor; only its backbone is frozen.
+        target.train()
+        target.backbone.apply(set_bn_eval)
 
         running_loss = 0.0
         running_count = 0.0
@@ -488,18 +410,17 @@ def main() -> None:
         for batch in progress:
             views = [v.to(device, non_blocking=True) for v in batch]
             with torch.no_grad():
-                teacher_outputs = forward_views(teacher, views[:2])
-            dino_loss.set_teacher_temp(teacher_temps[global_step])
-            total_terms = (len(views) * len(teacher_outputs)) - len(teacher_outputs)
+                target_outputs = forward_views(target, views[:2])
+            total_terms = (len(views) * len(target_outputs)) - len(target_outputs)
             optimizer.zero_grad()
             batch_loss = 0.0
             for idx, view in enumerate(views):
-                student_output = ddp_student(view)
-                skip_idx = idx if idx < len(teacher_outputs) else None
-                loss = dino_loss.compute_loss(
-                    student_output,
-                    teacher_outputs,
-                    skip_teacher_index=skip_idx,
+                online_output = ddp_online(view)
+                skip_idx = idx if idx < len(target_outputs) else None
+                loss = compute_byol_view_loss(
+                    online_output,
+                    target_outputs,
+                    skip_target_index=skip_idx,
                     total_terms=total_terms,
                 )
                 loss.backward()
@@ -507,8 +428,7 @@ def main() -> None:
             optimizer.step()
 
             momentum = momentum_schedule[global_step]
-            update_teacher(ddp_student.module, teacher, momentum)
-            dino_loss.update_center(teacher_outputs)
+            update_target(ddp_online.module, target, momentum)
             batch_size = views[0].size(0)
             running_loss += batch_loss * batch_size
             running_count += batch_size
@@ -519,16 +439,16 @@ def main() -> None:
         avg_loss = totals[0].item() / max(1.0, totals[1].item())
 
         if is_main:
-            print(f"Epoch {epoch}: dino_loss={avg_loss:.4f}")
+            print(f"Epoch {epoch}: byol_loss={avg_loss:.4f}")
             with history_path.open("a", encoding="utf-8") as log_fp:
                 log_fp.write(f"Epoch {epoch},loss={avg_loss:.6f}\n")
 
             checkpoint = {
-                "backbone": ddp_student.module.backbone.state_dict(),
-                "head": ddp_student.module.head.state_dict(),
+                "backbone": ddp_online.module.backbone.state_dict(),
+                "projector": ddp_online.module.projector.state_dict(),
                 "model": args.model,
                 "img_size": img_size,
-                "out_dim": args.out_dim,
+                "projector_dim": args.projector_dim,
                 "epoch": epoch,
                 "world_size": world_size,
             }

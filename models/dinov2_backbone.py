@@ -83,6 +83,30 @@ class DinoV2Backbone(nn.Module):
             raise RuntimeError(f"Could not determine feature dimension for DINOv2 variant '{variant}'.")
         self.embed_dim = int(feature_dim)
 
+    def freeze_blocks(self, num_blocks: int) -> int:
+        """Freeze the patch embedding, position/cls tokens, and the first `num_blocks` transformer blocks.
+
+        Intended for domain-adaptive continued pretraining, where fully unfreezing a ViT
+        initialized from pretrained DINOv2 weights risks catastrophic forgetting on a small dataset.
+        Returns the number of transformer blocks actually frozen (clamped to backbone depth).
+        """
+        if num_blocks < 0:
+            raise ValueError("num_blocks must be non-negative.")
+
+        for param in self.backbone.patch_embed.parameters():
+            param.requires_grad_(False)
+        for name in ("cls_token", "pos_embed", "register_tokens"):
+            tensor = getattr(self.backbone, name, None)
+            if tensor is not None:
+                tensor.requires_grad_(False)
+
+        blocks = self.backbone.blocks
+        frozen = min(num_blocks, len(blocks))
+        for block in blocks[:frozen]:
+            for param in block.parameters():
+                param.requires_grad_(False)
+        return frozen
+
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         if hasattr(self.backbone, "forward_features"):
             features = self.backbone.forward_features(x)

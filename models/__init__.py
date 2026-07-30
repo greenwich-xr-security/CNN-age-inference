@@ -1,7 +1,7 @@
 from .efficientnet_age import EFFICIENTNET_IMG_SIZES, EfficientNetAgeRegressor
 from .convnext_age import CONVNEXT_IMG_SIZES, ConvNeXtAgeRegressor
 from .backbones import ConvNeXtBackbone, EfficientNetBackbone
-from .dinov2_backbone import DINOV2_IMG_SIZES, DinoV2Backbone
+from .dinov2_backbone import DINOV2_IMG_SIZES, DINOV2_PATCH_SIZE, DinoV2Backbone
 
 __all__ = [
     "EFFICIENTNET_IMG_SIZES",
@@ -11,9 +11,11 @@ __all__ = [
     "ConvNeXtBackbone",
     "EfficientNetBackbone",
     "DINOV2_IMG_SIZES",
+    "DINOV2_PATCH_SIZE",
     "DinoV2Backbone",
     "resolve_model_builder",
     "resolve_backbone_builder",
+    "patch_size_for",
 ]
 
 MODEL_ALIASES = {
@@ -100,3 +102,10 @@ def resolve_backbone_builder(model_name: str):
         f"Expected one of {sorted(EFFICIENTNET_IMG_SIZES)}, convnext_{{tiny,small,base,large,xlarge}}, "
         f"or {sorted(DINOV2_IMG_SIZES)}, or aliases {sorted(MODEL_ALIASES)}."
     )
+
+
+def patch_size_for(model_key: str) -> int | None:
+    """Return the ViT patch size for a resolved model key, or None for non-patch-based backbones."""
+    if model_key in DINOV2_IMG_SIZES:
+        return DINOV2_PATCH_SIZE
+    return None

@@ -18,7 +18,7 @@ from dataset.hand_metadata import get_dataset_root, load_combined_metadata, set_
 from dataset.ssl import HandSSLPairDataset
 from dataset.ssl_transforms import DinoAugmentationConfig, DinoMultiCropTransform
 from dataset.utils import filter_metadata_ssl
-from models import resolve_backbone_builder
+from models import patch_size_for, resolve_backbone_builder
 from models.dino import DINOHead, DinoNetwork
 
 DEFAULT_BATCH_SIZE = 64
@@ -294,6 +294,16 @@ def parse_args() -> argparse.Namespace:
         help="Fraction of epochs to ramp augmentation strength (default: 0.2).",
     )
     parser.add_argument(
+        "--freeze-blocks",
+        type=int,
+        default=0,
+        help=(
+            "Freeze the patch embedding, position/cls tokens, and the first N transformer blocks "
+            "of the student ViT/DINOv2 backbone (domain-adaptive continued pretraining). "
+            "Ignored for CNN backbones. Default: 0 (no freezing)."
+        ),
+    )
+    parser.add_argument(
         "--dist-backend",
         type=str,
         default="nccl",
@@ -349,6 +359,26 @@ def main() -> None:
         )
     img_size = default_size
     local_size = args.local_crop_size if args.local_crop_size else max(64, int(img_size * 0.6))
+
+    patch_size = patch_size_for(model_key)
+    if patch_size is not None:
+        def _round_to_patch(size: int) -> int:
+            return max(patch_size, round(size / patch_size) * patch_size)
+
+        rounded_img_size = _round_to_patch(img_size)
+        rounded_local_size = _round_to_patch(local_size)
+        if rounded_img_size != img_size and is_main:
+            print(
+                f"[dino] Rounding global crop size {img_size} -> {rounded_img_size} "
+                f"to align with {model_desc} patch size {patch_size}."
+            )
+        img_size = rounded_img_size
+        if rounded_local_size != local_size and is_main:
+            print(
+                f"[dino] Rounding local crop size {local_size} -> {rounded_local_size} "
+                f"to align with {model_desc} patch size {patch_size}."
+            )
+        local_size = rounded_local_size
 
     if args.data_root:
         set_dataset_root(args.data_root)
@@ -410,6 +440,14 @@ def main() -> None:
     embed_dim = getattr(student_backbone, "embed_dim", None)
     if embed_dim is None:
         raise RuntimeError("Backbone must expose an embed_dim attribute for DINO.")
+
+    if args.freeze_blocks > 0:
+        if hasattr(student_backbone, "freeze_blocks"):
+            frozen = student_backbone.freeze_blocks(args.freeze_blocks)
+            if is_main:
+                print(f"[dino] Froze stem + first {frozen} transformer block(s) of {model_desc}.")
+        elif is_main:
+            print(f"[dino] --freeze-blocks requested but {model_desc} does not support block freezing; ignoring.")
 
     student = DinoNetwork(
         student_backbone,

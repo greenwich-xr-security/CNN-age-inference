@@ -82,6 +82,10 @@ AGG_SEED="${AGG_SEED:-${EVAL_AGG_SEED:-${SEED}}}"
 NUM_WORKERS="${NUM_WORKERS:-2}"
 # Optional override; when empty the script derives a model-specific run name.
 RUN_NAME="${RUN_NAME:-v2_medium_newdata_ug4_dark_128_wd02_embed08_prolific}"
+# Optional root containing one matching checkpoint per fold. When supplied,
+# each fold starts from "${INIT_CHECKPOINT_ROOT}/fold_<index>/<model>_age_regressor_ddp.pth"
+# while the optimizer and early-stopping state start fresh.
+INIT_CHECKPOINT_ROOT="${INIT_CHECKPOINT_ROOT:-}"
 # Age imbalance controls
 MAX_SAMPLES_PER_USER="${MAX_SAMPLES_PER_USER:-20}"    # keep current project default; best saved run used 16
 MAX_SAMPLES_PER_AGE_BIN="${MAX_SAMPLES_PER_AGE_BIN:-200}"
@@ -202,6 +206,15 @@ for USER_GROUP_SIZE in ${USER_GROUP_SIZES}; do
         fi
         for ((FOLD_IDX=0; FOLD_IDX<KFOLDS; FOLD_IDX++)); do
           RUN_OUT="${OUTPUT_ROOT}/${FOLDER_NAME}/fold_${FOLD_IDX}"
+          INIT_CHECKPOINT_ARGS=()
+          if [[ -n "${INIT_CHECKPOINT_ROOT}" ]]; then
+            INIT_CHECKPOINT="${INIT_CHECKPOINT_ROOT}/fold_${FOLD_IDX}/${MODEL_NAME}_age_regressor_ddp.pth"
+            if [[ ! -f "${INIT_CHECKPOINT}" ]]; then
+              echo "ERROR: requested initialisation checkpoint does not exist: ${INIT_CHECKPOINT}" >&2
+              exit 1
+            fi
+            INIT_CHECKPOINT_ARGS=(--init-checkpoint "${INIT_CHECKPOINT}")
+          fi
           echo ">>> Starting distributed age inference training for ${MODEL_NAME} seed=${SEED_VAL} fold=${FOLD_IDX} (output: ${RUN_OUT})"
           torchrun \
             --nnodes="${NNODES}" \
@@ -212,6 +225,7 @@ for USER_GROUP_SIZE in ${USER_GROUP_SIZES}; do
             --data-root "${DATA_ROOT}" \
             --output-dir "${RUN_OUT}" \
             --model "${MODEL_NAME}" \
+            "${INIT_CHECKPOINT_ARGS[@]}" \
             --batch-size "${BATCH_SIZE}" \
             --epochs "${EPOCHS}" \
             --lr "${LR}" \

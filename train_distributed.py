@@ -272,6 +272,15 @@ def parse_args() -> argparse.Namespace:
         help="Learning rate for AdamW optimizer (default: 3e-4).",
     )
     parser.add_argument(
+        "--init-checkpoint",
+        type=str,
+        default=None,
+        help=(
+            "Optional model state-dict checkpoint used to initialise training. "
+            "Optimizer state and early-stopping history are deliberately reset."
+        ),
+    )
+    parser.add_argument(
         "--weight-decay",
         type=float,
         default=0.01,
@@ -838,6 +847,14 @@ def main() -> None:
             print("Split mode: Unstratified per-user split (random).")
 
     model = model_builder().to(device)
+    if args.init_checkpoint:
+        init_checkpoint_path = Path(args.init_checkpoint).expanduser()
+        if not init_checkpoint_path.is_file():
+            raise FileNotFoundError(f"Initialisation checkpoint not found: {init_checkpoint_path}")
+        state = torch.load(init_checkpoint_path, map_location=device)
+        model.load_state_dict(state, strict=True)
+        if is_main:
+            print(f"[train] Initialised model weights from: {init_checkpoint_path}")
     ddp_model = DistributedDataParallel(
         model,
         device_ids=[local_rank] if device.type == "cuda" else None,

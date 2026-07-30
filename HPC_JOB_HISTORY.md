@@ -13,13 +13,10 @@ four GPUs, 16 CPU cores, 64 GB RAM, and batch size 16 per GPU unless noted.
 | `1050705` | Completed / 2:37:17 | Real only; original capped 15% test | Pure Gaussian CRPS | Proper-score loss comparison |
 | `1050710` | Completed / 4:12:21 | Real + synthetic; original capped 15% test | Pure Gaussian NLL | Clean synthetic-data comparison |
 | `1050711` | Completed / 5:55:39 | Real only; original capped 15% test | NLL + embedding variance (0.8) | Test same-user latent consistency |
-| `1050749` | Cancelled / 00:22:53 | Superseded uncapped real-only plan | Pure NLL | Replaced before training by fixed 20%-test split |
-| `1050750` | Cancelled / 00:22:53 | Superseded uncapped real + synthetic plan | Pure NLL | Replaced before training by fixed 20%-test split |
 | `1050753` | Completed / 5:18:12 | Real only; uncapped fixed 20% test | Pure Gaussian NLL | Effect of removing both real-data caps |
 | `1050754` | Completed / 3:51:07 | Real + synthetic; uncapped fixed 20% test | Pure Gaussian NLL | Synthetic comparison without real-data caps |
-| `1050812` | Running / 00:27:27 at 2026-07-29 21:55 | Real + SyntheticDorsalHands2 only; uncapped fixed 20% test | Pure Gaussian NLL | Synthetic2-only comparison to `1050754` |
-| `1050813` | Cancelled / 00:05:39 | Real + SyntheticDorsalHands2 only; uncapped fixed 20% test | Pure Gaussian NLL; ViT tiny 384 | Relaunched because it reused the default rendezvous port |
-| `1050814` | Running / initial 00:00:09 | Real + SyntheticDorsalHands2 only; uncapped fixed 20% test | Pure Gaussian NLL; ViT tiny 384; `MASTER_PORT=29513` | ViT architecture comparison to `1050812` |
+| `1050812` | Completed / 4:18:16 | Real + SyntheticDorsalHands2 only; uncapped fixed 20% test | Pure Gaussian NLL | Synthetic2-only comparison to `1050754` |
+| `1050814` | Completed / 3:10:46 | Real + SyntheticDorsalHands2 only; uncapped fixed 20% test | Pure Gaussian NLL; ViT tiny 384; `MASTER_PORT=29513` | ViT architecture comparison to `1050812` |
 
 Historical mixed loss: NLL 0.6 + MAE 0.9 + prediction spread 0.5 +
 embedding variance 0.8 + embedding contrast 0.8. Pure objectives disable all
@@ -50,6 +47,8 @@ rows in this table with each other, not with the capped 15% test results.
 | --- | --- | ---: | ---: | ---: | ---: | ---: |
 | Real only | Pure NLL (`1050753`) | 5.017 | 6.706 | 0.9483 | 4.74% | 18.33% |
 | Real + synthetic | Pure NLL (`1050754`) | **4.683** | **6.293** | **0.9594** | 4.78% | **17.91%** |
+| Real + SyntheticDorsalHands2 | Pure NLL, EfficientNet-V2-S (`1050812`) | 4.867 | 6.544 | 0.9546 | 4.78% | 18.14% |
+| Real + SyntheticDorsalHands2 | Pure NLL, ViT tiny 384 (`1050814`) | 5.326 | 7.219 | 0.9366 | 4.78% | 20.22% |
 
 ## Fixed uncapped split manifests
 
@@ -62,37 +61,27 @@ The uncapped runs use 20% held-out real users and five folds over the remaining
 | `splits/folds_k5_uncapped_test20_real_seed42.json` | `1050753` real-only run |
 | `splits/folds_k5_uncapped_test20_real_synthetic_seed42.json` | `1050754` real + synthetic run |
 
-## In-progress launches
+## Completed launches
 
 ### Job `1050812` — Real + synthetic2 Pure NLL
 
 - Submission date: 2026-07-29 21:27:49
 - Initial scheduler state: RUNNING on `gpu-beast`, node `gm-hpc2-gpu801`, elapsed `00:00:29`
-- Current scheduler check: RUNNING on `gpu-beast`, node `gm-hpc2-gpu801`, elapsed `00:27:27` at 2026-07-29 21:55
+- Terminal scheduler state: COMPLETED, elapsed `04:18:16`, exit code 0
 - Run directory: `/home/rb3434w/CNN-age-inference/runs/v2s_handrgbd_prolific_synthetic2_trainval_nll_uncapped_test20_k5_4gpu_16cpu_20260729_384`
 - Log file: `/home/rb3434w/CNN-age-inference/logs/v2s-hrgbd-pro-syn2-nll-uncap20-4g16c-1050812.log`
 - Purpose: compare SyntheticDorsalHands2 against the directly comparable SyntheticDorsalHands job `1050754`
 - Data/configuration: HandRGBD + ProlificHands real data, SyntheticDorsalHands2 enabled with `INCLUDE_SYNTHETIC_DORSAL2=1`, previous SyntheticDorsalHands disabled with `INCLUDE_SYNTHETIC_DORSAL=0`, LUICID disabled, uncapped real samples, fixed `splits/test_users_uncapped_20pct_seed42.json`, five folds generated with the same seed/protocol as `1050754` after replacing the synthetic source
 - Requested resources: one `gpu-beast` node, 4 GPUs, 16 CPU cores, 64 GB RAM project baseline, batch size 16 per GPU
 - Model/objective: EfficientNet-V2-S at 384 px, same active loss composition and weights as `1050754`: pure Gaussian NLL (`NLL=1`, CRPS/MSE/MAE/spread/embed losses disabled; `NORMALS_AUX=0` so the printed normals default is inactive), image-level training/evaluation (`USER_GROUP_SIZES=1`, `AGG_SIZES=1`)
+- Held-out result: five-fold unweighted `n=1` aggregate: MAE 4.867 years, RMSE 6.544 years, adult-gate AUC 0.9546, mean FPR 4.78%, Adult FNR 18.14% at each fold's best FPR <= 5% operating point.
 
-### Job `1050813` — Cancelled ViT tiny 384 launch
-
-- Submission date: 2026-07-29 21:54:49
-- Initial scheduler state: RUNNING on `gpu-beast`, node `gm-hpc2-gpu801`, elapsed `00:00:06`
-- Terminal state: CANCELLED after `00:05:39` at 2026-07-29 22:00:49
-- Run directory: `/home/rb3434w/CNN-age-inference/runs/vit_tiny384_handrgbd_prolific_synthetic2_trainval_nll_uncapped_test20_k5_4gpu_16cpu_20260729_384`
-- Log file: `/home/rb3434w/CNN-age-inference/logs/vit-t384-hrgbd-pro-syn2-nll-uncap20-4g16c-1050813.log`
-- Purpose: attempted `vit_tiny_384` comparison against the directly comparable EfficientNet-V2-S SyntheticDorsalHands2 job `1050812`
-- Data/configuration: same as `1050812`: HandRGBD + ProlificHands real data, SyntheticDorsalHands2 enabled with `INCLUDE_SYNTHETIC_DORSAL2=1`, previous SyntheticDorsalHands disabled with `INCLUDE_SYNTHETIC_DORSAL=0`, LUICID disabled, uncapped real samples, fixed `splits/test_users_uncapped_20pct_seed42.json`, five folds generated with the same seed/protocol after replacing the synthetic source
-- Requested resources: one `gpu-beast` node, 4 GPUs, 16 CPU cores, 64 GB RAM project baseline, batch size 16 per GPU
-- Model/objective: ViT tiny patch-16 at 384 px (`vit_tiny_384`), same active loss composition and weights as `1050812`: pure Gaussian NLL (`NLL=1`, CRPS/MSE/MAE/spread/embed losses disabled; `NORMALS_AUX=0`), image-level training/evaluation (`USER_GROUP_SIZES=1`, `AGG_SIZES=1`)
-- Relaunch note: cancelled because it reused the default rendezvous port while `1050812` was still running; replacement is `1050814` with `MASTER_PORT=29513`.
 
 ### Job `1050814` — Real + synthetic2 Pure NLL, ViT tiny 384
 
 - Submission date: 2026-07-29 22:01:20
 - Initial scheduler state: RUNNING on `gpu-beast`, node `gm-hpc2-gpu801`, elapsed `00:00:09`
+- Terminal scheduler state: COMPLETED, elapsed `03:10:46`, exit code 0
 - Run directory: `/home/rb3434w/CNN-age-inference/runs/vit_tiny384_handrgbd_prolific_synthetic2_trainval_nll_uncapped_test20_k5_4gpu_16cpu_20260729_384_mp29513`
 - Log file: `/home/rb3434w/CNN-age-inference/logs/vit-t384-syn2-nll-mp29513-1050814.log`
 - Purpose: compare `vit_tiny_384` against the directly comparable EfficientNet-V2-S SyntheticDorsalHands2 job `1050812`
@@ -100,3 +89,4 @@ The uncapped runs use 20% held-out real users and five folds over the remaining
 - Requested resources: one `gpu-beast` node, 4 GPUs, 16 CPU cores, 64 GB RAM project baseline, batch size 16 per GPU
 - Model/objective: ViT tiny patch-16 at 384 px (`vit_tiny_384`), same active loss composition and weights as `1050812`: pure Gaussian NLL (`NLL=1`, CRPS/MSE/MAE/spread/embed losses disabled; `NORMALS_AUX=0`), image-level training/evaluation (`USER_GROUP_SIZES=1`, `AGG_SIZES=1`)
 - Rendezvous: `MASTER_PORT=29513` to avoid colliding with the concurrent EfficientNet-V2-S job `1050812` on the default port.
+- Held-out result: five-fold unweighted `n=1` aggregate: MAE 5.326 years, RMSE 7.219 years, adult-gate AUC 0.9366, mean FPR 4.78%, Adult FNR 20.22% at each fold's best FPR <= 5% operating point.

@@ -54,6 +54,7 @@ achieved values.
 | Real + SyntheticDorsalHands2 | Pure NLL, EfficientNet-V2-S (`1050812`) | 4.867 | 6.544 | 0.9546 | 4.78% | 18.14% |
 | Real + SyntheticDorsalHands2 | Pure NLL, ViT tiny 384 (`1050814`) | 5.326 | 7.219 | 0.9366 | 4.78% | 20.22% |
 | Real only (SyntheticDorsalHands2 initialisation) | Pure NLL fine-tuning, EfficientNet-V2-S (`1050819`) | **4.514** | **6.246** | **0.9641** | **4.69%** | **16.25%** |
+| Real + SyntheticDorsalHands2 | Pure NLL, ViT small 384 (`1050821`; 4 folds) | 5.307 | 7.102 | 0.9397 | 4.63% | 19.58% |
 
 ## Fixed uncapped split manifests
 
@@ -66,7 +67,7 @@ The uncapped runs use 20% held-out real users and five folds over the remaining
 | `splits/folds_k5_uncapped_test20_real_seed42.json` | `1050753` real-only run |
 | `splits/folds_k5_uncapped_test20_real_synthetic_seed42.json` | `1050754` real + synthetic run |
 
-## Completed launches
+## Completed and failed launches
 
 ### Job `1050812` — Real + synthetic2 Pure NLL
 
@@ -111,8 +112,6 @@ The uncapped runs use 20% held-out real users and five folds over the remaining
 - Held-out result: five-fold unweighted `n=1` aggregate: MAE 4.514 years, RMSE 6.246 years, adult-gate AUC 0.9641, mean FPR 4.69%, Adult FNR 16.25% at each fold's best FPR <= 5% operating point.
 
 
-## In-progress launch
-
 ### Job `1050821` - Real + SyntheticDorsalHands2 Pure NLL, ViT small 384
 
 - Submission date: 2026-07-30 10:57 (BST)
@@ -124,4 +123,4 @@ The uncapped runs use 20% held-out real users and five folds over the remaining
 - Data/split: same as `1050814`: HandRGBD + ProlificHands + SyntheticDorsalHands2; no previous SyntheticDorsalHands or LUICID; uncapped real samples; fixed `splits/test_users_uncapped_20pct_seed42.json`; exact fold manifest copied from `1050814`.
 - Model/objective: ViT-Small patch-16 at 384 px (`vit_small_384`); pure Gaussian NLL (`NLL=1`, all other regression, embedding, spread, and normals-auxiliary losses disabled); LR `2e-4`, maximum 240 epochs, patience 10, image-level training/evaluation (`USER_GROUP_SIZES=1`, `AGG_SIZES=1`).
 - Requested resources: one `gpu-beast` node, 3 GPUs, 16 CPU cores, 64 GB RAM, batch size 16 per GPU (global batch 48 rather than the four-GPU run's 64); `MASTER_PORT=29515`.
-- Partial held-out result: folds 0-3 completed evaluation, with an unweighted four-fold `n=1` aggregate of MAE 5.307 years, RMSE 7.102 years, adult-gate AUC 0.9397, mean FPR 4.63%, and Adult FNR 19.58% at each fold's best FPR <= 5% operating point. Do not treat this as a final five-fold result.
+- Held-out result (folds 0-3): unweighted four-fold `n=1` aggregate: MAE 5.307 years, RMSE 7.102 years, adult-gate AUC 0.9397, mean FPR 4.63%, and Adult FNR 19.58% at each fold's best FPR <= 5% operating point.

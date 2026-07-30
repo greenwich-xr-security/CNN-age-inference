@@ -42,16 +42,20 @@ with FPR <= 5%, then average the achieved values.
 
 ## Results: uncapped fixed 20% test split
 
-The test users and images differ from the table above, so compare only the two
-rows in this table with each other, not with the capped 15% test results.
+The test users and images differ from the table above, so compare only rows in
+this table with each other, not with the capped 15% test results. FPR and Adult
+FNR use each fold's best exact operating point with FPR <= 1%, then average
+the achieved values. The gate is ranked using the continuous Gaussian z-score
+`(predicted age - 18) / predicted SD`, which is equivalent to the adult
+probability ranking but avoids float32 probabilities saturating at 0 or 1.
 
-| Training data | Objective | MAE (years) | RMSE (years) | Adult-gate AUC | Mean FPR | Adult FNR |
+| Training data | Objective | MAE (years) | RMSE (years) | Adult-gate AUC | Mean FPR (<=1%) | Adult FNR (<=1% FPR) |
 | --- | --- | ---: | ---: | ---: | ---: | ---: |
-| Real only | Pure NLL (`1050753`) | 5.017 | 6.706 | 0.9483 | 4.74% | 18.33% |
-| Real + synthetic | Pure NLL (`1050754`) | **4.683** | **6.293** | **0.9594** | 4.78% | **17.91%** |
-| Real + SyntheticDorsalHands2 | Pure NLL, EfficientNet-V2-S (`1050812`) | 4.867 | 6.544 | 0.9546 | 4.78% | 18.14% |
-| Real + SyntheticDorsalHands2 | Pure NLL, ViT tiny 384 (`1050814`) | 5.326 | 7.219 | 0.9366 | 4.78% | 20.22% |
-| Real only (SyntheticDorsalHands2 initialisation) | Pure NLL fine-tuning, EfficientNet-V2-S (`1050819`) | **4.514** | **6.246** | **0.9641** | **4.69%** | **16.25%** |
+| Real only | Pure NLL (`1050753`) | 5.017 | 6.706 | 0.9483 | 0.91% | 32.41% |
+| Real + synthetic | Pure NLL (`1050754`) | 4.683 | 6.293 | 0.9594 | 0.91% | 29.89% |
+| Real + SyntheticDorsalHands2 | Pure NLL, EfficientNet-V2-S (`1050812`) | 4.867 | 6.544 | 0.9546 | 0.91% | **29.33%** |
+| Real + SyntheticDorsalHands2 | Pure NLL, ViT tiny 384 (`1050814`) | 5.326 | 7.219 | 0.9366 | 0.91% | 37.20% |
+| Real only (SyntheticDorsalHands2 initialisation) | Pure NLL fine-tuning, EfficientNet-V2-S (`1050819`) | **4.514** | **6.246** | **0.9641** | 0.91% | 31.31% |
 
 ## Fixed uncapped split manifests
 
@@ -94,8 +98,6 @@ The uncapped runs use 20% held-out real users and five folds over the remaining
 - Rendezvous: `MASTER_PORT=29513` to avoid colliding with the concurrent EfficientNet-V2-S job `1050812` on the default port.
 - Held-out result: five-fold unweighted `n=1` aggregate: MAE 5.326 years, RMSE 7.219 years, adult-gate AUC 0.9366, mean FPR 4.78%, Adult FNR 20.22% at each fold's best FPR <= 5% operating point.
 
-## In-progress launch
-
 ### Job `1050819` — Synthetic2-to-real fine-tuning
 
 - Submission date: 2026-07-30 10:30 (BST)
@@ -109,6 +111,9 @@ The uncapped runs use 20% held-out real users and five folds over the remaining
 - Model/objective: EfficientNet-V2-S at 384 px; pure Gaussian NLL (`NLL=1`, all other regression, embedding, spread, and normals-auxiliary losses disabled); LR `2e-5` (10x below `1050812`); maximum 120 epochs, patience 10, image-level training/evaluation (`USER_GROUP_SIZES=1`, `AGG_SIZES=1`).
 - Requested resources: one `gpu-beast` node, 4 GPUs, 16 CPU cores, 64 GB RAM, batch size 16 per GPU; `MASTER_PORT=29514`.
 - Held-out result: five-fold unweighted `n=1` aggregate: MAE 4.514 years, RMSE 6.246 years, adult-gate AUC 0.9641, mean FPR 4.69%, Adult FNR 16.25% at each fold's best FPR <= 5% operating point.
+
+
+## In-progress launch
 
 ### Job `1050821` - Real + SyntheticDorsalHands2 Pure NLL, ViT small 384
 

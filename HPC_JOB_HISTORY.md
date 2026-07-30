@@ -44,18 +44,16 @@ with FPR <= 5%, then average the achieved values.
 
 The test users and images differ from the table above, so compare only rows in
 this table with each other, not with the capped 15% test results. FPR and Adult
-FNR use each fold's best exact operating point with FPR <= 1%, then average
-the achieved values. The gate is ranked using the continuous Gaussian z-score
-`(predicted age - 18) / predicted SD`, which is equivalent to the adult
-probability ranking but avoids float32 probabilities saturating at 0 or 1.
+FNR use each fold's best operating point with FPR <= 5%, then average the
+achieved values.
 
-| Training data | Objective | MAE (years) | RMSE (years) | Adult-gate AUC | Mean FPR (<=1%) | Adult FNR (<=1% FPR) |
+| Training data | Objective | MAE (years) | RMSE (years) | Adult-gate AUC | Mean FPR | Adult FNR |
 | --- | --- | ---: | ---: | ---: | ---: | ---: |
-| Real only | Pure NLL (`1050753`) | 5.017 | 6.706 | 0.9483 | 0.91% | 32.41% |
-| Real + synthetic | Pure NLL (`1050754`) | 4.683 | 6.293 | 0.9594 | 0.91% | 29.89% |
-| Real + SyntheticDorsalHands2 | Pure NLL, EfficientNet-V2-S (`1050812`) | 4.867 | 6.544 | 0.9546 | 0.91% | **29.33%** |
-| Real + SyntheticDorsalHands2 | Pure NLL, ViT tiny 384 (`1050814`) | 5.326 | 7.219 | 0.9366 | 0.91% | 37.20% |
-| Real only (SyntheticDorsalHands2 initialisation) | Pure NLL fine-tuning, EfficientNet-V2-S (`1050819`) | **4.514** | **6.246** | **0.9641** | 0.91% | 31.31% |
+| Real only | Pure NLL (`1050753`) | 5.017 | 6.706 | 0.9483 | 4.74% | 18.33% |
+| Real + synthetic | Pure NLL (`1050754`) | 4.683 | 6.293 | 0.9594 | 4.78% | 17.91% |
+| Real + SyntheticDorsalHands2 | Pure NLL, EfficientNet-V2-S (`1050812`) | 4.867 | 6.544 | 0.9546 | 4.78% | 18.14% |
+| Real + SyntheticDorsalHands2 | Pure NLL, ViT tiny 384 (`1050814`) | 5.326 | 7.219 | 0.9366 | 4.78% | 20.22% |
+| Real only (SyntheticDorsalHands2 initialisation) | Pure NLL fine-tuning, EfficientNet-V2-S (`1050819`) | **4.514** | **6.246** | **0.9641** | **4.69%** | **16.25%** |
 
 ## Fixed uncapped split manifests
 

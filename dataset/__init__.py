@@ -11,7 +11,7 @@ from .hand_metadata import (
 )
 from .age import AgeDataset
 from .transforms import build_transforms
-from .utils import filter_metadata
+from .utils import filter_metadata, filter_metadata_ssl
 
 __all__ = [
     "get_dataset_root",
@@ -25,4 +25,5 @@ __all__ = [
     "AgeDataset",
     "build_transforms",
     "filter_metadata",
+    "filter_metadata_ssl",
 ]

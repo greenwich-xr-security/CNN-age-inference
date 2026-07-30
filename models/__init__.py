@@ -7,6 +7,7 @@ from .normals_head import NormalsHead
 from .resnet_age import RESNET_IMG_SIZES, ResNetAgeRegressor
 from .swin_age import SWIN_IMG_SIZES, SwinAgeRegressor
 from .vit_age import VIT_IMG_SIZES, ViTAgeRegressor
+from .backbones import ConvNeXtBackbone, EfficientNetBackbone
 
 __all__ = [
     "EFFICIENTNET_IMG_SIZES",
@@ -24,6 +25,9 @@ __all__ = [
     "ViTAgeRegressor",
     "expand_first_conv_to_6ch",
     "resolve_model_builder",
+    "ConvNeXtBackbone",
+    "EfficientNetBackbone",
+    "resolve_backbone_builder",
 ]
 
 
@@ -201,4 +205,42 @@ def resolve_model_builder(
         f"or swin_{{tiny,small,base,large,v2_tiny,v2_tiny_384,v2_tiny_512,v2_small,v2_base,v2_base_384,v2_large}} "
         f"or vit_{{tiny_384,small_384}} "
         f"or aliases {sorted(MODEL_ALIASES)}."
+    )
+
+
+def resolve_backbone_builder(model_name: str):
+    """Resolve a model name to a feature-only backbone builder and canonical image size.
+
+    Unlike resolve_model_builder, this returns a bare backbone (no age-regression head)
+    for SSL pretraining (see train_dino.py / train_byol.py). Only EfficientNet and
+    ConvNeXt are supported, matching the feature-only wrappers in models/backbones.py.
+    """
+    name = model_name.lower()
+    name = MODEL_ALIASES.get(name, name)
+
+    if name in EFFICIENTNET_IMG_SIZES:
+        size = EFFICIENTNET_IMG_SIZES[name]
+        return (
+            lambda: EfficientNetBackbone(name),
+            size,
+            f"EfficientNet-{name.upper()}",
+            name,
+        )
+
+    if name.startswith("convnext_"):
+        variant = name.split("_", 1)[1]
+        if variant not in CONVNEXT_IMG_SIZES:
+            raise ValueError(f"Unsupported ConvNeXt variant '{variant}'.")
+        size = CONVNEXT_IMG_SIZES[variant]
+        return (
+            lambda: ConvNeXtBackbone(variant),
+            size,
+            f"ConvNeXt-{variant}",
+            name,
+        )
+
+    raise ValueError(
+        f"Unsupported backbone '{model_name}'. "
+        f"Expected one of {sorted(EFFICIENTNET_IMG_SIZES)} or convnext_{{tiny,small,base,large,xlarge}} "
+        f"or aliases cnt,cns,cnb,cnl,cnx."
     )

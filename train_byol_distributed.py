@@ -1,0 +1,516 @@
+import argparse
+import math
+import os
+import random
+from datetime import timedelta
+from pathlib import Path
+
+import numpy as np
+import torch
+import torch.distributed as dist
+import torch.nn as nn
+from torch.nn.parallel import DistributedDataParallel
+from torch.utils.data import DataLoader, DistributedSampler
+from tqdm import tqdm
+
+from dataset.hand_metadata import get_dataset_root, load_combined_metadata, set_dataset_root
+from dataset.ssl import HandSSLPairDataset
+from dataset.ssl_transforms import DinoAugmentationConfig, DinoMultiCropTransform
+from dataset.utils import filter_metadata_ssl
+from models import resolve_backbone_builder
+from models.byol import BYOLNetwork, BYOLPredictor, BYOLProjector, byol_loss
+
+DEFAULT_BATCH_SIZE = 64
+DEFAULT_EPOCHS = 100
+DEFAULT_LR = 1e-4
+DEFAULT_WEIGHT_DECAY = 1e-4
+DEFAULT_MODEL_VARIANT = "v2_s"
+DEFAULT_SEED = 42
+
+
+def set_random_seed(seed: int) -> None:
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+
+
+def cosine_schedule(start: float, end: float, total_steps: int) -> list[float]:
+    if total_steps <= 1:
+        return [end]
+    values = []
+    for step in range(total_steps):
+        cosine = (1.0 + math.cos(math.pi * step / (total_steps - 1))) / 2.0
+        values.append(end - (end - start) * cosine)
+    return values
+
+
+def forward_views(model, views: list[torch.Tensor]) -> list[torch.Tensor]:
+    outputs = [None] * len(views)
+    size_map: dict[tuple[int, int], list[int]] = {}
+    for idx, view in enumerate(views):
+        size_map.setdefault(tuple(view.shape[-2:]), []).append(idx)
+    for indices in size_map.values():
+        batch = torch.cat([views[i] for i in indices], dim=0)
+        batch_out = model(batch)
+        chunks = batch_out.chunk(len(indices))
+        for idx, out in zip(indices, chunks):
+            outputs[idx] = out
+    return outputs
+
+
+def set_bn_eval(module: nn.Module) -> None:
+    if isinstance(module, (nn.BatchNorm1d, nn.BatchNorm2d, nn.BatchNorm3d, nn.SyncBatchNorm)):
+        module.eval()
+
+
+def disable_inplace_ops(module: nn.Module) -> None:
+    if hasattr(module, "inplace"):
+        try:
+            module.inplace = False
+        except Exception:
+            pass
+
+
+def compute_byol_view_loss(
+    online_output: torch.Tensor,
+    target_outputs: list[torch.Tensor],
+    *,
+    skip_target_index: int | None,
+    total_terms: int,
+) -> torch.Tensor:
+    total = None
+    for t_idx, t_out in enumerate(target_outputs):
+        if skip_target_index is not None and t_idx == skip_target_index:
+            continue
+        term = byol_loss(online_output, t_out.detach()).mean()
+        total = term if total is None else total + term
+    if total is None:
+        return torch.tensor(0.0, device=online_output.device)
+    return total / float(max(1, total_terms))
+
+
+def update_target(online: nn.Module, target: nn.Module, momentum: float) -> None:
+    for param_o, param_t in zip(online.encoder_parameters(), target.encoder_parameters()):
+        param_t.data.mul_(momentum).add_(param_o.data, alpha=1.0 - momentum)
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Distributed BYOL SSL pretraining for hand images.")
+    parser.add_argument(
+        "--data-root",
+        type=str,
+        default=None,
+        help="Path to the dataset root directory. Overrides the default or env var.",
+    )
+    parser.add_argument(
+        "--output-dir",
+        type=str,
+        default="runs/byol_ddp",
+        help="Directory where checkpoints and logs will be saved.",
+    )
+    parser.add_argument(
+        "--include-handrgbd",
+        action="store_true",
+        default=False,
+        help="Include the HandRGBD dataset in SSL pretraining.",
+    )
+    parser.add_argument(
+        "--include-hagrid",
+        action="store_true",
+        default=False,
+        help="Include the HaGRIDv2 stop_inverted dataset in SSL pretraining.",
+    )
+    parser.add_argument(
+        "--include-synthetic-dorsal",
+        action="store_true",
+        default=False,
+        help="Include SyntheticDorsalHands in SSL pretraining.",
+    )
+    parser.add_argument(
+        "--include-synthetic-dorsal2",
+        action="store_true",
+        default=False,
+        help="Include SyntheticDorsalHands2 in SSL pretraining.",
+    )
+    parser.add_argument(
+        "--include-prolific",
+        action="store_true",
+        default=False,
+        help="Include the ProlificHands dataset in SSL pretraining.",
+    )
+    parser.add_argument(
+        "--include-primary",
+        action="store_true",
+        default=False,
+        help="Include the 11kHands primary dataset in SSL pretraining.",
+    )
+    parser.add_argument(
+        "--include-archive",
+        action="store_true",
+        default=False,
+        help="Include the archive dataset in SSL pretraining.",
+    )
+    parser.add_argument(
+        "--model",
+        type=str,
+        default=DEFAULT_MODEL_VARIANT,
+        help=(
+            "Backbone to use. EfficientNet: b0-b7, v2_{s,m,l}. ConvNeXt: convnext_{tiny,small,base,large,xlarge} "
+            "or aliases cnt,cns,cnb,cnl,cnx."
+        ),
+    )
+    parser.add_argument(
+        "--img-size",
+        type=int,
+        default=None,
+        help="Override the input resolution (discouraged). By default the canonical size for the chosen model is used.",
+    )
+    parser.add_argument(
+        "--batch-size",
+        type=int,
+        default=DEFAULT_BATCH_SIZE,
+        help="Per-rank mini-batch size for SSL (default: 64).",
+    )
+    parser.add_argument(
+        "--epochs",
+        type=int,
+        default=DEFAULT_EPOCHS,
+        help="Number of SSL epochs (default: 100).",
+    )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=DEFAULT_SEED,
+        help="Seed for RNGs (default: 42).",
+    )
+    parser.add_argument(
+        "--lr",
+        type=float,
+        default=DEFAULT_LR,
+        help="Learning rate for AdamW (default: 1e-4).",
+    )
+    parser.add_argument(
+        "--weight-decay",
+        type=float,
+        default=DEFAULT_WEIGHT_DECAY,
+        help="Weight decay for AdamW (default: 1e-4).",
+    )
+    parser.add_argument(
+        "--num-workers",
+        type=int,
+        default=0,
+        help="Number of DataLoader workers per rank (default: 0).",
+    )
+    parser.add_argument(
+        "--pair-same-hand-prob",
+        type=float,
+        default=0.5,
+        help="Probability of pairing same user/hand images (default: 0.5).",
+    )
+    parser.add_argument(
+        "--num-local-crops",
+        type=int,
+        default=0,
+        help=(
+            "Number of extra local crops per sample, beyond the 2 global views BYOL compares "
+            "(default: 0, the canonical BYOL 2-view recipe). Local views are only compared "
+            "against the target's 2 global outputs, never against each other."
+        ),
+    )
+    parser.add_argument(
+        "--global-crop-scale",
+        type=float,
+        nargs=2,
+        default=(0.6, 1.0),
+        help="Scale range for global crops (default: 0.6 1.0).",
+    )
+    parser.add_argument(
+        "--local-crop-scale",
+        type=float,
+        nargs=2,
+        default=(0.4, 0.7),
+        help="Scale range for local crops (default: 0.4 0.7).",
+    )
+    parser.add_argument(
+        "--local-crop-size",
+        type=int,
+        default=None,
+        help="Override local crop size (default: 0.6 * img_size).",
+    )
+    parser.add_argument(
+        "--projector-hidden-dim",
+        type=int,
+        default=4096,
+        help="BYOL projector MLP hidden dim (default: 4096).",
+    )
+    parser.add_argument(
+        "--projector-dim",
+        type=int,
+        default=256,
+        help="BYOL projector output dim (default: 256).",
+    )
+    parser.add_argument(
+        "--predictor-hidden-dim",
+        type=int,
+        default=4096,
+        help="BYOL predictor MLP hidden dim (default: 4096).",
+    )
+    parser.add_argument(
+        "--target-momentum",
+        type=float,
+        default=0.996,
+        help="Initial target-network EMA momentum (default: 0.996).",
+    )
+    parser.add_argument(
+        "--target-momentum-end",
+        type=float,
+        default=1.0,
+        help="Final target-network EMA momentum (default: 1.0).",
+    )
+    parser.add_argument(
+        "--aug-ramp-fraction",
+        type=float,
+        default=0.2,
+        help="Fraction of epochs to ramp augmentation strength (default: 0.2).",
+    )
+    parser.add_argument(
+        "--dist-backend",
+        type=str,
+        default="nccl",
+        choices=["nccl", "gloo", "mpi"],
+        help="torch.distributed backend to use.",
+    )
+    parser.add_argument(
+        "--dist-timeout",
+        type=int,
+        default=1800,
+        help="Timeout (in seconds) for torch.distributed initialization.",
+    )
+    parser.add_argument(
+        "--find-unused-params",
+        action="store_true",
+        help="Enable DistributedDataParallel(find_unused_parameters=True).",
+    )
+    return parser.parse_args()
+
+
+def init_distributed(args: argparse.Namespace) -> tuple[int, int, int, torch.device]:
+    if not dist.is_available():
+        raise RuntimeError("torch.distributed is not available in this PyTorch build.")
+
+    rank = int(os.environ.get("RANK", "0"))
+    world_size = int(os.environ.get("WORLD_SIZE", "1"))
+    local_rank = int(os.environ.get("LOCAL_RANK", "0"))
+
+    if torch.cuda.is_available():
+        torch.cuda.set_device(local_rank)
+        device = torch.device("cuda", local_rank)
+    else:
+        device = torch.device("cpu")
+
+    timeout = timedelta(seconds=int(args.dist_timeout))
+    dist.init_process_group(backend=args.dist_backend, timeout=timeout)
+
+    rank = dist.get_rank()
+    world_size = dist.get_world_size()
+    return rank, world_size, local_rank, device
+
+
+def main() -> None:
+    args = parse_args()
+    rank, world_size, local_rank, device = init_distributed(args)
+    is_main = rank == 0
+    set_random_seed(args.seed + rank)
+
+    model_builder, default_size, model_desc, model_key = resolve_backbone_builder(args.model)
+    if args.img_size is not None and args.img_size != default_size and is_main:
+        print(
+            f"[byol] Ignoring requested --img-size {args.img_size}; {model_desc} uses {default_size}."
+        )
+    img_size = default_size
+    local_size = args.local_crop_size if args.local_crop_size else max(64, int(img_size * 0.6))
+
+    if args.data_root:
+        set_dataset_root(args.data_root)
+    active_root = get_dataset_root()
+
+    metadata = filter_metadata_ssl(
+        load_combined_metadata(
+            root=active_root,
+            include_handrgbd=args.include_handrgbd,
+            include_hagrid=args.include_hagrid,
+            include_synthetic_dorsal=args.include_synthetic_dorsal,
+            include_synthetic_dorsal2=args.include_synthetic_dorsal2,
+            include_prolific=args.include_prolific,
+            include_primary=args.include_primary,
+            include_archive=args.include_archive,
+        )
+    )
+    output_dir = Path(args.output_dir).expanduser()
+    if is_main:
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+    aug_config = DinoAugmentationConfig()
+    multi_crop = DinoMultiCropTransform(
+        global_size=img_size,
+        local_size=local_size,
+        num_local_crops=args.num_local_crops,
+        global_scale=tuple(args.global_crop_scale),
+        local_scale=tuple(args.local_crop_scale),
+        config=aug_config,
+    )
+
+    dataset = HandSSLPairDataset(
+        metadata,
+        transform=multi_crop,
+        pair_same_hand_prob=args.pair_same_hand_prob,
+        seed=args.seed,
+    )
+    sampler = DistributedSampler(
+        dataset,
+        num_replicas=world_size,
+        rank=rank,
+        shuffle=True,
+        seed=args.seed,
+        drop_last=True,
+    )
+    loader = DataLoader(
+        dataset,
+        batch_size=args.batch_size,
+        sampler=sampler,
+        num_workers=args.num_workers,
+        drop_last=True,
+        pin_memory=device.type == "cuda",
+        persistent_workers=args.num_workers > 0,
+    )
+    if args.num_workers > 0 and args.aug_ramp_fraction > 0 and is_main:
+        print("[byol] Augmentation ramp is most reliable with --num-workers 0.")
+
+    if is_main:
+        print(
+            f"Using dataset root: {active_root}\n"
+            f"Saving artifacts to: {output_dir}\n"
+            f"SSL images: {len(metadata)} | Users: {metadata['user_id'].nunique()}\n"
+            f"Model: {model_desc} | Image size: {img_size} | Local crop: {local_size}\n"
+            f"Per-rank batch size: {args.batch_size} | Epochs: {args.epochs} | Seed: {args.seed} | "
+            f"World size: {world_size}"
+        )
+
+    online_backbone = model_builder()
+    target_backbone = model_builder()
+    embed_dim = getattr(online_backbone, "embed_dim", None)
+    if embed_dim is None:
+        raise RuntimeError("Backbone must expose an embed_dim attribute for BYOL.")
+
+    online = BYOLNetwork(
+        online_backbone,
+        BYOLProjector(embed_dim, hidden_dim=args.projector_hidden_dim, out_dim=args.projector_dim),
+        BYOLPredictor(args.projector_dim, hidden_dim=args.predictor_hidden_dim),
+    ).to(device)
+    target = BYOLNetwork(
+        target_backbone,
+        BYOLProjector(embed_dim, hidden_dim=args.projector_hidden_dim, out_dim=args.projector_dim),
+    ).to(device)
+
+    online.apply(disable_inplace_ops)
+    target.apply(disable_inplace_ops)
+
+    target.load_state_dict(online.state_dict(), strict=False)
+    for param in target.parameters():
+        param.requires_grad = False
+
+    ddp_online = DistributedDataParallel(
+        online,
+        device_ids=[local_rank] if device.type == "cuda" else None,
+        output_device=local_rank if device.type == "cuda" else None,
+        find_unused_parameters=args.find_unused_params,
+    )
+
+    optimizer = torch.optim.AdamW(ddp_online.parameters(), lr=args.lr, weight_decay=args.weight_decay)
+    steps_per_epoch = max(1, len(loader))
+    total_steps = steps_per_epoch * args.epochs
+    momentum_schedule = cosine_schedule(args.target_momentum, args.target_momentum_end, total_steps)
+
+    history_path = output_dir / "byol_history_ddp.log"
+    checkpoint_path = output_dir / f"byol_{model_key}_pretrain_ddp.pth"
+    global_step = 0
+
+    for epoch in range(1, args.epochs + 1):
+        sampler.set_epoch(epoch)
+        dataset.set_epoch(epoch)
+        if args.aug_ramp_fraction > 0:
+            ramp_epochs = max(1, int(args.epochs * args.aug_ramp_fraction))
+            strength = min(1.0, epoch / ramp_epochs)
+            multi_crop.set_strength(strength)
+
+        ddp_online.train()
+        # Backbones start from ImageNet-pretrained weights; keep their BatchNorm running
+        # stats frozen for stability (multi-crop SSL batches are small and non-i.i.d.).
+        # The projector/predictor BatchNorm layers are freshly initialized and must be
+        # allowed to update live -- BYOL relies on them tracking real batch statistics.
+        ddp_online.module.backbone.apply(set_bn_eval)
+        # The target network is never optimized directly (EMA-only), but it stays in
+        # train() mode so its BatchNorm running stats keep evolving from its own forward
+        # passes, same as the online projector/predictor; only its backbone is frozen.
+        target.train()
+        target.backbone.apply(set_bn_eval)
+
+        running_loss = 0.0
+        running_count = 0.0
+        progress = tqdm(loader, desc=f"[Rank {rank}] Epoch {epoch}/{args.epochs}", disable=not is_main)
+        for batch in progress:
+            views = [v.to(device, non_blocking=True) for v in batch]
+            with torch.no_grad():
+                target_outputs = forward_views(target, views[:2])
+            total_terms = (len(views) * len(target_outputs)) - len(target_outputs)
+            optimizer.zero_grad()
+            batch_loss = 0.0
+            for idx, view in enumerate(views):
+                online_output = ddp_online(view)
+                skip_idx = idx if idx < len(target_outputs) else None
+                loss = compute_byol_view_loss(
+                    online_output,
+                    target_outputs,
+                    skip_target_index=skip_idx,
+                    total_terms=total_terms,
+                )
+                loss.backward()
+                batch_loss += loss.item()
+            optimizer.step()
+
+            momentum = momentum_schedule[global_step]
+            update_target(ddp_online.module, target, momentum)
+            batch_size = views[0].size(0)
+            running_loss += batch_loss * batch_size
+            running_count += batch_size
+            global_step += 1
+
+        totals = torch.tensor([running_loss, running_count], device=device, dtype=torch.float64)
+        dist.all_reduce(totals, op=dist.ReduceOp.SUM)
+        avg_loss = totals[0].item() / max(1.0, totals[1].item())
+
+        if is_main:
+            print(f"Epoch {epoch}: byol_loss={avg_loss:.4f}")
+            with history_path.open("a", encoding="utf-8") as log_fp:
+                log_fp.write(f"Epoch {epoch},loss={avg_loss:.6f}\n")
+
+            checkpoint = {
+                "backbone": ddp_online.module.backbone.state_dict(),
+                "projector": ddp_online.module.projector.state_dict(),
+                "model": args.model,
+                "img_size": img_size,
+                "projector_dim": args.projector_dim,
+                "epoch": epoch,
+                "world_size": world_size,
+            }
+            torch.save(checkpoint, checkpoint_path)
+
+    if is_main:
+        print(f"Saved SSL checkpoint to {checkpoint_path}")
+    dist.destroy_process_group()
+
+
+if __name__ == "__main__":
+    main()

@@ -195,6 +195,13 @@ def filter_metadata(
     return pd.concat([real_df, synthetic_df], ignore_index=True)
 
 
+def filter_metadata_ssl(df: pd.DataFrame) -> pd.DataFrame:
+    """Keep dorsal images; SSL does not require age labels."""
+    df = df[df["aspect"].str.contains("dorsal", case=False, na=False)]
+    df = df.copy()
+    return df.reset_index(drop=True)
+
+
 def _format_age_bin_label(lower: int, upper: int) -> str:
     if lower == upper:
         return str(int(lower))

@@ -1,6 +1,7 @@
 from .efficientnet_age import EFFICIENTNET_IMG_SIZES, EfficientNetAgeRegressor
 from .convnext_age import CONVNEXT_IMG_SIZES, ConvNeXtAgeRegressor
 from .backbones import ConvNeXtBackbone, EfficientNetBackbone
+from .dinov2_backbone import DINOV2_IMG_SIZES, DinoV2Backbone
 
 __all__ = [
     "EFFICIENTNET_IMG_SIZES",
@@ -9,6 +10,8 @@ __all__ = [
     "ConvNeXtAgeRegressor",
     "ConvNeXtBackbone",
     "EfficientNetBackbone",
+    "DINOV2_IMG_SIZES",
+    "DinoV2Backbone",
     "resolve_model_builder",
     "resolve_backbone_builder",
 ]
@@ -83,8 +86,17 @@ def resolve_backbone_builder(model_name: str):
             name,
         )
 
+    if name in DINOV2_IMG_SIZES:
+        size = DINOV2_IMG_SIZES[name]
+        return (
+            lambda: DinoV2Backbone(name),
+            size,
+            f"DINOv2-{name}",
+            name,
+        )
+
     raise ValueError(
         f"Unsupported model '{model_name}'. "
-        f"Expected one of {sorted(EFFICIENTNET_IMG_SIZES)} or convnext_{{tiny,small,base,large,xlarge}} "
-        f"or aliases {sorted(MODEL_ALIASES)}."
+        f"Expected one of {sorted(EFFICIENTNET_IMG_SIZES)}, convnext_{{tiny,small,base,large,xlarge}}, "
+        f"or {sorted(DINOV2_IMG_SIZES)}, or aliases {sorted(MODEL_ALIASES)}."
     )

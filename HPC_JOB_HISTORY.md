@@ -22,7 +22,7 @@ four GPUs, 16 CPU cores, 64 GB RAM, and batch size 16 per GPU unless noted.
 | `1050877` | Completed / 07:44:30 | Real only; uncapped fixed 20% test | Pure Gaussian NLL; random initialisation | Random-init control for real-only EfficientNet-V2-S |
 | `1050938` | Failed / 00:00:19 | SyntheticDorsalHands2 only; fixed synthetic2 20% test | Pure Gaussian NLL; stdin Slurm script attempt | Launch-script quoting failed before Python started; replaced by `1050939` |
 | `1050939` | Running / initial `00:00:25` | SyntheticDorsalHands2 only; fixed synthetic2 20% test | Pure Gaussian NLL | Q2 SS internal-learnability / degeneracy cell |
-| `1050940` | Running / initial `00:00:27` | Real-trained `1050753` checkpoints evaluated on fixed synthetic2 20% test | Evaluation-only; age-threshold adult-gate mode | Q2 RS/TRTS distribution-match diagnostic |
+| `1050940` | Completed / 00:02:30 | Real-trained `1050753` checkpoints evaluated on fixed synthetic2 20% test | Evaluation-only; age-threshold adult-gate mode | Q2 RS/TRTS distribution-match diagnostic |
 
 Historical mixed loss: NLL 0.6 + MAE 0.9 + prediction spread 0.5 +
 embedding variance 0.8 + embedding contrast 0.8. Pure objectives disable all
@@ -92,18 +92,6 @@ The uncapped runs use 20% held-out real users and five folds over the remaining
 - Requested resources: one `gpu-beast` node, 4 GPUs, 16 CPU cores, 64 GB RAM, batch size 16 per GPU; `MASTER_PORT=29516`.
 - Held-out result: pending job completion.
 
-### Job `1050940` - Q2 RS/TRTS real-trained to SyntheticDorsalHands2 evaluation
-
-- Submission date: 2026-08-01 19:34:35 BST
-- Initial scheduler state: RUNNING on `gpu-beast`, node `gm-hpc2-gpu801`, elapsed `00:00:27`; fold 0 loaded successfully on CUDA and found 4,423 SyntheticDorsalHands2 held-out test samples.
-- Run directory: `/home/rb3434w/CNN-age-inference/runs/q2_rs_real1050753_to_synthetic2_eval_20260801`
-- Log file: `/home/rb3434w/CNN-age-inference/logs/q2-rs-syn2-eval-1050940.log`
-- Purpose: run the Q2 RS/TRTS generator-validation cell: evaluate the real-trained reference model on the held-out SyntheticDorsalHands2 split as a distribution-match diagnostic.
-- Data/split: checkpoints from real-only job `1050753` (`runs/v2s_handrgbd_prolific_only_nll_uncapped_test20_k5_4gpu_16cpu_20260728_384/fold_*/v2_s_age_regressor_ddp.pth`) evaluated on SyntheticDorsalHands2 only, fixed `splits/test_users_synthetic2_20pct_seed42.json`; no HandRGBD, ProlificHands, previous SyntheticDorsalHands, or LUICID test samples.
-- Model/objective: evaluation-only; EfficientNet-V2-S at 384 px with the fold-specific `1050753` checkpoint, embedding head dimension 128 to match training, image-level evaluation (`AGG_SIZES=1`), age-threshold adult-gate evaluation.
-- Requested resources: one `gpu-beast` node, 1 GPU, 4 CPU cores, 32 GB RAM, inference batch size 64.
-- Held-out result: pending job completion.
-
 ## Completed and failed launches
 
 ### Job `1050938` - Q2 SS SyntheticDorsalHands2 Pure NLL submission attempt
@@ -115,6 +103,19 @@ The uncapped runs use 20% held-out real users and five folds over the remaining
 - Purpose: first attempt to launch the Q2 SS SyntheticDorsalHands2-only pure NLL job.
 - Data/configuration: intended to match `1050939`, but failed before Python started because the stdin-submitted Slurm script was malformed by shell quoting (`syntax error near unexpected token '>'`).
 - Replacement: reproducible submit script committed as `submit_q2_ss_synthetic2.slurm`; replacement job is `1050939`.
+
+### Job `1050940` - Q2 RS/TRTS real-trained to SyntheticDorsalHands2 evaluation
+
+- Submission date: 2026-08-01 19:34:35 BST
+- Initial scheduler state: RUNNING on `gpu-beast`, node `gm-hpc2-gpu801`, elapsed `00:00:27`; fold 0 loaded successfully on CUDA and found 4,423 SyntheticDorsalHands2 held-out test samples.
+- Terminal scheduler state: COMPLETED, elapsed `00:02:30`, exit code 0.
+- Run directory: `/home/rb3434w/CNN-age-inference/runs/q2_rs_real1050753_to_synthetic2_eval_20260801`
+- Log file: `/home/rb3434w/CNN-age-inference/logs/q2-rs-syn2-eval-1050940.log`
+- Purpose: run the Q2 RS/TRTS generator-validation cell: evaluate the real-trained reference model on the held-out SyntheticDorsalHands2 split as a distribution-match diagnostic.
+- Data/split: checkpoints from real-only job `1050753` (`runs/v2s_handrgbd_prolific_only_nll_uncapped_test20_k5_4gpu_16cpu_20260728_384/fold_*/v2_s_age_regressor_ddp.pth`) evaluated on SyntheticDorsalHands2 only, fixed `splits/test_users_synthetic2_20pct_seed42.json`; no HandRGBD, ProlificHands, previous SyntheticDorsalHands, or LUICID test samples.
+- Model/objective: evaluation-only; EfficientNet-V2-S at 384 px with the fold-specific `1050753` checkpoint, embedding head dimension 128 to match training, image-level evaluation (`AGG_SIZES=1`), age-threshold adult-gate evaluation.
+- Requested resources: one `gpu-beast` node, 1 GPU, 4 CPU cores, 32 GB RAM, inference batch size 64.
+- Held-out result: five-fold unweighted `n=1` aggregate over 4,423 SyntheticDorsalHands2 held-out samples per fold: MAE 11.056 years, RMSE 13.390 years, adult-gate AUC 0.5609, mean FPR 41.85%, Adult FNR 9.90%. The 5% FPR operating point was not attainable in any fold within the 10-30 year age-threshold sweep; the reported FPR/FNR use the lowest-FPR available threshold (`tau=30`) in each fold.
 
 ### Job `1050812` — Real + synthetic2 Pure NLL
 

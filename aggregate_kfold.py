@@ -70,6 +70,11 @@ def parse_args() -> argparse.Namespace:
         default=201,
         help="Number of thresholds for ROC curves (default: 201).",
     )
+    parser.add_argument(
+        "--skip-val",
+        action="store_true",
+        help="Skip validation aggregation and aggregate held-out test predictions only.",
+    )
     return parser.parse_args()
 
 
@@ -630,38 +635,39 @@ def main() -> None:
 
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    val_intra_user_stats = aggregate_intra_user_outputs(
-        fold_dirs,
-        run_dirs,
-        split="val",
-        output_dir=output_dir,
-        intra_csv_name="kfold_intra_user_variability.csv",
-        per_age_csv_name="intra_user_std_per_age.csv",
-        per_age_plot_name="intra_user_std_per_age.png",
-        plot_title=f"Intra-user variability by age (k-fold validation, folds={len(fold_dirs)})",
-    )
-    aggregate_prediction_outputs(
-        fold_dirs,
-        run_dirs,
-        group_sizes,
-        val_intra_user_stats,
-        split="val",
-        output_dir=output_dir,
-        age_threshold=args.age_threshold,
-        num_thresholds=args.num_thresholds,
-        eval_age_gate_mode=args.eval_age_gate_mode,
-        age_gate_threshold_min=args.age_gate_threshold_min,
-        age_gate_threshold_max=args.age_gate_threshold_max,
-        summary_name_template="kfold_summary_n{group_size}.csv",
-        roc_name_template="roc_adult_gate_kfold_n{group_size}.png",
-        age_error_name_template="age_error_kfold_n{group_size}.{ext}",
-        scatter_name_template="age_val_scatter_kfold_n{group_size}.png",
-        skin_summary_name_template="kfold_skin_color_summary_n{group_size}.csv",
-        roc_title_template="ROC - Adult Gate (k-fold validation, n={group_size})",
-        age_error_title_template="MAE/RMSE per Age (k-fold validation mean, n={group_size})",
-        scatter_title_template="Validation scatter (all folds, n={group_size})",
-        required=True,
-    )
+    if not args.skip_val:
+        val_intra_user_stats = aggregate_intra_user_outputs(
+            fold_dirs,
+            run_dirs,
+            split="val",
+            output_dir=output_dir,
+            intra_csv_name="kfold_intra_user_variability.csv",
+            per_age_csv_name="intra_user_std_per_age.csv",
+            per_age_plot_name="intra_user_std_per_age.png",
+            plot_title=f"Intra-user variability by age (k-fold validation, folds={len(fold_dirs)})",
+        )
+        aggregate_prediction_outputs(
+            fold_dirs,
+            run_dirs,
+            group_sizes,
+            val_intra_user_stats,
+            split="val",
+            output_dir=output_dir,
+            age_threshold=args.age_threshold,
+            num_thresholds=args.num_thresholds,
+            eval_age_gate_mode=args.eval_age_gate_mode,
+            age_gate_threshold_min=args.age_gate_threshold_min,
+            age_gate_threshold_max=args.age_gate_threshold_max,
+            summary_name_template="kfold_summary_n{group_size}.csv",
+            roc_name_template="roc_adult_gate_kfold_n{group_size}.png",
+            age_error_name_template="age_error_kfold_n{group_size}.{ext}",
+            scatter_name_template="age_val_scatter_kfold_n{group_size}.png",
+            skin_summary_name_template="kfold_skin_color_summary_n{group_size}.csv",
+            roc_title_template="ROC - Adult Gate (k-fold validation, n={group_size})",
+            age_error_title_template="MAE/RMSE per Age (k-fold validation mean, n={group_size})",
+            scatter_title_template="Validation scatter (all folds, n={group_size})",
+            required=True,
+        )
 
     test_intra_user_stats = aggregate_intra_user_outputs(
         fold_dirs,

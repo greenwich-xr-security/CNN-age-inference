@@ -33,6 +33,7 @@ from metrics import (
     CHALLENGE_FNR_BINS,
     CHALLENGE_PROB_TAU,
     aggregate_predictions_by_user,
+    compute_age_gate_curves_direct_threshold,
     compute_age_gate_curves,
     compute_challenge_fnr_table_adult_gate,
     compute_challenge_fpr_table,
@@ -172,6 +173,29 @@ def parse_args() -> argparse.Namespace:
         help="Seed for random per-user aggregation (default: 42).",
     )
     parser.add_argument(
+        "--eval-age-gate-mode",
+        choices=["probability", "age_threshold"],
+        default="probability",
+        help="ROC evaluation mode: 'probability' uses Gaussian CDF; 'age_threshold' thresholds pred_mean.",
+    )
+    parser.add_argument(
+        "--age-gate-threshold-min",
+        type=float,
+        default=10.0,
+        help="Lower bound of the age sweep for age_threshold mode (default: 10.0).",
+    )
+    parser.add_argument(
+        "--age-gate-threshold-max",
+        type=float,
+        default=30.0,
+        help="Upper bound of the age sweep for age_threshold mode (default: 30.0).",
+    )
+    parser.add_argument(
+        "--ddp-output-names",
+        action="store_true",
+        help="Write train_distributed-compatible *_ddp output filenames for k-fold aggregation.",
+    )
+    parser.add_argument(
         "--output-dir",
         type=str,
         required=True,
@@ -284,7 +308,8 @@ def main() -> None:
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    raw_path = output_dir / "test_predictions_raw.npz"
+    raw_suffix = "_ddp" if args.ddp_output_names else ""
+    raw_path = output_dir / f"test_predictions_raw{raw_suffix}.npz"
     np.savez(
         raw_path,
         targets=targets_arr,
@@ -312,18 +337,27 @@ def main() -> None:
         agg_targets = aggregated["targets"]
         agg_preds = aggregated["pred_mean"]
         agg_log_vars = aggregated["pred_log_var"]
-        suffix = f"n{group_size}"
+        suffix = f"n{group_size}{'_ddp' if args.ddp_output_names else ''}"
 
         mae = float(np.mean(np.abs(agg_preds - agg_targets)))
         rmse = float(np.sqrt(np.mean((agg_preds - agg_targets) ** 2)))
 
-        gate_results = compute_age_gate_curves(
-            agg_targets,
-            agg_preds,
-            agg_log_vars,
-            age_threshold=18.0,
-            num_thresholds=201,
-        )
+        if args.eval_age_gate_mode == "age_threshold":
+            gate_results = compute_age_gate_curves_direct_threshold(
+                agg_targets,
+                agg_preds,
+                age_min=args.age_gate_threshold_min,
+                age_max=args.age_gate_threshold_max,
+                num_thresholds=201,
+            )
+        else:
+            gate_results = compute_age_gate_curves(
+                agg_targets,
+                agg_preds,
+                agg_log_vars,
+                age_threshold=18.0,
+                num_thresholds=201,
+            )
         adult_gate = gate_results["adult_gate"]
         auc_adult_gate = adult_gate["auc"]
         print(
@@ -453,7 +487,7 @@ def main() -> None:
                 fp.write(",".join(values) + "\n")
 
     # ── Summary CSV ───────────────────────────────────────────────────────────
-    summary_path = output_dir / "test_summary.csv"
+    summary_path = output_dir / f"test_summary{raw_suffix}.csv"
     summary_path.write_text("\n".join(summary_rows) + "\n", encoding="utf-8")
     print(f"\nSummary written to: {summary_path}")
 

@@ -9,14 +9,15 @@ the primary metric and adult-gate AUC optional, so they compare directly.
 | RR | Real | Real locked split | Reference | Done | `1050753` |
 | SS | Synthetic | held-out SyntheticDorsalHands2 split | Internal learnability / degeneracy check | Running | `1050939` |
 | SR | Synthetic | Real locked split | TSTR | Not run yet | no eval job yet; use SS checkpoints from `1050939` |
-| RS | Real | held-out SyntheticDorsalHands2 split | TRTS | Not run yet | no eval job yet; use RR checkpoints from `1050753` |
+| RS | Real | held-out SyntheticDorsalHands2 split | TRTS | Running | `1050940`; uses RR checkpoints from `1050753` |
 
 Notes:
 
 - `1050753` is the directly comparable real-only pure NLL reference run.
 - `1050939` is the Q2 SS SyntheticDorsalHands2-only pure NLL job.
-- SR/TSTR and RS/TRTS should not require new model training if the required
+- SR/TSTR and RS/TRTS do not require new model training if the required
   checkpoints are available; they are evaluation jobs over the opposite locked
-  test source.
+  test source. RS/TRTS is running as `1050940`; SR/TSTR waits for SS `1050939`
+  to finish all five folds.
 - `1050938` was a failed Slurm submission attempt before Python started and is
   not counted as an experimental cell.

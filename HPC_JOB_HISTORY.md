@@ -19,6 +19,11 @@ four GPUs, 16 CPU cores, 64 GB RAM, and batch size 16 per GPU unless noted.
 | `1050814` | Completed / 3:10:46 | Real + SyntheticDorsalHands2 only; uncapped fixed 20% test | Pure Gaussian NLL; ViT tiny 384; `MASTER_PORT=29513` | ViT architecture comparison to `1050812` |
 | `1050819` | Completed / 00:49:50 | Real only; uncapped fixed 20% test | Pure Gaussian NLL; fold-matched SyntheticDorsalHands2 initialisation; LR `2e-5` | Test synthetic-to-real fine-tuning |
 | `1050821` | Failed / 02:25:52 | Real + SyntheticDorsalHands2; uncapped fixed 20% test | Pure Gaussian NLL; ViT small 384; `MASTER_PORT=29515`; 3 GPUs | Fold 4 test evaluation failed because the fixed test manifest was absent |
+| `1050832` | Completed / 01:38:57 | SyntheticDorsalHands2 only | BYOL S-SSL pretraining; EfficientNet-V2-S; 100 epochs; batch 32/GPU; 4 GPUs | BYOL self-supervised pretrain of V2-S backbone on synthetic dorsal hands |
+| `1050851` | Cancelled / 00:02:50 | Real only; uncapped fixed 20% test | Pure Gaussian NLL; BYOL-pretrained init; LR `2e-4` | BYOL→supervised finetune attempt 1 — cancelled before fold 0 completed |
+| `1050852` | Cancelled / 00:25:29 | Real only; uncapped fixed 20% test | Pure Gaussian NLL; BYOL-pretrained init; LR `2e-4` | BYOL→supervised finetune attempt 2 — cancelled during fold 0 (epoch 29) |
+| `1050854` | Completed / 03:10:47 | Real only; uncapped fixed 20% test | Pure Gaussian NLL; BYOL-pretrained init; LR `2e-4` | BYOL→supervised finetune, full five-fold run |
+| `1050867` | Cancelled / 01:03:39 | Real only; uncapped fixed 20% test | Pure Gaussian NLL; BYOL-pretrained init; frozen backbone; LR `1e-3`; 60 epochs max | Linear probe of BYOL representations — two folds only; catastrophic failure |
 | `1050877` | Completed / 07:44:30 | Real only; uncapped fixed 20% test | Pure Gaussian NLL; random initialisation | Random-init control for real-only EfficientNet-V2-S |
 | `1050938` | Failed / 00:00:19 | SyntheticDorsalHands2 only; fixed synthetic2 20% test | Pure Gaussian NLL; stdin Slurm script attempt | Launch-script quoting failed before Python started; replaced by `1050939` |
 | `1050939` | Running / initial `00:00:25` | SyntheticDorsalHands2 only; fixed synthetic2 20% test | Pure Gaussian NLL | Q2 SS internal-learnability / degeneracy cell |
@@ -60,6 +65,7 @@ achieved values.
 | Real only (SyntheticDorsalHands2 initialisation) | Pure NLL fine-tuning, EfficientNet-V2-S (`1050819`) | **4.514** | **6.246** | **0.9641** | **4.69%** | **16.25%** |
 | Real + SyntheticDorsalHands2 | Pure NLL, ViT small 384 (`1050821`; 4 folds) | 5.307 | 7.102 | 0.9397 | 4.63% | 19.58% |
 | Real only | Pure NLL, random initialisation (`1050877`) | 6.490 | 8.696 | 0.8868 | 5.79% | 27.68% |
+| Real only (BYOL S-SSL init) | Pure NLL fine-tuning, EfficientNet-V2-S (`1050854`) | 5.066 | 6.825 | 0.9460 | 4.69% | 19.69% |
 
 For `1050877`, the threshold grid could not reach FPR <= 5% in folds 1, 3,
 and 4. The reported operating-point row uses the best FPR <= 5% threshold for
@@ -183,3 +189,57 @@ The uncapped runs use 20% held-out real users and five folds over the remaining
 - Model/objective: ViT-Small patch-16 at 384 px (`vit_small_384`); pure Gaussian NLL (`NLL=1`, all other regression, embedding, spread, and normals-auxiliary losses disabled); LR `2e-4`, maximum 240 epochs, patience 10, image-level training/evaluation (`USER_GROUP_SIZES=1`, `AGG_SIZES=1`).
 - Requested resources: one `gpu-beast` node, 3 GPUs, 16 CPU cores, 64 GB RAM, batch size 16 per GPU (global batch 48 rather than the four-GPU run's 64); `MASTER_PORT=29515`.
 - Held-out result (folds 0-3): unweighted four-fold `n=1` aggregate: MAE 5.307 years, RMSE 7.102 years, adult-gate AUC 0.9397, mean FPR 4.63%, and Adult FNR 19.58% at each fold's best FPR <= 5% operating point.
+
+### Job `1050832` — BYOL S-SSL pretraining on SyntheticDorsalHands2
+
+- Submission date: 2026-07-30 15:07:12 (BST)
+- Initial scheduler state: RUNNING on `gpu-beast`, node `gm-hpc2-gpu801`.
+- Terminal scheduler state: COMPLETED, elapsed `01:38:57`, exit code 0.
+- Run directory: `/home/rb3434w/CNN-age-inference/runs/byol/s_ssl_synthetic2_v2_s`
+- Log file: `/home/rb3434w/CNN-age-inference/logs/byol-s-ssl-synth2-1050832.log`
+- Purpose: self-supervised BYOL pretraining of an EfficientNet-V2-S backbone on SyntheticDorsalHands2 only, to produce an SSL initialisation for subsequent supervised fine-tuning on real data without any age labels during pretraining.
+- Data/configuration: SyntheticDorsalHands2 only; no age labels used; BYOL online/target network training with standard augmentation pipeline. 100 epochs, per-GPU batch size 32, 4 GPUs (global batch 128).
+- Model/objective: EfficientNet-V2-S at 384 px; BYOL loss only. Final BYOL loss at epoch 100: 0.0166.
+- Requested resources: one `gpu-beast` node, 4 GPUs, 16 CPU cores, 64 GB RAM.
+- Checkpoint saved to: `runs/byol/s_ssl_synthetic2_v2_s/byol_v2_s_pretrain_ddp.pth`; converted to supervised-head init via `convert_ssl_checkpoint.py` into `runs/byol/s_ssl_synthetic2_v2_s/init_checkpoint_root/fold_*/v2_s_age_regressor_ddp.pth`.
+
+### Job `1050851` — BYOL→supervised finetune, attempt 1 (cancelled)
+
+- Submission date: 2026-07-30 16:51:40 (BST)
+- Terminal scheduler state: CANCELLED, elapsed `00:02:50`.
+- Log file: `/home/rb3434w/CNN-age-inference/logs/byol-s-ssl-finetune-1050851.log`
+- Purpose: first attempt to launch supervised fine-tuning from the BYOL checkpoint. Cancelled before fold 0 completed.
+
+### Job `1050852` — BYOL→supervised finetune, attempt 2 (cancelled)
+
+- Submission date: 2026-07-30 16:55:29 (BST)
+- Terminal scheduler state: CANCELLED, elapsed `00:25:29`. Fold 0 ran to epoch 29 before cancellation.
+- Log file: `/home/rb3434w/CNN-age-inference/logs/byol-s-ssl-finetune-1050852.log`
+- Purpose: second attempt; cancelled mid-fold 0 (epoch 29). Replaced by `1050854`.
+
+### Job `1050854` — BYOL→supervised finetune, full five-fold run
+
+- Submission date: 2026-07-30 17:21:42 (BST)
+- Initial scheduler state: RUNNING on `gpu-beast`, node `gm-hpc2-gpu801`; fold 0 started successfully.
+- Terminal scheduler state: COMPLETED, elapsed `03:10:47`, exit code 0.
+- Run directory: `/home/rb3434w/CNN-age-inference/runs/byol_s_ssl_synthetic2_v2s_real_finetune`
+- Log file: `/home/rb3434w/CNN-age-inference/logs/byol-s-ssl-finetune-1050854.log`
+- Purpose: supervised fine-tuning of the BYOL-pretrained V2-S backbone on real data only, to test whether BYOL pretraining on synthetic data provides a useful initialisation for the age regression task compared with ImageNet init (`1050753`) and supervised synthetic init (`1050819`).
+- Data/split: HandRGBD + ProlificHands only; no synthetic or LUICID samples; uncapped real data; fixed `splits/test_users_uncapped_20pct_seed42.json`; exact real-only fixed fold manifest copied from `splits/folds_k5_uncapped_test20_real_seed42.json`.
+- Initialisation: BYOL-pretrained checkpoint converted by `convert_ssl_checkpoint.py`; fold `i` loads `runs/byol/s_ssl_synthetic2_v2_s/init_checkpoint_root/fold_i/v2_s_age_regressor_ddp.pth`.
+- Model/objective: EfficientNet-V2-S at 384 px; pure Gaussian NLL (`NLL=1`, all other regression, embedding, spread, and normals-auxiliary losses disabled); LR `2e-4`, maximum 120 epochs, patience 10, image-level training/evaluation (`USER_GROUP_SIZES=1`, `AGG_SIZES=1`).
+- Requested resources: one `gpu-beast` node, 4 GPUs, 16 CPU cores, 64 GB RAM, batch size 16 per GPU.
+- Held-out result: five-fold unweighted `n=1` aggregate: MAE 5.066 years, RMSE 6.825 years, adult-gate AUC 0.9460, mean FPR 4.69%, Adult FNR 19.69% at each fold's best FPR <= 5% operating point.
+
+### Job `1050867` — Linear probe of BYOL SSL representations (cancelled, incomplete)
+
+- Submission date: 2026-07-31 13:37:17 (BST)
+- Terminal scheduler state: CANCELLED, elapsed `01:03:39`, exit code non-zero. Only fold 0 and the beginning of fold 1 ran (fold 1 log ends at epoch 13 without test evaluation).
+- Run directory: `/home/rb3434w/CNN-age-inference/runs/linear_probe_byol_ssl_v2s`
+- Log file: `/home/rb3434w/CNN-age-inference/logs/probe-byol-ssl-1050867.log`
+- Purpose: linear probe of the BYOL-pretrained backbone to assess the quality of SSL representations without any fine-tuning; backbone frozen (`freeze_backbone=True`), only the two-unit regression head trained.
+- Data/split: same as `1050854`: HandRGBD + ProlificHands only; uncapped real data; fixed `splits/test_users_uncapped_20pct_seed42.json`; real-only five-fold manifest.
+- Initialisation: same BYOL checkpoint as `1050854`. Backbone frozen throughout.
+- Model/objective: EfficientNet-V2-S at 384 px, frozen backbone; pure Gaussian NLL; LR `1e-3` (higher, head-only), maximum 60 epochs, patience 10, image-level training/evaluation.
+- Requested resources: one `gpu-beast` node, 4 GPUs, 16 CPU cores, 64 GB RAM, batch size 16 per GPU.
+- Partial result (fold 0 only): MAE 24.187 years, RMSE 32.006 years, adult-gate AUC 0.1779. The linear probe failed catastrophically — BYOL representations learned from SyntheticDorsalHands2 without age labels are not linearly separable by age when the backbone is fully frozen. This confirms that SSL pretraining alone does not encode age in a linearly accessible way; the backbone must be fine-tuned end-to-end.

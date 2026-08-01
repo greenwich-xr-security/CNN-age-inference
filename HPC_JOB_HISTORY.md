@@ -29,7 +29,7 @@ four GPUs, 16 CPU cores, 64 GB RAM, and batch size 16 per GPU unless noted.
 | `1050939` | Completed / 01:43:53 | SyntheticDorsalHands2 only; fixed synthetic2 20% test | Pure Gaussian NLL | Q2 SS internal-learnability / degeneracy cell |
 | `1050940` | Completed / 00:02:30 | Real-trained `1050753` checkpoints evaluated on fixed synthetic2 20% test | Evaluation-only; age-threshold adult-gate mode | Q2 RS/TRTS distribution-match diagnostic |
 | `1050941` | Completed / 00:01:03 | Synthetic-trained `1050939` fold 0 evaluated on fixed real 20% test | Evaluation-only fold-0 probe | Early SR/TSTR single-fold estimate |
-| `1050942` | Running / initial `00:00:26` | Synthetic-trained `1050939` checkpoints evaluated on fixed real 20% test | Evaluation-only; age-threshold adult-gate mode | Q2 SR/TSTR synthetic-to-real utility cell |
+| `1050942` | Completed / 00:04:33 | Synthetic-trained `1050939` checkpoints evaluated on fixed real 20% test | Evaluation-only; age-threshold adult-gate mode | Q2 SR/TSTR synthetic-to-real utility cell |
 
 Historical mixed loss: NLL 0.6 + MAE 0.9 + prediction spread 0.5 +
 embedding variance 0.8 + embedding contrast 0.8. Pure objectives disable all
@@ -88,19 +88,22 @@ The uncapped runs use 20% held-out real users and five folds over the remaining
 
 ## Active launches
 
+No active launches currently recorded.
+
+## Completed and failed launches
+
 ### Job `1050942` - Q2 SR/TSTR SyntheticDorsalHands2-trained to real evaluation
 
 - Submission date: 2026-08-01 21:34:12 BST
 - Initial scheduler state: RUNNING on `gpu-beast`, node `gm-hpc2-gpu801`, elapsed `00:00:26`; fold 0 loaded successfully on CUDA and found the fixed real held-out split.
+- Terminal scheduler state: COMPLETED, elapsed `00:04:33`, exit code 0.
 - Run directory: `/home/rb3434w/CNN-age-inference/runs/q2_sr_ss1050939_to_real_eval_20260801`
 - Log file: `/home/rb3434w/CNN-age-inference/logs/q2-sr-real-eval-1050942.log`
 - Purpose: run the Q2 SR/TSTR generator-validation cell: evaluate the SyntheticDorsalHands2-trained SS checkpoints on the locked real held-out split as the direct synthetic-to-real utility measure.
 - Data/split: checkpoints from SyntheticDorsalHands2-only SS job `1050939` (`runs/q2_ss_synthetic2_only_nll_k5_4gpu_16cpu_20260801_384/fold_*/v2_s_age_regressor_ddp.pth`) evaluated on HandRGBD + ProlificHands only, fixed `splits/test_users_uncapped_20pct_seed42.json`; no synthetic or LUICID test samples.
 - Model/objective: evaluation-only; EfficientNet-V2-S at 384 px with the fold-specific `1050939` checkpoint, embedding head dimension 128 to match training, image-level evaluation (`AGG_SIZES=1`), age-threshold adult-gate evaluation.
 - Requested resources: one `gpu-beast` node, 1 GPU, 4 CPU cores, 32 GB RAM, inference batch size 64.
-- Held-out result: pending job completion.
-
-## Completed and failed launches
+- Held-out result: five-fold unweighted `n=1` aggregate over 1,624 real held-out samples per fold: MAE 7.165 years, RMSE 9.097 years, adult-gate AUC 0.8718, mean FPR 6.42%, Adult FNR 28.73%. The 5% FPR operating point was attainable in folds 0, 2, and 3; folds 1 and 4 use the lowest-FPR available threshold from the 10-30 year age-threshold sweep.
 
 ### Job `1050938` - Q2 SS SyntheticDorsalHands2 Pure NLL submission attempt
 

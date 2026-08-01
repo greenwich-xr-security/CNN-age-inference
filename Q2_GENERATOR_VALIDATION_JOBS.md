@@ -30,6 +30,19 @@ age-threshold sweep. For `1050940`, the 5% FPR operating point was not
 attainable in any fold within the same sweep; the reported FPR/FNR use the
 lowest-FPR available threshold (`tau=30`) in each fold.
 
+## Results: uncapped fixed 20% test split in hpc job history
+
+This table mirrors the reporting style used in `HPC_JOB_HISTORY.md`, restricted
+to the Q2 Real (HandRGBD + ProlificHands) and SyntheticDorsalHands2
+generator-validation cells.
+
+| Cell | Training data | Test source | Objective | MAE (years) | RMSE (years) | Adult-gate AUC | Mean FPR | Adult FNR |
+| --- | --- | --- | --- | ---: | ---: | ---: | ---: | ---: |
+| RR | Real | Real locked split | Pure NLL (`1050753`) | 5.017 | 6.706 | 0.9483 | 4.74% | 18.33% |
+| SS | SyntheticDorsalHands2 | held-out SyntheticDorsalHands2 split | Pure NLL (`1050939`) | 3.396 | 4.436 | 0.9824 | 4.85% | 6.77% |
+| SR / TSTR | SyntheticDorsalHands2 | Real locked split | Eval-only, checkpoints from `1050939` (`1050942`) | 7.165 | 9.097 | 0.8718 | 6.42%* | 28.73%* |
+| RS / TRTS | Real | held-out SyntheticDorsalHands2 split | Eval-only, checkpoints from `1050753` (`1050940`) | 11.056 | 13.390 | 0.5609 | 41.85%* | 9.90%* |
+
 Notes:
 
 - `1050753` is the directly comparable real-only pure NLL reference run.

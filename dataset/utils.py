@@ -583,7 +583,7 @@ def build_kfold_user_splits(
     if "user_id" not in df.columns:
         raise ValueError("DataFrame must include 'user_id' for k-fold splits.")
 
-    user_ids = df["user_id"].astype(str).unique()
+    user_ids = np.asarray(df["user_id"].astype(str).drop_duplicates().map(str).tolist(), dtype=object)
     if user_ids.size < k:
         raise ValueError(f"Not enough users ({user_ids.size}) to build {k} folds.")
 
@@ -593,8 +593,9 @@ def build_kfold_user_splits(
         labels = (
             df.drop_duplicates(subset="user_id")
             .set_index("user_id")[stratify_on]
-            .reindex(user_ids)
+            .reindex(user_ids.tolist())
         )
+        labels = np.asarray([str(value) for value in labels.astype(object).tolist()], dtype=object)
         splitter = StratifiedKFold(n_splits=k, shuffle=True, random_state=random_state)
         splits = splitter.split(user_ids, labels)
     else:
@@ -656,9 +657,9 @@ def build_held_out_test_split(
             aligned.index = aligned.index.astype(str)
             stratify = aligned.reindex(user_ids)
             if stratify.isna().any():
-                missing = user_ids[stratify.isna().to_numpy()]
-                raise ValueError(f"Missing stratify labels for user_ids: {missing[:5].tolist()}")
-            stratify = stratify.astype(str).tolist()
+                missing = [uid for uid, is_missing in zip(user_ids, stratify.isna().to_numpy()) if is_missing]
+                raise ValueError(f"Missing stratify labels for user_ids: {missing[:5]}")
+            stratify = [str(value) for value in stratify.astype(object).tolist()]
         elif isinstance(stratify_labels, dict):
             stratify = [str(stratify_labels[str(uid)]) for uid in user_ids]
         else:
@@ -670,11 +671,14 @@ def build_held_out_test_split(
         user_class = {str(uid): ("adult" if age >= 18.0 else "minor") for uid, age in user_age.items()}
         stratify = [user_class.get(uid, "adult") for uid in user_ids]
 
+    user_ids_array = np.asarray(user_ids, dtype=object)
+    stratify_array = np.asarray(stratify, dtype=object) if stratify is not None else None
+
     train_dev_ids, test_ids = _sklearn_train_test_split(
-        user_ids,
+        user_ids_array,
         test_size=test_size,
         random_state=random_state,
-        stratify=stratify,
+        stratify=stratify_array,
     )
     return list(train_dev_ids), list(test_ids)
 

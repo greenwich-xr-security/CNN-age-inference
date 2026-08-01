@@ -20,6 +20,8 @@ four GPUs, 16 CPU cores, 64 GB RAM, and batch size 16 per GPU unless noted.
 | `1050819` | Completed / 00:49:50 | Real only; uncapped fixed 20% test | Pure Gaussian NLL; fold-matched SyntheticDorsalHands2 initialisation; LR `2e-5` | Test synthetic-to-real fine-tuning |
 | `1050821` | Failed / 02:25:52 | Real + SyntheticDorsalHands2; uncapped fixed 20% test | Pure Gaussian NLL; ViT small 384; `MASTER_PORT=29515`; 3 GPUs | Fold 4 test evaluation failed because the fixed test manifest was absent |
 | `1050877` | Completed / 07:44:30 | Real only; uncapped fixed 20% test | Pure Gaussian NLL; random initialisation | Random-init control for real-only EfficientNet-V2-S |
+| `1050938` | Failed / 00:00:19 | SyntheticDorsalHands2 only; fixed synthetic2 20% test | Pure Gaussian NLL; stdin Slurm script attempt | Launch-script quoting failed before Python started; replaced by `1050939` |
+| `1050939` | Running / initial `00:00:25` | SyntheticDorsalHands2 only; fixed synthetic2 20% test | Pure Gaussian NLL | Q2 SS internal-learnability / degeneracy cell |
 
 Historical mixed loss: NLL 0.6 + MAE 0.9 + prediction spread 0.5 +
 embedding variance 0.8 + embedding contrast 0.8. Pure objectives disable all
@@ -72,8 +74,34 @@ The uncapped runs use 20% held-out real users and five folds over the remaining
 | `splits/test_users_uncapped_20pct_seed42.json` | Both uncapped runs; 128 fixed held-out real users |
 | `splits/folds_k5_uncapped_test20_real_seed42.json` | `1050753` real-only run |
 | `splits/folds_k5_uncapped_test20_real_synthetic_seed42.json` | `1050754` real + synthetic run |
+| `splits/test_users_synthetic2_20pct_seed42.json` | `1050939` Q2 SS SyntheticDorsalHands2 test split |
+| `splits/folds_k5_synthetic2_seed42.json` | `1050939` Q2 SS SyntheticDorsalHands2 train/validation folds |
+
+## Active launches
+
+### Job `1050939` - Q2 SS SyntheticDorsalHands2 Pure NLL
+
+- Submission date: 2026-08-01 19:12:34 BST
+- Initial scheduler state: RUNNING on `gpu-beast`, node `gm-hpc2-gpu801`, elapsed `00:00:25`; fold 0 started successfully.
+- Run directory: `/home/rb3434w/CNN-age-inference/runs/q2_ss_synthetic2_only_nll_k5_4gpu_16cpu_20260801_384`
+- Log file: `/home/rb3434w/CNN-age-inference/logs/q2-ss-syn2-nll-1050939.log`
+- Purpose: run the Q2 SS generator-validation cell: train on SyntheticDorsalHands2 and test on the held-out SyntheticDorsalHands2 split as an internal learnability / degeneracy check.
+- Data/split: SyntheticDorsalHands2 only; no HandRGBD, ProlificHands, previous SyntheticDorsalHands, or LUICID samples; fixed `splits/test_users_synthetic2_20pct_seed42.json`; exact five-fold synthetic2 train/validation manifest copied from `splits/folds_k5_synthetic2_seed42.json` to the run directory.
+- Model/objective: same baseline shape as `1050753` apart from the data source and split manifests: EfficientNet-V2-S at 384 px, ImageNet-pretrained default initialisation, pure Gaussian NLL (`NLL=1`, CRPS/MSE/MAE/spread/embed losses disabled), LR `2e-4`, maximum 240 epochs, patience 10, image-level training/evaluation (`USER_GROUP_SIZES=1`, `AGG_SIZES=1`), age-threshold adult-gate evaluation.
+- Requested resources: one `gpu-beast` node, 4 GPUs, 16 CPU cores, 64 GB RAM, batch size 16 per GPU; `MASTER_PORT=29516`.
+- Held-out result: pending job completion.
 
 ## Completed and failed launches
+
+### Job `1050938` - Q2 SS SyntheticDorsalHands2 Pure NLL submission attempt
+
+- Submission date: 2026-08-01 19:10:06 BST
+- Initial scheduler state: RUNNING on `gpu-beast`; terminal scheduler state FAILED, elapsed `00:00:19`, exit code 2.
+- Run directory: `/home/rb3434w/CNN-age-inference/runs/q2_ss_synthetic2_only_nll_k5_4gpu_16cpu_20260801_384`
+- Log file: `/home/rb3434w/CNN-age-inference/logs/q2-ss-syn2-nll-1050938.log`
+- Purpose: first attempt to launch the Q2 SS SyntheticDorsalHands2-only pure NLL job.
+- Data/configuration: intended to match `1050939`, but failed before Python started because the stdin-submitted Slurm script was malformed by shell quoting (`syntax error near unexpected token '>'`).
+- Replacement: reproducible submit script committed as `submit_q2_ss_synthetic2.slurm`; replacement job is `1050939`.
 
 ### Job `1050812` — Real + synthetic2 Pure NLL
 

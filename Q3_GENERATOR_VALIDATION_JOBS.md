@@ -61,7 +61,7 @@ Monitor on HPC:
 | R1 | `1050953` | `1050954` | `1050955` | `1050956` | `1050957` |
 | S-age | `1050958` | `1050959` | `1050960` | `1050961` | `1050962` |
 | S-shuffle | Not implemented | Not implemented | Not implemented | Not implemented | Not implemented |
-| S-ssl | Not launched yet | Not launched yet | Not launched yet | Not launched yet | Not launched yet |
+| S-ssl | `1050969` | `1050970` | `1050971` | `1050972` | `1050973` |
 | U-ssl | Not implemented | Not implemented | Not implemented | Not implemented | Not implemented |
 
 ## Results
@@ -84,7 +84,7 @@ achieved values.
 | R1 downstream sweep | 5 | Same real subsets as R0 |
 | S-age downstream sweep | 5 | Initialise from clean S-age synthetic checkpoints, preferably `1050939` |
 | S-shuffle downstream sweep | 5 | Requires S-shuffle pretraining first |
-| S-ssl downstream sweep | 5 | Initialise from BYOL checkpoints from `1050832` |
+| S-ssl downstream sweep | 5 | Launched on `gpu-standard`, 2 GPUs/job; initialise from BYOL checkpoints from `1050832` |
 | U-ssl downstream sweep | 5 | Requires U-ssl pretraining first |
 | S-shuffle pretraining | 1 | Full SyntheticDorsalHands2 corpus, labels permuted once per seed |
 | U-ssl pretraining | 1 | Same SSL method/update count as S-ssl, unrelated corpus |

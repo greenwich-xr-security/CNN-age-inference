@@ -45,6 +45,16 @@ four GPUs, 16 CPU cores, 64 GB RAM, and batch size 16 per GPU unless noted.
 | `1050960` | Pending / initial `00:00:00` | Q3 S-age, real-label fraction 25%, locked real test | Pure Gaussian NLL; init from clean SyntheticDorsalHands2-only job `1050939` | Q3 S-age label-efficiency sweep |
 | `1050961` | Pending / initial `00:00:00` | Q3 S-age, real-label fraction 50%, locked real test | Pure Gaussian NLL; init from clean SyntheticDorsalHands2-only job `1050939` | Q3 S-age label-efficiency sweep |
 | `1050962` | Pending / initial `00:00:00` | Q3 S-age, real-label fraction 100%, locked real test | Pure Gaussian NLL; init from clean SyntheticDorsalHands2-only job `1050939` | Q3 S-age label-efficiency sweep |
+| `1050964` | Failed / 00:01:31 | Q3 S-ssl, real-label fraction 5%, locked real test | Pure Gaussian NLL; attempted BYOL init with mismatched `EMBED_DIM`; `gpu-standard`, 2 GPUs | Failed first S-ssl launch attempt |
+| `1050965` | Failed / 00:01:26 | Q3 S-ssl, real-label fraction 10%, locked real test | Pure Gaussian NLL; attempted BYOL init with mismatched `EMBED_DIM`; `gpu-standard`, 2 GPUs | Failed first S-ssl launch attempt |
+| `1050966` | Cancelled / 00:00:14 | Q3 S-ssl, real-label fraction 25%, locked real test | Pure Gaussian NLL; cancelled after bad S-ssl init was identified | Cancelled first S-ssl launch attempt |
+| `1050967` | Cancelled / 00:00:00 | Q3 S-ssl, real-label fraction 50%, locked real test | Pure Gaussian NLL; cancelled before start after bad S-ssl init was identified | Cancelled first S-ssl launch attempt |
+| `1050968` | Cancelled / 00:00:00 | Q3 S-ssl, real-label fraction 100%, locked real test | Pure Gaussian NLL; cancelled before start after bad S-ssl init was identified | Cancelled first S-ssl launch attempt |
+| `1050969` | Running / initial `00:01:53` | Q3 S-ssl, real-label fraction 5%, locked real test | Pure Gaussian NLL; init from BYOL SyntheticDorsalHands2 job `1050832`; `EMBED_DIM=128`; `gpu-standard`, 2 GPUs | Q3 S-ssl label-efficiency sweep |
+| `1050970` | Pending / initial `00:00:00` | Q3 S-ssl, real-label fraction 10%, locked real test | Pure Gaussian NLL; init from BYOL SyntheticDorsalHands2 job `1050832`; `EMBED_DIM=128`; `gpu-standard`, 2 GPUs | Q3 S-ssl label-efficiency sweep |
+| `1050971` | Pending / initial `00:00:00` | Q3 S-ssl, real-label fraction 25%, locked real test | Pure Gaussian NLL; init from BYOL SyntheticDorsalHands2 job `1050832`; `EMBED_DIM=128`; `gpu-standard`, 2 GPUs | Q3 S-ssl label-efficiency sweep |
+| `1050972` | Pending / initial `00:00:00` | Q3 S-ssl, real-label fraction 50%, locked real test | Pure Gaussian NLL; init from BYOL SyntheticDorsalHands2 job `1050832`; `EMBED_DIM=128`; `gpu-standard`, 2 GPUs | Q3 S-ssl label-efficiency sweep |
+| `1050973` | Pending / initial `00:00:00` | Q3 S-ssl, real-label fraction 100%, locked real test | Pure Gaussian NLL; init from BYOL SyntheticDorsalHands2 job `1050832`; `EMBED_DIM=128`; `gpu-standard`, 2 GPUs | Q3 S-ssl label-efficiency sweep |
 
 Historical mixed loss: NLL 0.6 + MAE 0.9 + prediction spread 0.5 +
 embedding variance 0.8 + embedding contrast 0.8. Pure objectives disable all
@@ -137,6 +147,25 @@ The uncapped runs use 20% held-out real users and five folds over the remaining
 | `1050960` | S-age | 25% | PENDING | `/home/rb3434w/CNN-age-inference/runs/q3_sage_realfrac_f25_seed42_v2s_384` |
 | `1050961` | S-age | 50% | PENDING | `/home/rb3434w/CNN-age-inference/runs/q3_sage_realfrac_f50_seed42_v2s_384` |
 | `1050962` | S-age | 100% | PENDING | `/home/rb3434w/CNN-age-inference/runs/q3_sage_realfrac_f100_seed42_v2s_384` |
+
+### Jobs `1050969`-`1050973` - Q3 S-ssl label-fraction sweep on gpu-standard
+
+- Submission date: 2026-08-02 15:24 BST.
+- Initial scheduler state from `sacct` at 2026-08-02 15:26 BST: `1050969` RUNNING on `gpu-standard`; `1050970`-`1050973` PENDING.
+- Purpose: launch the Q3 S-ssl downstream label-efficiency sweep over real-label fractions 5%, 10%, 25%, 50%, and 100%.
+- Data/split: HandRGBD + ProlificHands only for downstream fine-tuning and locked real testing. Real train subsets come from `splits/q3_real_label_fractions_seed42.json`; validation users come from `splits/folds_k5_uncapped_test20_real_seed42.json`; test users come from `splits/test_users_uncapped_20pct_seed42.json`.
+- Pretraining/initialisation: fold-matched checkpoints converted from BYOL SyntheticDorsalHands2 S-ssl pretraining job `1050832`, loaded from `/home/rb3434w/CNN-age-inference/runs/byol/s_ssl_synthetic2_v2_s/init_checkpoint_root_embed128/fold_*/v2_s_age_regressor_ddp.pth`. The SSL converter was updated to produce checkpoints with `EMBED_DIM=128`, matching the Q3 model shape.
+- Model/objective: EfficientNet-V2-S at 384 px; pure Gaussian NLL (`NLL=1`, CRPS/MSE/MAE/spread/embed losses disabled), LR `2e-4`, maximum 240 epochs, patience 10, image-level training/evaluation (`USER_GROUP_SIZES=1`, `AGG_SIZES=1`), age-threshold adult-gate evaluation.
+- Requested resources per job: one `gpu-standard` node, 2 GPUs, 16 CPU cores, 64 GB RAM, batch size 16 per GPU; unique `MASTER_PORT` values `29710`-`29714`. Note: this keeps the same per-GPU batch size as the Q3 `gpu-beast` runs but uses a smaller global batch because the standard node has 2 GPUs.
+- Superseded launch attempt: `1050964` and `1050965` failed because the first BYOL init root had a 2-output classifier head while Q3 builds a `2 + 128` output head; `1050966`-`1050968` were cancelled after the mismatch was identified.
+
+| Job | Arm | Real-label fraction | Initial state | Run directory |
+| --- | --- | ---: | --- | --- |
+| `1050969` | S-ssl | 5% | RUNNING | `/home/rb3434w/CNN-age-inference/runs/q3_sssl_realfrac_f05_seed42_v2s_384_embed128_2gpu_standard` |
+| `1050970` | S-ssl | 10% | PENDING | `/home/rb3434w/CNN-age-inference/runs/q3_sssl_realfrac_f10_seed42_v2s_384_embed128_2gpu_standard` |
+| `1050971` | S-ssl | 25% | PENDING | `/home/rb3434w/CNN-age-inference/runs/q3_sssl_realfrac_f25_seed42_v2s_384_embed128_2gpu_standard` |
+| `1050972` | S-ssl | 50% | PENDING | `/home/rb3434w/CNN-age-inference/runs/q3_sssl_realfrac_f50_seed42_v2s_384_embed128_2gpu_standard` |
+| `1050973` | S-ssl | 100% | PENDING | `/home/rb3434w/CNN-age-inference/runs/q3_sssl_realfrac_f100_seed42_v2s_384_embed128_2gpu_standard` |
 
 ## Completed and failed launches
 

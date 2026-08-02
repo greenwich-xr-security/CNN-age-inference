@@ -30,6 +30,21 @@ four GPUs, 16 CPU cores, 64 GB RAM, and batch size 16 per GPU unless noted.
 | `1050940` | Completed / 00:02:30 | Real-trained `1050753` checkpoints evaluated on fixed synthetic2 20% test | Evaluation-only; age-threshold adult-gate mode | Q2 RS/TRTS distribution-match diagnostic |
 | `1050941` | Completed / 00:01:03 | Synthetic-trained `1050939` fold 0 evaluated on fixed real 20% test | Evaluation-only fold-0 probe | Early SR/TSTR single-fold estimate |
 | `1050942` | Completed / 00:04:33 | Synthetic-trained `1050939` checkpoints evaluated on fixed real 20% test | Evaluation-only; age-threshold adult-gate mode | Q2 SR/TSTR synthetic-to-real utility cell |
+| `1050948` | Running / initial `00:00:43` | Q3 R0, real-label fraction 5%, locked real test | Pure Gaussian NLL; ImageNet/default init | Q3 R0 label-efficiency sweep |
+| `1050949` | Running / initial `00:00:42` | Q3 R0, real-label fraction 10%, locked real test | Pure Gaussian NLL; ImageNet/default init | Q3 R0 label-efficiency sweep |
+| `1050950` | Pending / initial `00:00:00` | Q3 R0, real-label fraction 25%, locked real test | Pure Gaussian NLL; ImageNet/default init | Q3 R0 label-efficiency sweep |
+| `1050951` | Pending / initial `00:00:00` | Q3 R0, real-label fraction 50%, locked real test | Pure Gaussian NLL; ImageNet/default init | Q3 R0 label-efficiency sweep |
+| `1050952` | Pending / initial `00:00:00` | Q3 R0, real-label fraction 100%, locked real test | Pure Gaussian NLL; ImageNet/default init | Q3 R0 label-efficiency sweep |
+| `1050953` | Pending / initial `00:00:00` | Q3 R1, real-label fraction 5%, locked real test | Pure Gaussian NLL; random init | Q3 R1 label-efficiency sweep |
+| `1050954` | Pending / initial `00:00:00` | Q3 R1, real-label fraction 10%, locked real test | Pure Gaussian NLL; random init | Q3 R1 label-efficiency sweep |
+| `1050955` | Pending / initial `00:00:00` | Q3 R1, real-label fraction 25%, locked real test | Pure Gaussian NLL; random init | Q3 R1 label-efficiency sweep |
+| `1050956` | Pending / initial `00:00:00` | Q3 R1, real-label fraction 50%, locked real test | Pure Gaussian NLL; random init | Q3 R1 label-efficiency sweep |
+| `1050957` | Pending / initial `00:00:00` | Q3 R1, real-label fraction 100%, locked real test | Pure Gaussian NLL; random init | Q3 R1 label-efficiency sweep |
+| `1050958` | Pending / initial `00:00:00` | Q3 S-age, real-label fraction 5%, locked real test | Pure Gaussian NLL; init from clean SyntheticDorsalHands2-only job `1050939` | Q3 S-age label-efficiency sweep |
+| `1050959` | Pending / initial `00:00:00` | Q3 S-age, real-label fraction 10%, locked real test | Pure Gaussian NLL; init from clean SyntheticDorsalHands2-only job `1050939` | Q3 S-age label-efficiency sweep |
+| `1050960` | Pending / initial `00:00:00` | Q3 S-age, real-label fraction 25%, locked real test | Pure Gaussian NLL; init from clean SyntheticDorsalHands2-only job `1050939` | Q3 S-age label-efficiency sweep |
+| `1050961` | Pending / initial `00:00:00` | Q3 S-age, real-label fraction 50%, locked real test | Pure Gaussian NLL; init from clean SyntheticDorsalHands2-only job `1050939` | Q3 S-age label-efficiency sweep |
+| `1050962` | Pending / initial `00:00:00` | Q3 S-age, real-label fraction 100%, locked real test | Pure Gaussian NLL; init from clean SyntheticDorsalHands2-only job `1050939` | Q3 S-age label-efficiency sweep |
 
 Historical mixed loss: NLL 0.6 + MAE 0.9 + prediction spread 0.5 +
 embedding variance 0.8 + embedding contrast 0.8. Pure objectives disable all
@@ -88,7 +103,37 @@ The uncapped runs use 20% held-out real users and five folds over the remaining
 
 ## Active launches
 
-No active launches currently recorded.
+### Jobs `1050948`-`1050962` - Q3 R0/R1/S-age label-fraction sweep
+
+- Submission date: 2026-08-02 11:33 BST.
+- Initial scheduler state from monitor at 2026-08-02 11:34:18 BST: `1050948` and `1050949` RUNNING; `1050950`-`1050962` PENDING.
+- Monitor cron: every 10 minutes via `/home/rb3434w/CNN-age-inference/runs/q3_r0_r1_sage_seed42_monitor/run_monitor.sh`.
+- Monitor outputs: `/home/rb3434w/CNN-age-inference/runs/q3_r0_r1_sage_seed42_monitor/q3_status.md` and `q3_status.json`.
+- Jobs manifest: `/home/rb3434w/CNN-age-inference/runs/q3_r0_r1_sage_seed42_monitor/jobs.json`.
+- Purpose: launch the first Q3 downstream label-efficiency sweep for the runnable arms R0, R1, and S-age over real-label fractions 5%, 10%, 25%, 50%, and 100%.
+- Data/split: HandRGBD + ProlificHands only for downstream fine-tuning and locked real testing; no LUICID, HaGRID, 11kHands, archive, or synthetic samples in downstream train/validation/test. Real train subsets come from `splits/q3_real_label_fractions_seed42.json`; validation users come from `splits/folds_k5_uncapped_test20_real_seed42.json`; test users come from `splits/test_users_uncapped_20pct_seed42.json`.
+- Pretraining/initialisation: R0 uses default ImageNet/torchvision EfficientNet-V2-S initialisation; R1 uses `--no-imagenet-pretrained` random initialisation; S-age loads fold-matched checkpoints from clean SyntheticDorsalHands2-only supervised NLL job `1050939` at `/home/rb3434w/CNN-age-inference/runs/q2_ss_synthetic2_only_nll_k5_4gpu_16cpu_20260801_384/fold_*/v2_s_age_regressor_ddp.pth`.
+- Model/objective: EfficientNet-V2-S at 384 px; pure Gaussian NLL (`NLL=1`, CRPS/MSE/MAE/spread/embed losses disabled), LR `2e-4`, maximum 240 epochs, patience 10, image-level training/evaluation (`USER_GROUP_SIZES=1`, `AGG_SIZES=1`), age-threshold adult-gate evaluation.
+- Requested resources per job: one `gpu-beast` node, 4 GPUs, 16 CPU cores, batch size 16 per GPU; unique `MASTER_PORT` values `29600`-`29614`.
+- Held-out result: pending job completion.
+
+| Job | Arm | Real-label fraction | Initial state | Run directory |
+| --- | --- | ---: | --- | --- |
+| `1050948` | R0 | 5% | RUNNING | `/home/rb3434w/CNN-age-inference/runs/q3_r0_realfrac_f05_seed42_v2s_384` |
+| `1050949` | R0 | 10% | RUNNING | `/home/rb3434w/CNN-age-inference/runs/q3_r0_realfrac_f10_seed42_v2s_384` |
+| `1050950` | R0 | 25% | PENDING | `/home/rb3434w/CNN-age-inference/runs/q3_r0_realfrac_f25_seed42_v2s_384` |
+| `1050951` | R0 | 50% | PENDING | `/home/rb3434w/CNN-age-inference/runs/q3_r0_realfrac_f50_seed42_v2s_384` |
+| `1050952` | R0 | 100% | PENDING | `/home/rb3434w/CNN-age-inference/runs/q3_r0_realfrac_f100_seed42_v2s_384` |
+| `1050953` | R1 | 5% | PENDING | `/home/rb3434w/CNN-age-inference/runs/q3_r1_realfrac_f05_seed42_v2s_384` |
+| `1050954` | R1 | 10% | PENDING | `/home/rb3434w/CNN-age-inference/runs/q3_r1_realfrac_f10_seed42_v2s_384` |
+| `1050955` | R1 | 25% | PENDING | `/home/rb3434w/CNN-age-inference/runs/q3_r1_realfrac_f25_seed42_v2s_384` |
+| `1050956` | R1 | 50% | PENDING | `/home/rb3434w/CNN-age-inference/runs/q3_r1_realfrac_f50_seed42_v2s_384` |
+| `1050957` | R1 | 100% | PENDING | `/home/rb3434w/CNN-age-inference/runs/q3_r1_realfrac_f100_seed42_v2s_384` |
+| `1050958` | S-age | 5% | PENDING | `/home/rb3434w/CNN-age-inference/runs/q3_sage_realfrac_f05_seed42_v2s_384` |
+| `1050959` | S-age | 10% | PENDING | `/home/rb3434w/CNN-age-inference/runs/q3_sage_realfrac_f10_seed42_v2s_384` |
+| `1050960` | S-age | 25% | PENDING | `/home/rb3434w/CNN-age-inference/runs/q3_sage_realfrac_f25_seed42_v2s_384` |
+| `1050961` | S-age | 50% | PENDING | `/home/rb3434w/CNN-age-inference/runs/q3_sage_realfrac_f50_seed42_v2s_384` |
+| `1050962` | S-age | 100% | PENDING | `/home/rb3434w/CNN-age-inference/runs/q3_sage_realfrac_f100_seed42_v2s_384` |
 
 ## Completed and failed launches
 

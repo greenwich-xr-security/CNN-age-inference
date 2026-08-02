@@ -45,6 +45,25 @@ the same grid is 150 fold-level jobs.
 | S-ssl 100% fine-tune | Done | `1050854` | Full-real fine-tune from BYOL; remaining fractions not run |
 | U-ssl pretraining | Missing | none | Need unrelated non-hand, non-age corpus and compute-matched SSL setup |
 
+## Launched Jobs
+
+These downstream jobs use the same real-label fraction manifest,
+`splits/q3_real_label_fractions_seed42.json`, and the same locked real test
+split, `splits/test_users_uncapped_20pct_seed42.json`. One Slurm job runs all
+five folds for one arm/fraction pair.
+
+Monitor on HPC:
+`/home/rb3434w/CNN-age-inference/runs/q3_r0_r1_sage_seed42_monitor/q3_status.md`
+
+| Arm | 5% | 10% | 25% | 50% | 100% |
+| --- | --- | --- | --- | --- | --- |
+| R0 | `1050948` | `1050949` | `1050950` | `1050951` | `1050952` |
+| R1 | `1050953` | `1050954` | `1050955` | `1050956` | `1050957` |
+| S-age | `1050958` | `1050959` | `1050960` | `1050961` | `1050962` |
+| S-shuffle | Not implemented | Not implemented | Not implemented | Not implemented | Not implemented |
+| S-ssl | Not launched yet | Not launched yet | Not launched yet | Not launched yet | Not launched yet |
+| U-ssl | Not implemented | Not implemented | Not implemented | Not implemented | Not implemented |
+
 ## Planned Job Accounting
 
 | Stage | Jobs needed | Notes |

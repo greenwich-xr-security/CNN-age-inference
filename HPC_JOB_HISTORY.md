@@ -37,9 +37,9 @@ four GPUs, 16 CPU cores, 64 GB RAM, and batch size 16 per GPU unless noted.
 | `1050952` | Completed / 04:20:10 | Q3 R0, real-label fraction 100%, locked real test | Pure Gaussian NLL; ImageNet/default init | Q3 R0 label-efficiency sweep |
 | `1050953` | Completed / 01:19:44 | Q3 R1, real-label fraction 5%, locked real test | Pure Gaussian NLL; random init | Q3 R1 label-efficiency sweep |
 | `1050954` | Completed / 01:45:46 | Q3 R1, real-label fraction 10%, locked real test | Pure Gaussian NLL; random init | Q3 R1 label-efficiency sweep |
-| `1050955` | Running / latest `00:26:57` | Q3 R1, real-label fraction 25%, locked real test | Pure Gaussian NLL; random init | Q3 R1 label-efficiency sweep |
-| `1050956` | Running / latest `00:06:05` | Q3 R1, real-label fraction 50%, locked real test | Pure Gaussian NLL; random init | Q3 R1 label-efficiency sweep |
-| `1050957` | Pending / initial `00:00:00` | Q3 R1, real-label fraction 100%, locked real test | Pure Gaussian NLL; random init | Q3 R1 label-efficiency sweep |
+| `1050955` | Completed / 02:33:48 | Q3 R1, real-label fraction 25%, locked real test | Pure Gaussian NLL; random init | Q3 R1 label-efficiency sweep |
+| `1050956` | Running / latest `02:47:33` | Q3 R1, real-label fraction 50%, locked real test | Pure Gaussian NLL; random init | Q3 R1 label-efficiency sweep |
+| `1050957` | Running / latest `00:34:36` | Q3 R1, real-label fraction 100%, locked real test | Pure Gaussian NLL; random init | Q3 R1 label-efficiency sweep |
 | `1050958` | Pending / initial `00:00:00` | Q3 S-age, real-label fraction 5%, locked real test | Pure Gaussian NLL; init from clean SyntheticDorsalHands2-only job `1050939` | Q3 S-age label-efficiency sweep |
 | `1050959` | Pending / initial `00:00:00` | Q3 S-age, real-label fraction 10%, locked real test | Pure Gaussian NLL; init from clean SyntheticDorsalHands2-only job `1050939` | Q3 S-age label-efficiency sweep |
 | `1050960` | Pending / initial `00:00:00` | Q3 S-age, real-label fraction 25%, locked real test | Pure Gaussian NLL; init from clean SyntheticDorsalHands2-only job `1050939` | Q3 S-age label-efficiency sweep |
@@ -52,9 +52,9 @@ four GPUs, 16 CPU cores, 64 GB RAM, and batch size 16 per GPU unless noted.
 | `1050968` | Cancelled / 00:00:00 | Q3 S-ssl, real-label fraction 100%, locked real test | Pure Gaussian NLL; cancelled before start after bad S-ssl init was identified | Cancelled first S-ssl launch attempt |
 | `1050969` | Completed / 02:10:31 | Q3 S-ssl, real-label fraction 5%, locked real test | Pure Gaussian NLL; init from BYOL SyntheticDorsalHands2 job `1050832`; `EMBED_DIM=128`; `gpu-standard`, 2 GPUs | Q3 S-ssl label-efficiency sweep |
 | `1050970` | Completed / 02:05:10 | Q3 S-ssl, real-label fraction 10%, locked real test | Pure Gaussian NLL; init from BYOL SyntheticDorsalHands2 job `1050832`; `EMBED_DIM=128`; `gpu-standard`, 2 GPUs | Q3 S-ssl label-efficiency sweep |
-| `1050971` | Running / latest `01:42:55` | Q3 S-ssl, real-label fraction 25%, locked real test | Pure Gaussian NLL; init from BYOL SyntheticDorsalHands2 job `1050832`; `EMBED_DIM=128`; `gpu-standard`, 2 GPUs | Q3 S-ssl label-efficiency sweep |
-| `1050972` | Pending / initial `00:00:00` | Q3 S-ssl, real-label fraction 50%, locked real test | Pure Gaussian NLL; init from BYOL SyntheticDorsalHands2 job `1050832`; `EMBED_DIM=128`; `gpu-standard`, 2 GPUs | Q3 S-ssl label-efficiency sweep |
-| `1050973` | Pending / initial `00:00:00` | Q3 S-ssl, real-label fraction 100%, locked real test | Pure Gaussian NLL; init from BYOL SyntheticDorsalHands2 job `1050832`; `EMBED_DIM=128`; `gpu-standard`, 2 GPUs | Q3 S-ssl label-efficiency sweep |
+| `1050971` | Completed / 02:15:22 | Q3 S-ssl, real-label fraction 25%, locked real test | Pure Gaussian NLL; init from BYOL SyntheticDorsalHands2 job `1050832`; `EMBED_DIM=128`; `gpu-standard`, 2 GPUs | Q3 S-ssl label-efficiency sweep |
+| `1050972` | Completed / 02:05:51 | Q3 S-ssl, real-label fraction 50%, locked real test | Pure Gaussian NLL; init from BYOL SyntheticDorsalHands2 job `1050832`; `EMBED_DIM=128`; `gpu-standard`, 2 GPUs | Q3 S-ssl label-efficiency sweep |
+| `1050973` | Running / latest `00:03:08` | Q3 S-ssl, real-label fraction 100%, locked real test | Pure Gaussian NLL; init from BYOL SyntheticDorsalHands2 job `1050832`; `EMBED_DIM=128`; `gpu-standard`, 2 GPUs | Q3 S-ssl label-efficiency sweep |
 
 Historical mixed loss: NLL 0.6 + MAE 0.9 + prediction spread 0.5 +
 embedding variance 0.8 + embedding contrast 0.8. Pure objectives disable all
@@ -122,6 +122,7 @@ The uncapped runs use 20% held-out real users and five folds over the remaining
 - Progress update at 2026-08-02 16:50:54 BST: `1050950` COMPLETED; `1050951` RUNNING with 3/5 folds complete; `1050952` RUNNING with 0/5 folds complete; `1050953`-`1050962` PENDING.
 - Progress update at 2026-08-02 18:15:51 BST: `1050951` COMPLETED; `1050952` RUNNING with 1/5 folds complete; `1050953` RUNNING with 0/5 folds complete; `1050954`-`1050962` PENDING.
 - Progress update at 2026-08-02 21:23:31 BST: `1050952`, `1050953`, and `1050954` COMPLETED; `1050955` RUNNING with 0/5 folds complete; `1050956` RUNNING with 0/5 folds complete; `1050957`-`1050962` PENDING.
+- Progress update at 2026-08-03 00:04:59 BST: `1050955` COMPLETED; `1050956` RUNNING with 4/5 folds complete; `1050957` RUNNING with 0/5 folds complete; `1050958`-`1050962` PENDING.
 - Monitor cron: every 10 minutes via `/home/rb3434w/CNN-age-inference/runs/q3_r0_r1_sage_seed42_monitor/run_monitor.sh`.
 - Monitor outputs: `/home/rb3434w/CNN-age-inference/runs/q3_r0_r1_sage_seed42_monitor/q3_status.md` and `q3_status.json`.
 - Jobs manifest: `/home/rb3434w/CNN-age-inference/runs/q3_r0_r1_sage_seed42_monitor/jobs.json`.
@@ -137,6 +138,7 @@ The uncapped runs use 20% held-out real users and five folds over the remaining
 - Held-out result so far: `1050952` completed the R0 100% cell. Five-fold unweighted `n=1` aggregate over 1,624 real held-out samples per fold: MAE 4.903 years, RMSE 6.546 years, adult-gate AUC 0.9577, mean FPR 4.74%, Adult FNR 17.37%. All folds attained an operating point with FPR <= 5%; folds selected age thresholds `24.9`, `25.3`, `24.4`, `23.9`, and `24.8`.
 - Held-out result so far: `1050953` completed the R1 5% cell. Five-fold unweighted `n=1` aggregate over 1,624 real held-out samples per fold: MAE 30.177 years, RMSE 37.391 years, adult-gate AUC 0.0173, mean FPR 5.69%, Adult FNR 97.23%. The 5% FPR operating point was attainable in folds 0, 1, and 3; folds 2 and 4 use the lowest-FPR available threshold from the 10-30 year age-threshold sweep.
 - Held-out result so far: `1050954` completed the R1 10% cell. Five-fold unweighted `n=1` aggregate over 1,624 real held-out samples per fold: MAE 28.189 years, RMSE 34.244 years, adult-gate AUC 0.0001, mean FPR 3.96%, Adult FNR 98.40%. The 5% FPR operating point was attainable in folds 0, 1, and 3; folds 2 and 4 use the lowest-FPR available threshold from the 10-30 year age-threshold sweep.
+- Held-out result so far: `1050955` completed the R1 25% cell. Five-fold unweighted `n=1` aggregate over 1,624 real held-out samples per fold: MAE 27.308 years, RMSE 38.927 years, adult-gate AUC 0.0169, mean FPR 4.28%, Adult FNR 99.34%. The 5% FPR operating point was attainable in folds 0, 1, 3, and 4; fold 2 uses the lowest-FPR available threshold from the 10-30 year age-threshold sweep.
 
 | Job | Arm | Real-label fraction | Initial state | Run directory |
 | --- | --- | ---: | --- | --- |
@@ -147,9 +149,9 @@ The uncapped runs use 20% held-out real users and five folds over the remaining
 | `1050952` | R0 | 100% | COMPLETED | `/home/rb3434w/CNN-age-inference/runs/q3_r0_realfrac_f100_seed42_v2s_384` |
 | `1050953` | R1 | 5% | COMPLETED | `/home/rb3434w/CNN-age-inference/runs/q3_r1_realfrac_f05_seed42_v2s_384` |
 | `1050954` | R1 | 10% | COMPLETED | `/home/rb3434w/CNN-age-inference/runs/q3_r1_realfrac_f10_seed42_v2s_384` |
-| `1050955` | R1 | 25% | RUNNING, 0/5 folds complete | `/home/rb3434w/CNN-age-inference/runs/q3_r1_realfrac_f25_seed42_v2s_384` |
-| `1050956` | R1 | 50% | RUNNING, 0/5 folds complete | `/home/rb3434w/CNN-age-inference/runs/q3_r1_realfrac_f50_seed42_v2s_384` |
-| `1050957` | R1 | 100% | PENDING | `/home/rb3434w/CNN-age-inference/runs/q3_r1_realfrac_f100_seed42_v2s_384` |
+| `1050955` | R1 | 25% | COMPLETED | `/home/rb3434w/CNN-age-inference/runs/q3_r1_realfrac_f25_seed42_v2s_384` |
+| `1050956` | R1 | 50% | RUNNING, 4/5 folds complete | `/home/rb3434w/CNN-age-inference/runs/q3_r1_realfrac_f50_seed42_v2s_384` |
+| `1050957` | R1 | 100% | RUNNING, 0/5 folds complete | `/home/rb3434w/CNN-age-inference/runs/q3_r1_realfrac_f100_seed42_v2s_384` |
 | `1050958` | S-age | 5% | PENDING | `/home/rb3434w/CNN-age-inference/runs/q3_sage_realfrac_f05_seed42_v2s_384` |
 | `1050959` | S-age | 10% | PENDING | `/home/rb3434w/CNN-age-inference/runs/q3_sage_realfrac_f10_seed42_v2s_384` |
 | `1050960` | S-age | 25% | PENDING | `/home/rb3434w/CNN-age-inference/runs/q3_sage_realfrac_f25_seed42_v2s_384` |
@@ -162,6 +164,7 @@ The uncapped runs use 20% held-out real users and five folds over the remaining
 - Initial scheduler state from `sacct` at 2026-08-02 15:26 BST: `1050969` RUNNING on `gpu-standard`; `1050970`-`1050973` PENDING.
 - Progress update at 2026-08-02 18:15:51 BST: `1050969` COMPLETED; `1050970` RUNNING with 1/5 folds complete; `1050971`-`1050973` PENDING.
 - Progress update at 2026-08-02 21:23:31 BST: `1050970` COMPLETED; `1050971` RUNNING with 3/5 folds complete; `1050972`-`1050973` PENDING.
+- Progress update at 2026-08-03 00:04:59 BST: `1050971` and `1050972` COMPLETED; `1050973` RUNNING with 0/5 folds complete.
 - Purpose: launch the Q3 S-ssl downstream label-efficiency sweep over real-label fractions 5%, 10%, 25%, 50%, and 100%.
 - Data/split: HandRGBD + ProlificHands only for downstream fine-tuning and locked real testing. Real train subsets come from `splits/q3_real_label_fractions_seed42.json`; validation users come from `splits/folds_k5_uncapped_test20_real_seed42.json`; test users come from `splits/test_users_uncapped_20pct_seed42.json`.
 - Pretraining/initialisation: fold-matched checkpoints converted from BYOL SyntheticDorsalHands2 S-ssl pretraining job `1050832`, loaded from `/home/rb3434w/CNN-age-inference/runs/byol/s_ssl_synthetic2_v2_s/init_checkpoint_root_embed128/fold_*/v2_s_age_regressor_ddp.pth`. The SSL converter was updated to produce checkpoints with `EMBED_DIM=128`, matching the Q3 model shape.
@@ -170,14 +173,16 @@ The uncapped runs use 20% held-out real users and five folds over the remaining
 - Superseded launch attempt: `1050964` and `1050965` failed because the first BYOL init root had a 2-output classifier head while Q3 builds a `2 + 128` output head; `1050966`-`1050968` were cancelled after the mismatch was identified.
 - Held-out result so far: `1050969` completed the S-ssl 5% cell. Five-fold unweighted `n=1` aggregate over 1,624 real held-out samples per fold: MAE 27.840 years, RMSE 31.494 years, adult-gate AUC 0.0987, mean FPR 1.00%, Adult FNR 96.60%. All folds attained an operating point with FPR <= 5%; folds selected age thresholds `10.0`, `10.0`, `10.0`, `12.0`, and `10.0`.
 - Held-out result so far: `1050970` completed the S-ssl 10% cell. Five-fold unweighted `n=1` aggregate over 1,624 real held-out samples per fold: MAE 22.684 years, RMSE 26.889 years, adult-gate AUC 0.3474, mean FPR 2.49%, Adult FNR 88.19%. All folds attained an operating point with FPR <= 5%; folds selected age thresholds `18.2`, `10.0`, `10.0`, `14.4`, and `19.7`.
+- Held-out result so far: `1050971` completed the S-ssl 25% cell. Five-fold unweighted `n=1` aggregate over 1,624 real held-out samples per fold: MAE 8.185 years, RMSE 10.639 years, adult-gate AUC 0.9117, mean FPR 4.98%, Adult FNR 27.28%. All folds attained an operating point with FPR <= 5%; folds selected age thresholds `28.6`, `28.0`, `24.8`, `23.0`, and `29.8`.
+- Held-out result so far: `1050972` completed the S-ssl 50% cell. Five-fold unweighted `n=1` aggregate over 1,624 real held-out samples per fold: MAE 5.814 years, RMSE 7.659 years, adult-gate AUC 0.9259, mean FPR 4.91%, Adult FNR 22.56%. All folds attained an operating point with FPR <= 5%; folds selected age thresholds `26.8`, `25.8`, `26.6`, `25.6`, and `27.8`.
 
 | Job | Arm | Real-label fraction | Initial state | Run directory |
 | --- | --- | ---: | --- | --- |
 | `1050969` | S-ssl | 5% | COMPLETED | `/home/rb3434w/CNN-age-inference/runs/q3_sssl_realfrac_f05_seed42_v2s_384_embed128_2gpu_standard` |
 | `1050970` | S-ssl | 10% | COMPLETED | `/home/rb3434w/CNN-age-inference/runs/q3_sssl_realfrac_f10_seed42_v2s_384_embed128_2gpu_standard` |
-| `1050971` | S-ssl | 25% | RUNNING, 3/5 folds complete | `/home/rb3434w/CNN-age-inference/runs/q3_sssl_realfrac_f25_seed42_v2s_384_embed128_2gpu_standard` |
-| `1050972` | S-ssl | 50% | PENDING | `/home/rb3434w/CNN-age-inference/runs/q3_sssl_realfrac_f50_seed42_v2s_384_embed128_2gpu_standard` |
-| `1050973` | S-ssl | 100% | PENDING | `/home/rb3434w/CNN-age-inference/runs/q3_sssl_realfrac_f100_seed42_v2s_384_embed128_2gpu_standard` |
+| `1050971` | S-ssl | 25% | COMPLETED | `/home/rb3434w/CNN-age-inference/runs/q3_sssl_realfrac_f25_seed42_v2s_384_embed128_2gpu_standard` |
+| `1050972` | S-ssl | 50% | COMPLETED | `/home/rb3434w/CNN-age-inference/runs/q3_sssl_realfrac_f50_seed42_v2s_384_embed128_2gpu_standard` |
+| `1050973` | S-ssl | 100% | RUNNING, 0/5 folds complete | `/home/rb3434w/CNN-age-inference/runs/q3_sssl_realfrac_f100_seed42_v2s_384_embed128_2gpu_standard` |
 
 ## Completed and failed launches
 

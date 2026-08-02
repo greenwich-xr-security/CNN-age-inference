@@ -64,6 +64,17 @@ Monitor on HPC:
 | S-ssl | Not launched yet | Not launched yet | Not launched yet | Not launched yet | Not launched yet |
 | U-ssl | Not implemented | Not implemented | Not implemented | Not implemented | Not implemented |
 
+## Results
+
+All values are unweighted means of five held-out fold results at image-level
+aggregation (`n=1`) on the locked real test split. FPR and Adult FNR use each
+fold's best operating point with FPR <= 5% when attainable, then average the
+achieved values.
+
+| Arm | Real-label fraction | Job | State | MAE (years) | RMSE (years) | Adult-gate AUC | Mean FPR | Adult FNR |
+| --- | ---: | --- | --- | ---: | ---: | ---: | ---: | ---: |
+| R0 | 5% | `1050948` | Completed | 29.935 | 33.493 | 0.0000 | 0.00% | 100.00% |
+
 ## Planned Job Accounting
 
 | Stage | Jobs needed | Notes |

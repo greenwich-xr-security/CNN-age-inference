@@ -1,4 +1,5 @@
 import argparse
+import json
 import os
 import random
 from datetime import datetime, timedelta
@@ -84,6 +85,22 @@ def parse_args() -> argparse.Namespace:
         type=int,
         default=None,
         help="Fold index to use as validation set (0-based). Required with --fold-file.",
+    )
+    parser.add_argument(
+        "--label-fraction-file",
+        type=str,
+        default=None,
+        help=(
+            "Optional Q3 real-label fraction manifest produced by "
+            "make_q3_label_fraction_splits.py. When set, --fold-index selects "
+            "the fold and --label-fraction selects the train-user subset."
+        ),
+    )
+    parser.add_argument(
+        "--label-fraction",
+        type=float,
+        default=None,
+        help="Real fine-tuning label fraction to use from --label-fraction-file, e.g. 0.01, 0.05, 0.10.",
     )
     parser.add_argument(
         "--output-dir",
@@ -466,6 +483,50 @@ def _normalise_subject_id(value) -> str:
     return uid
 
 
+def _format_label_fraction(value: float) -> str:
+    return f"{float(value):.2f}"
+
+
+def _load_label_fraction_split(path: str | Path, fold_index: int, fraction: float) -> tuple[list[str], list[str], dict]:
+    manifest_path = Path(path)
+    with manifest_path.open("r", encoding="utf-8") as fp:
+        payload = json.load(fp)
+
+    folds = payload.get("folds", [])
+    if not folds:
+        raise ValueError(f"Label-fraction manifest has no folds: {manifest_path}")
+    if fold_index < 0 or fold_index >= len(folds):
+        raise ValueError(f"fold-index must be in [0, {len(folds) - 1}] for {manifest_path}.")
+
+    fold_payload = folds[fold_index]
+    label_fractions = fold_payload.get("label_fractions", {})
+    fraction_key = _format_label_fraction(fraction)
+    if fraction_key not in label_fractions:
+        available = ", ".join(sorted(label_fractions))
+        raise ValueError(
+            f"Label fraction {fraction_key} not found in {manifest_path}. "
+            f"Available fractions: {available}"
+        )
+
+    fraction_payload = label_fractions[fraction_key]
+    train_ids = [str(uid) for uid in fraction_payload.get("train_user_ids", [])]
+    val_ids = [str(uid) for uid in fold_payload.get("val_user_ids", [])]
+    if not train_ids:
+        raise ValueError(f"Label fraction {fraction_key} fold {fold_index} has no train_user_ids.")
+    if not val_ids:
+        raise ValueError(f"Label fraction manifest fold {fold_index} has no val_user_ids.")
+    return train_ids, val_ids, {
+        "k": len(folds),
+        "index": fold_index,
+        "label_fraction": float(fraction_payload.get("fraction", fraction)),
+        "label_fraction_key": fraction_key,
+        "label_fraction_file": str(manifest_path),
+        "train_pool_users": int(fraction_payload.get("train_pool_users", 0)),
+        "train_fraction_users": len(train_ids),
+        "sampling_stratify_mode": fraction_payload.get("sampling_stratify_mode"),
+    }
+
+
 def build_datasets(args: argparse.Namespace, seed: int, img_size: int):
     if args.data_root:
         set_dataset_root(args.data_root)
@@ -500,7 +561,35 @@ def build_datasets(args: argparse.Namespace, seed: int, img_size: int):
         print(f"[data] Excluded {before - after} held-out test users. Remaining: {after}")
 
     fold_info = None
-    if args.fold_file:
+    if args.label_fraction_file:
+        if args.fold_index is None:
+            raise ValueError("--fold-index is required when --label-fraction-file is set.")
+        if args.label_fraction is None:
+            raise ValueError("--label-fraction is required when --label-fraction-file is set.")
+        train_ids, val_ids, fold_info = _load_label_fraction_split(
+            args.label_fraction_file,
+            args.fold_index,
+            args.label_fraction,
+        )
+        available_ids = set(metadata["user_id"].astype(str).unique())
+        val_ids = [uid for uid in val_ids if uid in available_ids]
+        train_ids = [uid for uid in train_ids if uid in available_ids and uid not in val_ids]
+        if not train_ids:
+            raise ValueError(
+                "Q3 label-fraction split resolved to zero train users after metadata filtering. "
+                "Check --label-fraction-file and dataset include/filter arguments."
+            )
+        if not val_ids:
+            raise ValueError(
+                "Q3 label-fraction split resolved to zero validation users after metadata filtering. "
+                "Check --label-fraction-file and dataset include/filter arguments."
+            )
+        print(
+            "[data] Using Q3 label-fraction split "
+            f"{fold_info['label_fraction_key']} from {args.label_fraction_file}: "
+            f"{len(train_ids)} train users, {len(val_ids)} val users."
+        )
+    elif args.fold_file:
         if args.fold_index is None:
             raise ValueError("--fold-index is required when --fold-file is set.")
         fold_data = load_kfold_splits(args.fold_file)
@@ -811,6 +900,8 @@ def main() -> None:
             fp.write(f"resolved_age_oversample={int(args.age_oversample)}\n")
             fp.write(f"resolved_age_oversample_target={args.age_oversample_target}\n")
             fp.write(f"resolved_age_oversample_max_multiplier={args.age_oversample_max_multiplier}\n")
+            fp.write(f"resolved_label_fraction_file={args.label_fraction_file or ''}\n")
+            fp.write(f"resolved_label_fraction={args.label_fraction if args.label_fraction is not None else ''}\n")
             fp.write(f"resolved_use_masks={int(args.use_masks)}\n")
         if combined_records is not None:
             _append_dataset_stats(config_path, "dataset", combined_records)

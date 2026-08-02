@@ -137,6 +137,9 @@ KFOLDS="${KFOLDS:-5}"
 FOLD_SEED="${FOLD_SEED:-${SEED}}"
 RUN_KFOLD_AGG="${RUN_KFOLD_AGG:-1}"
 FOLD_OVERWRITE="${FOLD_OVERWRITE:-0}"
+FOLD_FILE_OVERRIDE="${FOLD_FILE_OVERRIDE:-}"
+LABEL_FRACTION_FILE="${LABEL_FRACTION_FILE:-}"
+LABEL_FRACTION="${LABEL_FRACTION:-}"
 # Held-out test split (created once before any training).
 TEST_SPLIT_FILE="${TEST_SPLIT_FILE:-${OUTPUT_ROOT}/test_users.json}"
 TEST_SPLIT_SIZE="${TEST_SPLIT_SIZE:-0.15}"
@@ -161,6 +164,15 @@ TRAIN_DATASET_ARGS=("${TEST_DATASET_ARGS[@]}")
 [[ "${INCLUDE_SYNTHETIC_DORSAL}" -gt 0 ]] && TRAIN_DATASET_ARGS+=(--include-synthetic-dorsal)
 [[ "${INCLUDE_SYNTHETIC_DORSAL2}" -gt 0 ]] && TRAIN_DATASET_ARGS+=(--include-synthetic-dorsal2)
 [[ "${INCLUDE_LUCID}" -gt 0 ]] && TRAIN_DATASET_ARGS+=(--include-lucid)
+
+LABEL_FRACTION_ARGS=()
+if [[ -n "${LABEL_FRACTION_FILE}" ]]; then
+  if [[ -z "${LABEL_FRACTION}" ]]; then
+    echo "ERROR: LABEL_FRACTION must be set when LABEL_FRACTION_FILE is set." >&2
+    exit 1
+  fi
+  LABEL_FRACTION_ARGS=(--label-fraction-file "${LABEL_FRACTION_FILE}" --label-fraction "${LABEL_FRACTION}")
+fi
 
 # ── Create held-out test split (once, before any training) ───────────────────
 if [[ ! -f "${TEST_SPLIT_FILE}" ]]; then
@@ -189,6 +201,9 @@ for USER_GROUP_SIZE in ${USER_GROUP_SIZES}; do
       DEFAULT_RUN_NAME="${DEFAULT_RUN_NAME}_ddp"
       FOLDER_NAME="${RUN_NAME:-${DEFAULT_RUN_NAME}}"
       FOLD_FILE="${OUTPUT_ROOT}/${FOLDER_NAME}/folds_k${KFOLDS}.json"
+      if [[ -n "${FOLD_FILE_OVERRIDE}" ]]; then
+        FOLD_FILE="${FOLD_FILE_OVERRIDE}"
+      fi
 
       if [[ "${KFOLDS}" -gt 1 ]]; then
         if [[ ! -f "${FOLD_FILE}" || "${FOLD_OVERWRITE}" -gt 0 ]]; then
@@ -257,6 +272,7 @@ for USER_GROUP_SIZE in ${USER_GROUP_SIZES}; do
             $( [[ -n "${AGE_OVERSAMPLE_TARGET}" ]] && echo "--age-oversample-target ${AGE_OVERSAMPLE_TARGET}" ) \
             --fold-file "${FOLD_FILE}" \
             --fold-index "${FOLD_IDX}" \
+            "${LABEL_FRACTION_ARGS[@]}" \
             --test-users-file "${TEST_SPLIT_FILE}" \
             --eval-age-gate-mode "${EVAL_AGE_GATE_MODE}" \
             --age-gate-threshold-min "${AGE_GATE_THRESHOLD_MIN}" \

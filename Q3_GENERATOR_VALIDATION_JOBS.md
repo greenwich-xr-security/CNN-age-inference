@@ -74,6 +74,7 @@ achieved values.
 | Arm | Real-label fraction | Job | State | MAE (years) | RMSE (years) | Adult-gate AUC | Mean FPR | Adult FNR |
 | --- | ---: | --- | --- | ---: | ---: | ---: | ---: | ---: |
 | R0 | 5% | `1050948` | Completed | 29.935 | 33.493 | 0.0000 | 0.00% | 100.00% |
+| R0 | 10% | `1050949` | Completed | 26.846 | 30.901 | 0.0252 | 0.96% | 99.83% |
 
 ## Planned Job Accounting
 

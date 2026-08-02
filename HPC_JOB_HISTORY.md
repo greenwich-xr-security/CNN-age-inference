@@ -31,9 +31,9 @@ four GPUs, 16 CPU cores, 64 GB RAM, and batch size 16 per GPU unless noted.
 | `1050941` | Completed / 00:01:03 | Synthetic-trained `1050939` fold 0 evaluated on fixed real 20% test | Evaluation-only fold-0 probe | Early SR/TSTR single-fold estimate |
 | `1050942` | Completed / 00:04:33 | Synthetic-trained `1050939` checkpoints evaluated on fixed real 20% test | Evaluation-only; age-threshold adult-gate mode | Q2 SR/TSTR synthetic-to-real utility cell |
 | `1050948` | Completed / 01:45:09 | Q3 R0, real-label fraction 5%, locked real test | Pure Gaussian NLL; ImageNet/default init | Q3 R0 label-efficiency sweep |
-| `1050949` | Running / initial `00:00:42` | Q3 R0, real-label fraction 10%, locked real test | Pure Gaussian NLL; ImageNet/default init | Q3 R0 label-efficiency sweep |
-| `1050950` | Pending / initial `00:00:00` | Q3 R0, real-label fraction 25%, locked real test | Pure Gaussian NLL; ImageNet/default init | Q3 R0 label-efficiency sweep |
-| `1050951` | Pending / initial `00:00:00` | Q3 R0, real-label fraction 50%, locked real test | Pure Gaussian NLL; ImageNet/default init | Q3 R0 label-efficiency sweep |
+| `1050949` | Completed / 02:40:26 | Q3 R0, real-label fraction 10%, locked real test | Pure Gaussian NLL; ImageNet/default init | Q3 R0 label-efficiency sweep |
+| `1050950` | Running / latest `00:59:56` | Q3 R0, real-label fraction 25%, locked real test | Pure Gaussian NLL; ImageNet/default init | Q3 R0 label-efficiency sweep |
+| `1050951` | Running / latest `00:04:37` | Q3 R0, real-label fraction 50%, locked real test | Pure Gaussian NLL; ImageNet/default init | Q3 R0 label-efficiency sweep |
 | `1050952` | Pending / initial `00:00:00` | Q3 R0, real-label fraction 100%, locked real test | Pure Gaussian NLL; ImageNet/default init | Q3 R0 label-efficiency sweep |
 | `1050953` | Pending / initial `00:00:00` | Q3 R1, real-label fraction 5%, locked real test | Pure Gaussian NLL; random init | Q3 R1 label-efficiency sweep |
 | `1050954` | Pending / initial `00:00:00` | Q3 R1, real-label fraction 10%, locked real test | Pure Gaussian NLL; random init | Q3 R1 label-efficiency sweep |
@@ -108,6 +108,7 @@ The uncapped runs use 20% held-out real users and five folds over the remaining
 - Submission date: 2026-08-02 11:33 BST.
 - Initial scheduler state from monitor at 2026-08-02 11:34:18 BST: `1050948` and `1050949` RUNNING; `1050950`-`1050962` PENDING.
 - Progress update at 2026-08-02 13:59:47 BST: `1050948` COMPLETED; `1050949` RUNNING with 4/5 folds complete; `1050950` RUNNING with 0/5 folds complete; `1050951`-`1050962` PENDING.
+- Progress update at 2026-08-02 14:18:40 BST: `1050948` and `1050949` COMPLETED; `1050950` RUNNING with 1/5 folds complete; `1050951` RUNNING with 0/5 folds complete; `1050952`-`1050962` PENDING.
 - Monitor cron: every 10 minutes via `/home/rb3434w/CNN-age-inference/runs/q3_r0_r1_sage_seed42_monitor/run_monitor.sh`.
 - Monitor outputs: `/home/rb3434w/CNN-age-inference/runs/q3_r0_r1_sage_seed42_monitor/q3_status.md` and `q3_status.json`.
 - Jobs manifest: `/home/rb3434w/CNN-age-inference/runs/q3_r0_r1_sage_seed42_monitor/jobs.json`.
@@ -117,13 +118,14 @@ The uncapped runs use 20% held-out real users and five folds over the remaining
 - Model/objective: EfficientNet-V2-S at 384 px; pure Gaussian NLL (`NLL=1`, CRPS/MSE/MAE/spread/embed losses disabled), LR `2e-4`, maximum 240 epochs, patience 10, image-level training/evaluation (`USER_GROUP_SIZES=1`, `AGG_SIZES=1`), age-threshold adult-gate evaluation.
 - Requested resources per job: one `gpu-beast` node, 4 GPUs, 16 CPU cores, batch size 16 per GPU; unique `MASTER_PORT` values `29600`-`29614`.
 - Held-out result so far: `1050948` completed the R0 5% cell. Five-fold unweighted `n=1` aggregate over 1,624 real held-out samples per fold: MAE 29.935 years, RMSE 33.493 years, adult-gate AUC 0.0000, mean FPR 0.00%, Adult FNR 100.00%. This is a degenerate low-label baseline: at the selected operating point (`tau=10`) all folds have zero false positives but all adults are missed.
+- Held-out result so far: `1050949` completed the R0 10% cell. Five-fold unweighted `n=1` aggregate over 1,624 real held-out samples per fold: MAE 26.846 years, RMSE 30.901 years, adult-gate AUC 0.0252, mean FPR 0.96%, Adult FNR 99.83%. Fold 0 reached FPR 4.78% at `tau=16`; folds 1-4 selected `tau=10` with zero FPR and 100% Adult FNR.
 
 | Job | Arm | Real-label fraction | Initial state | Run directory |
 | --- | --- | ---: | --- | --- |
 | `1050948` | R0 | 5% | COMPLETED | `/home/rb3434w/CNN-age-inference/runs/q3_r0_realfrac_f05_seed42_v2s_384` |
-| `1050949` | R0 | 10% | RUNNING, 4/5 folds complete | `/home/rb3434w/CNN-age-inference/runs/q3_r0_realfrac_f10_seed42_v2s_384` |
-| `1050950` | R0 | 25% | RUNNING, 0/5 folds complete | `/home/rb3434w/CNN-age-inference/runs/q3_r0_realfrac_f25_seed42_v2s_384` |
-| `1050951` | R0 | 50% | PENDING | `/home/rb3434w/CNN-age-inference/runs/q3_r0_realfrac_f50_seed42_v2s_384` |
+| `1050949` | R0 | 10% | COMPLETED | `/home/rb3434w/CNN-age-inference/runs/q3_r0_realfrac_f10_seed42_v2s_384` |
+| `1050950` | R0 | 25% | RUNNING, 1/5 folds complete | `/home/rb3434w/CNN-age-inference/runs/q3_r0_realfrac_f25_seed42_v2s_384` |
+| `1050951` | R0 | 50% | RUNNING, 0/5 folds complete | `/home/rb3434w/CNN-age-inference/runs/q3_r0_realfrac_f50_seed42_v2s_384` |
 | `1050952` | R0 | 100% | PENDING | `/home/rb3434w/CNN-age-inference/runs/q3_r0_realfrac_f100_seed42_v2s_384` |
 | `1050953` | R1 | 5% | PENDING | `/home/rb3434w/CNN-age-inference/runs/q3_r1_realfrac_f05_seed42_v2s_384` |
 | `1050954` | R1 | 10% | PENDING | `/home/rb3434w/CNN-age-inference/runs/q3_r1_realfrac_f10_seed42_v2s_384` |

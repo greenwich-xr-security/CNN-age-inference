@@ -134,7 +134,6 @@
     "handrgbd_304"
   ],
   "fractions": [
-    "0.01",
     "0.05",
     "0.10",
     "0.25",
@@ -673,19 +672,6 @@
         "prolific_6a0ee010a00d40c9212e139e"
       ],
       "label_fractions": {
-        "0.01": {
-          "fraction": 0.01,
-          "target_train_users": 4,
-          "train_pool_users": 407,
-          "selected_train_users": 4,
-          "sampling_stratify_mode": "adult",
-          "train_user_ids": [
-            "handrgbd_113",
-            "handrgbd_265",
-            "handrgbd_400",
-            "handrgbd_431"
-          ]
-        },
         "0.05": {
           "fraction": 0.05,
           "target_train_users": 20,
@@ -2023,19 +2009,6 @@
         "prolific_6a0ee010a00d40c9212e139e"
       ],
       "label_fractions": {
-        "0.01": {
-          "fraction": 0.01,
-          "target_train_users": 4,
-          "train_pool_users": 407,
-          "selected_train_users": 4,
-          "sampling_stratify_mode": "adult",
-          "train_user_ids": [
-            "handrgbd_240",
-            "prolific_693bb2bafd964eb701477cec",
-            "prolific_69eb9dfce8ea33dfe782780e",
-            "prolific_6a11d3882127b47b0be4b1ae"
-          ]
-        },
         "0.05": {
           "fraction": 0.05,
           "target_train_users": 20,
@@ -3373,19 +3346,6 @@
         "prolific_6a0ee010a00d40c9212e139e"
       ],
       "label_fractions": {
-        "0.01": {
-          "fraction": 0.01,
-          "target_train_users": 4,
-          "train_pool_users": 407,
-          "selected_train_users": 4,
-          "sampling_stratify_mode": "adult",
-          "train_user_ids": [
-            "handrgbd_157",
-            "handrgbd_328",
-            "prolific_5bd47bddf00299000168122e",
-            "prolific_66b5bf320582de2bfb673bfc"
-          ]
-        },
         "0.05": {
           "fraction": 0.05,
           "target_train_users": 20,
@@ -4723,19 +4683,6 @@
         "prolific_6a0ee010a00d40c9212e139e"
       ],
       "label_fractions": {
-        "0.01": {
-          "fraction": 0.01,
-          "target_train_users": 4,
-          "train_pool_users": 407,
-          "selected_train_users": 4,
-          "sampling_stratify_mode": "adult",
-          "train_user_ids": [
-            "handrgbd_396",
-            "handrgbd_93",
-            "prolific_6146fb92e89e10d7aa8662a2",
-            "prolific_697daebfd3829aaa79530939"
-          ]
-        },
         "0.05": {
           "fraction": 0.05,
           "target_train_users": 20,
@@ -6073,19 +6020,6 @@
         "prolific_6a11d3882127b47b0be4b1ae"
       ],
       "label_fractions": {
-        "0.01": {
-          "fraction": 0.01,
-          "target_train_users": 4,
-          "train_pool_users": 408,
-          "selected_train_users": 4,
-          "sampling_stratify_mode": "adult",
-          "train_user_ids": [
-            "handrgbd_236",
-            "handrgbd_35",
-            "handrgbd_367",
-            "prolific_60f0035abb0afb22cdb36884"
-          ]
-        },
         "0.05": {
           "fraction": 0.05,
           "target_train_users": 20,

@@ -141,6 +141,8 @@ FOLD_OVERWRITE="${FOLD_OVERWRITE:-0}"
 FOLD_FILE_OVERRIDE="${FOLD_FILE_OVERRIDE:-}"
 LABEL_FRACTION_FILE="${LABEL_FRACTION_FILE:-}"
 LABEL_FRACTION="${LABEL_FRACTION:-}"
+SHUFFLE_SYNTHETIC_DORSAL2_AGE_LABELS="${SHUFFLE_SYNTHETIC_DORSAL2_AGE_LABELS:-0}"
+SHUFFLE_SYNTHETIC_DORSAL2_AGE_SEED="${SHUFFLE_SYNTHETIC_DORSAL2_AGE_SEED:-${SEED}}"
 # Held-out test split (created once before any training).
 TEST_SPLIT_FILE="${TEST_SPLIT_FILE:-${OUTPUT_ROOT}/test_users.json}"
 TEST_SPLIT_SIZE="${TEST_SPLIT_SIZE:-0.15}"
@@ -173,6 +175,14 @@ if [[ -n "${LABEL_FRACTION_FILE}" ]]; then
     exit 1
   fi
   LABEL_FRACTION_ARGS=(--label-fraction-file "${LABEL_FRACTION_FILE}" --label-fraction "${LABEL_FRACTION}")
+fi
+
+SHUFFLE_SYNTHETIC_DORSAL2_ARGS=()
+if [[ "${SHUFFLE_SYNTHETIC_DORSAL2_AGE_LABELS}" -gt 0 ]]; then
+  SHUFFLE_SYNTHETIC_DORSAL2_ARGS=(
+    --shuffle-synthetic-dorsal2-age-labels
+    --shuffle-synthetic-dorsal2-age-seed "${SHUFFLE_SYNTHETIC_DORSAL2_AGE_SEED}"
+  )
 fi
 
 # ── Create held-out test split (once, before any training) ───────────────────
@@ -275,6 +285,7 @@ for USER_GROUP_SIZE in ${USER_GROUP_SIZES}; do
             --fold-file "${FOLD_FILE}" \
             --fold-index "${FOLD_IDX}" \
             "${LABEL_FRACTION_ARGS[@]}" \
+            "${SHUFFLE_SYNTHETIC_DORSAL2_ARGS[@]}" \
             --test-users-file "${TEST_SPLIT_FILE}" \
             --eval-age-gate-mode "${EVAL_AGE_GATE_MODE}" \
             --age-gate-threshold-min "${AGE_GATE_THRESHOLD_MIN}" \
@@ -339,6 +350,7 @@ for USER_GROUP_SIZE in ${USER_GROUP_SIZES}; do
           $( [[ "${AGE_REWEIGHT}" -gt 0 ]] && echo "--age-reweight-loss --age-weight-eps ${AGE_WEIGHT_EPS} --age-weight-power ${AGE_WEIGHT_POWER} --age-weight-min ${AGE_WEIGHT_MIN} --age-weight-max ${AGE_WEIGHT_MAX}" ) \
           $( [[ "${AGE_OVERSAMPLE}" -gt 0 ]] && echo "--age-oversample --age-oversample-max-multiplier ${AGE_OVERSAMPLE_MAX_MULT}" ) \
           $( [[ -n "${AGE_OVERSAMPLE_TARGET}" ]] && echo "--age-oversample-target ${AGE_OVERSAMPLE_TARGET}" ) \
+          "${SHUFFLE_SYNTHETIC_DORSAL2_ARGS[@]}" \
           --test-users-file "${TEST_SPLIT_FILE}" \
           --dist-backend nccl \
           $( [[ "${NORMALS_AUX}" -gt 0 ]] && echo "--normals-aux --loss-weight-normals ${LOSS_WEIGHT_NORMALS} --lucid-fraction ${LUCID_FRACTION}" ) \

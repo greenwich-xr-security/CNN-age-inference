@@ -40,7 +40,7 @@ the same grid is 150 fold-level jobs.
 | R1 100% | Done | `1050877` | Full-real random-init baseline only; remaining fractions not run |
 | S-age pretraining | Available | `1050939` | Clean SyntheticDorsalHands2-only supervised NLL checkpoints; suitable pretraining source |
 | S-age 100% fine-tune | Needs clean Q3 rerun | `1050819` is related | `1050819` used SyntheticDorsalHands2 initialisation, but not from the clean `1050939` SS source, so do not treat it as the final Q3 S-age cell without caveat |
-| S-shuffle pretraining | Missing | none | Need shuffled-age synthetic pretraining job before downstream fractions |
+| S-shuffle pretraining | Implementation ready, not launched | none | Use `SHUFFLE_SYNTHETIC_DORSAL2_AGE_LABELS=1`; shuffled-age synthetic pretraining is still needed before downstream fractions |
 | S-ssl pretraining | Done | `1050832` | BYOL on SyntheticDorsalHands2 |
 | S-ssl 100% fine-tune | Done | `1050854` | Full-real fine-tune from BYOL; remaining fractions not run |
 | U-ssl pretraining | Missing | none | Need unrelated non-hand, non-age corpus and compute-matched SSL setup |
@@ -60,7 +60,7 @@ Monitor on HPC:
 | R0 | `1050948` | `1050949` | `1050950` | `1050951` | `1050952` |
 | R1 | `1050953` | `1050954` | `1050955` | `1050956` | `1050957` |
 | S-age | `1050958` | `1050959` | `1050960` | `1050961` | `1050962` |
-| S-shuffle | Not implemented | Not implemented | Not implemented | Not implemented | Not implemented |
+| S-shuffle | Needs pretraining | Needs pretraining | Needs pretraining | Needs pretraining | Needs pretraining |
 | S-ssl | `1050969` | `1050970` | `1050971` | `1050972` | `1050973` |
 | U-ssl | Not implemented | Not implemented | Not implemented | Not implemented | Not implemented |
 
@@ -83,7 +83,7 @@ achieved values.
 | R0 downstream sweep | 5 | One job per real-label fraction, all five folds per job |
 | R1 downstream sweep | 5 | Same real subsets as R0 |
 | S-age downstream sweep | 5 | Initialise from clean S-age synthetic checkpoints, preferably `1050939` |
-| S-shuffle downstream sweep | 5 | Requires S-shuffle pretraining first |
+| S-shuffle downstream sweep | 5 | Requires S-shuffle pretraining first; downstream code path is the same as S-age |
 | S-ssl downstream sweep | 5 | Launched on `gpu-standard`, 2 GPUs/job; initialise from BYOL checkpoints from `1050832` |
 | U-ssl downstream sweep | 5 | Requires U-ssl pretraining first |
 | S-shuffle pretraining | 1 | Full SyntheticDorsalHands2 corpus, labels permuted once per seed |

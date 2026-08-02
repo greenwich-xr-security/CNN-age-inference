@@ -103,6 +103,20 @@ def parse_args() -> argparse.Namespace:
         help="Real fine-tuning label fraction to use from --label-fraction-file, e.g. 0.01, 0.05, 0.10.",
     )
     parser.add_argument(
+        "--shuffle-synthetic-dorsal2-age-labels",
+        action="store_true",
+        help=(
+            "Deterministically permute age labels across SyntheticDorsalHands2 images. "
+            "Use only for the Q3 S-shuffle synthetic pretraining control."
+        ),
+    )
+    parser.add_argument(
+        "--shuffle-synthetic-dorsal2-age-seed",
+        type=int,
+        default=None,
+        help="Seed for --shuffle-synthetic-dorsal2-age-labels; defaults to --seed when omitted.",
+    )
+    parser.add_argument(
         "--output-dir",
         type=str,
         default=".",
@@ -535,6 +549,54 @@ def _load_label_fraction_split(path: str | Path, fold_index: int, fraction: floa
     }
 
 
+def _apply_synthetic_dorsal2_age_shuffle(
+    metadata: pd.DataFrame,
+    *,
+    enabled: bool,
+    seed: int,
+    context: str,
+) -> pd.DataFrame:
+    if not enabled:
+        return metadata
+
+    if "source" not in metadata.columns or "age" not in metadata.columns:
+        raise ValueError("SyntheticDorsalHands2 age shuffling requires 'source' and 'age' metadata columns.")
+
+    work = metadata.copy()
+    source_mask = work["source"].astype(str).eq("synthetic_dorsal2")
+    if not source_mask.any():
+        raise ValueError(
+            "--shuffle-synthetic-dorsal2-age-labels was set, but no SyntheticDorsalHands2 rows "
+            f"were available in {context} metadata. Check dataset include arguments."
+        )
+
+    eligible = work.loc[source_mask & work["age"].notna()].copy()
+    if len(eligible) < 2:
+        raise ValueError(
+            "--shuffle-synthetic-dorsal2-age-labels requires at least two labelled SyntheticDorsalHands2 rows."
+        )
+
+    sort_cols = ["image_path"] if "image_path" in eligible.columns else ["user_id"]
+    ordered_index = eligible.assign(_shuffle_key=eligible[sort_cols[0]].astype(str)).sort_values(
+        ["_shuffle_key", "user_id"], kind="mergesort"
+    ).index
+    original_ages = work.loc[ordered_index, "age"].astype(float).to_numpy()
+    rng = np.random.default_rng(int(seed))
+    shuffled_ages = rng.permutation(original_ages)
+
+    work.loc[ordered_index, "age_original"] = original_ages
+    work.loc[ordered_index, "age_shuffle_seed"] = int(seed)
+    work.loc[ordered_index, "age"] = shuffled_ages
+
+    changed = int(np.count_nonzero(original_ages != shuffled_ages))
+    print(
+        "[data] Shuffled SyntheticDorsalHands2 age labels "
+        f"for {len(ordered_index)} images in {context} metadata with seed {seed}; "
+        f"{changed} labels changed."
+    )
+    return work
+
+
 def build_datasets(args: argparse.Namespace, seed: int, img_size: int):
     if args.data_root:
         set_dataset_root(args.data_root)
@@ -557,6 +619,17 @@ def build_datasets(args: argparse.Namespace, seed: int, img_size: int):
         ),
         max_samples_per_user=args.max_samples_per_user or None,
         max_samples_per_age_bin=args.max_samples_per_age_bin or None,
+    )
+    shuffle_seed = (
+        args.shuffle_synthetic_dorsal2_age_seed
+        if args.shuffle_synthetic_dorsal2_age_seed is not None
+        else args.seed
+    )
+    metadata = _apply_synthetic_dorsal2_age_shuffle(
+        metadata,
+        enabled=args.shuffle_synthetic_dorsal2_age_labels,
+        seed=shuffle_seed,
+        context="train/validation",
     )
 
     test_ids: set = set()
@@ -695,6 +768,17 @@ def load_filtered_test_metadata(args: argparse.Namespace, active_root) -> pd.Dat
         ),
         max_samples_per_user=args.max_samples_per_user or None,
         max_samples_per_age_bin=args.max_samples_per_age_bin or None,
+    )
+    shuffle_seed = (
+        args.shuffle_synthetic_dorsal2_age_seed
+        if args.shuffle_synthetic_dorsal2_age_seed is not None
+        else args.seed
+    )
+    all_meta = _apply_synthetic_dorsal2_age_shuffle(
+        all_meta,
+        enabled=args.shuffle_synthetic_dorsal2_age_labels,
+        seed=shuffle_seed,
+        context="test",
     )
     return all_meta[all_meta["user_id"].astype(str).isin(test_ids)].reset_index(drop=True)
 
@@ -911,6 +995,14 @@ def main() -> None:
             fp.write(f"resolved_age_oversample_max_multiplier={args.age_oversample_max_multiplier}\n")
             fp.write(f"resolved_label_fraction_file={args.label_fraction_file or ''}\n")
             fp.write(f"resolved_label_fraction={args.label_fraction if args.label_fraction is not None else ''}\n")
+            fp.write(
+                "resolved_shuffle_synthetic_dorsal2_age_labels="
+                f"{int(args.shuffle_synthetic_dorsal2_age_labels)}\n"
+            )
+            fp.write(
+                "resolved_shuffle_synthetic_dorsal2_age_seed="
+                f"{args.shuffle_synthetic_dorsal2_age_seed if args.shuffle_synthetic_dorsal2_age_seed is not None else args.seed}\n"
+            )
             fp.write(f"resolved_no_imagenet_pretrained={int(args.no_imagenet_pretrained)}\n")
             fp.write(f"resolved_use_masks={int(args.use_masks)}\n")
         if combined_records is not None:

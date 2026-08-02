@@ -25,6 +25,12 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="Backbone variant, e.g. v2_s. Defaults to the 'model' field stored in the SSL checkpoint.",
     )
+    parser.add_argument(
+        "--embed-dim",
+        type=int,
+        default=0,
+        help="Optional age-regressor embedding head dimension; must match downstream fine-tuning.",
+    )
     return parser.parse_args()
 
 
@@ -40,7 +46,7 @@ def main() -> None:
     if not model_name:
         raise ValueError("--model not given and the SSL checkpoint has no 'model' field.")
 
-    model_builder, _, model_desc, _ = resolve_model_builder(model_name)
+    model_builder, _, model_desc, _ = resolve_model_builder(model_name, embed_dim=args.embed_dim)
     age_model = model_builder()
 
     missing, unexpected = age_model.load_state_dict(ssl_ckpt["backbone"], strict=False)

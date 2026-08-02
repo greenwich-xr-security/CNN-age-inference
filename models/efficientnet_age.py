@@ -42,7 +42,14 @@ def get_default_efficientnet_weights(variant: str):
 class EfficientNetAgeRegressor(nn.Module):
     """EfficientNet backbone for age regression with optional auxiliary normals head."""
 
-    def __init__(self, variant: str, embed_dim: int = 0, normals_aux: bool = False, normals_privileged: bool = False):
+    def __init__(
+        self,
+        variant: str,
+        embed_dim: int = 0,
+        normals_aux: bool = False,
+        normals_privileged: bool = False,
+        pretrained: bool = True,
+    ):
         super().__init__()
         variant = variant.lower()
         if variant not in EFFICIENTNET_IMG_SIZES:
@@ -55,11 +62,11 @@ class EfficientNetAgeRegressor(nn.Module):
             raise ValueError(f"torchvision.models does not provide '{model_name}'.")
 
         backbone_builder = getattr(models, model_name)
-        weights = get_default_efficientnet_weights(variant)
+        weights = get_default_efficientnet_weights(variant) if pretrained else None
         try:
-            backbone = backbone_builder(weights=weights) if weights is not None else backbone_builder(pretrained=True)
+            backbone = backbone_builder(weights=weights)
         except TypeError:
-            backbone = backbone_builder(pretrained=True)
+            backbone = backbone_builder(pretrained=pretrained)
 
         self.variant = variant
         self.embed_dim = int(embed_dim)

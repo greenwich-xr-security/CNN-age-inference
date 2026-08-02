@@ -298,6 +298,14 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument(
+        "--no-imagenet-pretrained",
+        action="store_true",
+        help=(
+            "Start supported backbones from random initialisation instead of ImageNet/default "
+            "pretrained weights. Intended for R1/from-scratch controls."
+        ),
+    )
+    parser.add_argument(
         "--weight-decay",
         type=float,
         default=0.01,
@@ -793,6 +801,7 @@ def main() -> None:
         embed_dim=args.embed_dim,
         normals_aux=getattr(args, "normals_aux", False),
         normals_privileged=getattr(args, "normals_privileged", False),
+        pretrained=not args.no_imagenet_pretrained,
     )
     img_size = args.img_size if args.img_size is not None else default_size
     if args.img_size is not None and args.img_size != default_size and is_main:
@@ -902,6 +911,7 @@ def main() -> None:
             fp.write(f"resolved_age_oversample_max_multiplier={args.age_oversample_max_multiplier}\n")
             fp.write(f"resolved_label_fraction_file={args.label_fraction_file or ''}\n")
             fp.write(f"resolved_label_fraction={args.label_fraction if args.label_fraction is not None else ''}\n")
+            fp.write(f"resolved_no_imagenet_pretrained={int(args.no_imagenet_pretrained)}\n")
             fp.write(f"resolved_use_masks={int(args.use_masks)}\n")
         if combined_records is not None:
             _append_dataset_stats(config_path, "dataset", combined_records)

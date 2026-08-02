@@ -101,6 +101,7 @@ def resolve_model_builder(
     embed_dim: int = 0,
     normals_aux: bool = False,
     normals_privileged: bool = False,
+    pretrained: bool = True,
 ):
     """
     Resolve a model name (including aliases) to a builder, default image size, display label, and normalized key.
@@ -117,6 +118,7 @@ def resolve_model_builder(
             lambda: EfficientNetAgeRegressor(
                 name, embed_dim=embed_dim,
                 normals_aux=normals_aux, normals_privileged=normals_privileged,
+                pretrained=pretrained,
             ),
             size,
             f"EfficientNet-{name.upper()}",

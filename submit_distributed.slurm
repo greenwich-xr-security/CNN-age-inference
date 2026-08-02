@@ -103,6 +103,7 @@ EMBED_AGE_SLACK="${EMBED_AGE_SLACK:-5.0}"
 EMBED_CONTRAST_MARGIN="${EMBED_CONTRAST_MARGIN:-1.0}"
 EMBED_CONTRAST_AGE_THRESH="${EMBED_CONTRAST_AGE_THRESH:-5.0}"
 USE_MASKS="${USE_MASKS:-0}"                        # set >0 to apply dataset masks (black background)
+NO_IMAGENET_PRETRAINED="${NO_IMAGENET_PRETRAINED:-0}" # set >0 for random-init R1 controls
 INCLUDE_HANDRGBD="${INCLUDE_HANDRGBD:-1}"          # set 0 to exclude HandRGBD
 INCLUDE_HAGRID="${INCLUDE_HAGRID:-0}"              # set >0 to include HaGRIDv2
 INCLUDE_SYNTHETIC_DORSAL="${INCLUDE_SYNTHETIC_DORSAL:-0}" # set >0 to include SyntheticDorsalHands
@@ -266,6 +267,7 @@ for USER_GROUP_SIZE in ${USER_GROUP_SIZES}; do
             --embed-contrast-margin "${EMBED_CONTRAST_MARGIN}" \
             --embed-contrast-age-thresh "${EMBED_CONTRAST_AGE_THRESH}" \
             $( [[ "${USE_MASKS}" -gt 0 ]] && echo "--use-masks" ) \
+            $( [[ "${NO_IMAGENET_PRETRAINED}" -gt 0 ]] && echo "--no-imagenet-pretrained" ) \
             "${TRAIN_DATASET_ARGS[@]}" \
             $( [[ "${AGE_REWEIGHT}" -gt 0 ]] && echo "--age-reweight-loss --age-weight-eps ${AGE_WEIGHT_EPS} --age-weight-power ${AGE_WEIGHT_POWER} --age-weight-min ${AGE_WEIGHT_MIN} --age-weight-max ${AGE_WEIGHT_MAX}" ) \
             $( [[ "${AGE_OVERSAMPLE}" -gt 0 ]] && echo "--age-oversample --age-oversample-max-multiplier ${AGE_OVERSAMPLE_MAX_MULT}" ) \
@@ -332,6 +334,7 @@ for USER_GROUP_SIZE in ${USER_GROUP_SIZES}; do
           --embed-contrast-margin "${EMBED_CONTRAST_MARGIN}" \
           --embed-contrast-age-thresh "${EMBED_CONTRAST_AGE_THRESH}" \
           $( [[ "${USE_MASKS}" -gt 0 ]] && echo "--use-masks" ) \
+          $( [[ "${NO_IMAGENET_PRETRAINED}" -gt 0 ]] && echo "--no-imagenet-pretrained" ) \
           "${TRAIN_DATASET_ARGS[@]}" \
           $( [[ "${AGE_REWEIGHT}" -gt 0 ]] && echo "--age-reweight-loss --age-weight-eps ${AGE_WEIGHT_EPS} --age-weight-power ${AGE_WEIGHT_POWER} --age-weight-min ${AGE_WEIGHT_MIN} --age-weight-max ${AGE_WEIGHT_MAX}" ) \
           $( [[ "${AGE_OVERSAMPLE}" -gt 0 ]] && echo "--age-oversample --age-oversample-max-multiplier ${AGE_OVERSAMPLE_MAX_MULT}" ) \

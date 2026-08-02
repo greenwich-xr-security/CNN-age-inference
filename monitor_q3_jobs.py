@@ -96,6 +96,27 @@ def load_result(run_dir: Path) -> dict[str, float] | None:
     return {key: value for key, value in result.items() if value is not None}
 
 
+def fold_progress(run_dir: Path, k: int = 5) -> dict[str, object]:
+    started: list[int] = []
+    completed: list[int] = []
+    for fold_idx in range(k):
+        fold_dir = run_dir / f"fold_{fold_idx}"
+        if fold_dir.is_dir():
+            started.append(fold_idx)
+        if (
+            (fold_dir / "test_predictions_n1_ddp.npz").is_file()
+            or (fold_dir / "test_group_summary_n1_ddp.csv").is_file()
+        ):
+            completed.append(fold_idx)
+    return {
+        "started_folds": started,
+        "completed_folds": completed,
+        "started_fold_count": len(started),
+        "completed_fold_count": len(completed),
+        "total_folds": k,
+    }
+
+
 def format_metric(value: float | None, *, percent: bool = False, digits: int = 3) -> str:
     if value is None:
         return ""
@@ -120,7 +141,9 @@ def main() -> None:
         job_id = str(job["job_id"])
         row = dict(job)
         row.update(sacct.get(job_id, {}))
-        result = load_result(Path(row["run_dir"]))
+        run_dir = Path(row["run_dir"])
+        row["fold_progress"] = fold_progress(run_dir)
+        result = load_result(run_dir)
         if result:
             row["result"] = result
         status_rows.append(row)
@@ -137,18 +160,21 @@ def main() -> None:
         "",
         f"Updated: {status_payload['updated_at']}",
         "",
-        "| Job | Arm | Fraction | State | Elapsed | MAE | RMSE | AUC | Mean FPR | Adult FNR |",
-        "| --- | --- | ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: |",
+        "| Job | Arm | Fraction | State | Elapsed | Folds Done | MAE | RMSE | AUC | Mean FPR | Adult FNR |",
+        "| --- | --- | ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
     ]
     for row in status_rows:
         result = row.get("result", {})
+        folds = row.get("fold_progress", {})
+        fold_text = f"{folds.get('completed_fold_count', 0)}/{folds.get('total_folds', 5)}"
         lines.append(
-            "| {job_id} | {arm} | {fraction} | {state} | {elapsed} | {mae} | {rmse} | {auc} | {fpr} | {fnr} |".format(
+            "| {job_id} | {arm} | {fraction} | {state} | {elapsed} | {folds} | {mae} | {rmse} | {auc} | {fpr} | {fnr} |".format(
                 job_id=row.get("job_id", ""),
                 arm=row.get("arm", ""),
                 fraction=row.get("fraction", ""),
                 state=row.get("state", "UNKNOWN"),
                 elapsed=row.get("elapsed", ""),
+                folds=fold_text,
                 mae=format_metric(result.get("mae")),
                 rmse=format_metric(result.get("rmse")),
                 auc=format_metric(result.get("auc_adult_gate"), digits=4),

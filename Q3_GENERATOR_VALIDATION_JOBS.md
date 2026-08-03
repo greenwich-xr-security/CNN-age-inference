@@ -80,8 +80,8 @@ Monitor on HPC:
 | --- | ---: | --- | --- | --- |
 | S-age, clean synthetic-only init, LR `2e-5` | 5% | `1050979` | Completed | Match `1050819` fine-tuning LR/max epochs while keeping Q3 clean `1050939` synthetic-only init |
 | S-age, clean synthetic-only init, LR `2e-5` | 10% | `1050980` | Completed | Match `1050819` fine-tuning LR/max epochs while keeping Q3 clean `1050939` synthetic-only init |
-| S-age, clean synthetic-only init, LR `2e-5` | 25% | `1050981` | Running | Match `1050819` fine-tuning LR/max epochs while keeping Q3 clean `1050939` synthetic-only init |
-| S-age, clean synthetic-only init, LR `2e-5` | 50% | `1050982` | Running | Match `1050819` fine-tuning LR/max epochs while keeping Q3 clean `1050939` synthetic-only init |
+| S-age, clean synthetic-only init, LR `2e-5` | 25% | `1050981` | Completed | Match `1050819` fine-tuning LR/max epochs while keeping Q3 clean `1050939` synthetic-only init |
+| S-age, clean synthetic-only init, LR `2e-5` | 50% | `1050982` | Completed | Match `1050819` fine-tuning LR/max epochs while keeping Q3 clean `1050939` synthetic-only init |
 | S-age, clean synthetic-only init, LR `2e-5` | 100% | `1050975` | Completed | Match `1050819` fine-tuning LR/max epochs while keeping Q3 clean `1050939` synthetic-only init |
 | S-ssl, BYOL synthetic-hand init, LR `2e-5` | 5% | `1050983` | Running | Match S-age LR-control downstream LR/max epochs while keeping Q3 S-ssl BYOL init |
 | S-ssl, BYOL synthetic-hand init, LR `2e-5` | 10% | `1050984` | Pending | Match S-age LR-control downstream LR/max epochs while keeping Q3 S-ssl BYOL init |
@@ -115,8 +115,8 @@ achieved values.
 | S-age | 100% | `1050962` | Completed | 5.024 | 6.811 | 0.9399 | 4.74% | 20.76% |
 | S-age LR-control | 5% | `1050979` | Completed | 6.152 | 8.399 | 0.9133 | 4.69% | 24.17% |
 | S-age LR-control | 10% | `1050980` | Completed | 5.547 | 7.591 | 0.9223 | 4.78% | 23.95% |
-| S-age LR-control | 25% | `1050981` | Running | - | - | - | - | - |
-| S-age LR-control | 50% | `1050982` | Running | - | - | - | - | - |
+| S-age LR-control | 25% | `1050981` | Completed | 5.357 | 7.190 | 0.9265 | 4.74% | 23.59% |
+| S-age LR-control | 50% | `1050982` | Completed | 5.114 | 6.943 | 0.9363 | 4.78% | 21.91% |
 | S-age LR-control | 100% | `1050975` | Completed | 4.817 | 6.571 | 0.9526 | 4.69% | 18.46% |
 | S-ssl | 5% | `1050969` | Completed | 27.840 | 31.494 | 0.0987 | 1.00% | 96.60% |
 | S-ssl | 10% | `1050970` | Completed | 22.684 | 26.889 | 0.3474 | 2.49% | 88.19% |

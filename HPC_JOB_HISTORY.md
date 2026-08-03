@@ -71,12 +71,12 @@ four GPUs, 16 CPU cores, 64 GB RAM, and batch size 16 per GPU unless noted.
 | `1050999` | CANCELLED / 00:00:00 | Q3 S-shuffle LR-control, real-label fraction 25%, locked real test | Depended on cancelled `1050996`; replaced by `1051005` | Superseded S-shuffle launch |
 | `1051000` | CANCELLED / 00:00:00 | Q3 S-shuffle LR-control, real-label fraction 50%, locked real test | Depended on cancelled `1050996`; replaced by `1051006` | Superseded S-shuffle launch |
 | `1051001` | CANCELLED / 00:00:00 | Q3 S-shuffle LR-control, real-label fraction 100%, locked real test | Depended on cancelled `1050996`; replaced by `1051007` | Superseded S-shuffle launch |
-| `1051002` | Running on `gpu-standard` / 00:00:47 at launch check | Q3 S-shuffle pretraining on SyntheticDorsalHands2; fixed synthetic2 20% test | Pure Gaussian NLL; SyntheticDorsalHands2 age labels permuted once with seed 42; 2 GPUs; replacement for `1050996` | S-shuffle shuffled-label pretraining control |
-| `1051003` | Pending dependency after `1051002` / 00:00:00 at launch check | Q3 S-shuffle LR-control, real-label fraction 5%, locked real test | Pure Gaussian NLL; init from `1051002`; real fine-tune LR `2e-5`; max 120 epochs; 2 GPUs | S-shuffle label-efficiency control |
-| `1051004` | Pending dependency after `1051002` / 00:00:00 at launch check | Q3 S-shuffle LR-control, real-label fraction 10%, locked real test | Pure Gaussian NLL; init from `1051002`; real fine-tune LR `2e-5`; max 120 epochs; 2 GPUs | S-shuffle label-efficiency control |
-| `1051005` | Pending dependency after `1051002` / 00:00:00 at launch check | Q3 S-shuffle LR-control, real-label fraction 25%, locked real test | Pure Gaussian NLL; init from `1051002`; real fine-tune LR `2e-5`; max 120 epochs; 2 GPUs | S-shuffle label-efficiency control |
-| `1051006` | Pending dependency after `1051002` / 00:00:00 at launch check | Q3 S-shuffle LR-control, real-label fraction 50%, locked real test | Pure Gaussian NLL; init from `1051002`; real fine-tune LR `2e-5`; max 120 epochs; 2 GPUs | S-shuffle label-efficiency control |
-| `1051007` | Pending dependency after `1051002` / 00:00:00 at launch check | Q3 S-shuffle LR-control, real-label fraction 100%, locked real test | Pure Gaussian NLL; init from `1051002`; real fine-tune LR `2e-5`; max 120 epochs; 2 GPUs | S-shuffle label-efficiency control |
+| `1051002` | COMPLETED / 02:23:18 | Q3 S-shuffle pretraining on SyntheticDorsalHands2; fixed synthetic2 20% test | Pure Gaussian NLL; SyntheticDorsalHands2 age labels permuted once with seed 42; 2 GPUs; replacement for `1050996` | S-shuffle shuffled-label pretraining control |
+| `1051003` | Running on `gpu-standard` / 00:17:39 at latest check | Q3 S-shuffle LR-control, real-label fraction 5%, locked real test | Pure Gaussian NLL; init from `1051002`; real fine-tune LR `2e-5`; max 120 epochs; 2 GPUs | S-shuffle label-efficiency control |
+| `1051004` | Running on `gpu-beast` / 00:17:38 at latest check | Q3 S-shuffle LR-control, real-label fraction 10%, locked real test | Pure Gaussian NLL; init from `1051002`; real fine-tune LR `2e-5`; max 120 epochs; 2 GPUs | S-shuffle label-efficiency control |
+| `1051005` | Running on `gpu-beast` / 00:17:38 at latest check | Q3 S-shuffle LR-control, real-label fraction 25%, locked real test | Pure Gaussian NLL; init from `1051002`; real fine-tune LR `2e-5`; max 120 epochs; 2 GPUs | S-shuffle label-efficiency control |
+| `1051006` | Pending for resources / 00:00:00 at latest check | Q3 S-shuffle LR-control, real-label fraction 50%, locked real test | Pure Gaussian NLL; init from `1051002`; real fine-tune LR `2e-5`; max 120 epochs; 2 GPUs | S-shuffle label-efficiency control |
+| `1051007` | Pending for resources / 00:00:00 at latest check | Q3 S-shuffle LR-control, real-label fraction 100%, locked real test | Pure Gaussian NLL; init from `1051002`; real fine-tune LR `2e-5`; max 120 epochs; 2 GPUs | S-shuffle label-efficiency control |
 
 Historical mixed loss: NLL 0.6 + MAE 0.9 + prediction spread 0.5 +
 embedding variance 0.8 + embedding contrast 0.8. Pure objectives disable all
@@ -284,6 +284,7 @@ The uncapped runs use 20% held-out real users and five folds over the remaining
 - Submission date: 2026-08-03 18:48 BST.
 - Initial scheduler state from `squeue`/`sacct` at 2026-08-03 18:48 BST: `1050996` PENDING on `gpu-beast` for resources; downstream jobs `1050997`-`1051001` PENDING with dependency on successful completion of `1050996`.
 - Reroute update at 2026-08-03 19:22 BST: cancelled pending jobs `1050996`-`1051001` before start because `1050996` requested 4 GPUs on `gpu-beast`. Replacement pretraining job `1051002` requests 2 GPUs on `gpu-standard,gpu-beast` and started on `gpu-standard`; replacement downstream jobs `1051003`-`1051007` request 2 GPUs on `gpu-standard,gpu-beast` and depend on `afterok:1051002`.
+- Completion/update at 2026-08-03 21:46 BST: `1051002` completed successfully after `02:23:18`; downstream jobs `1051003`, `1051004`, and `1051005` started, while `1051006` and `1051007` are pending for resources.
 - Purpose: run the Q3 S-shuffle control, matching the clean S-age LR-control recipe while breaking the synthetic age-label signal. This tests whether any S-age benefit is due to labelled synthetic age signal rather than synthetic dorsal-hand image exposure/schedule.
 - Pretraining job `1051002`: SyntheticDorsalHands2 only; fixed `splits/test_users_synthetic2_20pct_seed42.json`; five-fold split `splits/folds_k5_synthetic2_seed42.json`; EfficientNet-V2-S at 384 px, ImageNet/default init, pure Gaussian NLL, LR `2e-4`, max 240 epochs, patience 10, image-level training/evaluation (`USER_GROUP_SIZES=1`, `AGG_SIZES=1`), `EMBED_DIM=128`; SyntheticDorsalHands2 ages shuffled once with seed 42 by `--shuffle-synthetic-dorsal2-age-labels`.
 - Pretraining resources: one `gpu-standard` or `gpu-beast` node, 2 GPUs, 16 CPU cores, 64 GB RAM, batch size 16 per GPU; `MASTER_PORT=29526`.
@@ -299,12 +300,14 @@ The uncapped runs use 20% held-out real users and five folds over the remaining
 | `1050999` | S-shuffle LR-control | 25% | CANCELLED before start; replaced by `1051005` | `/home/rb3434w/CNN-age-inference/runs/q3_sshuffle_realfrac_f25_lr2e5_seed42_v2s_384` |
 | `1051000` | S-shuffle LR-control | 50% | CANCELLED before start; replaced by `1051006` | `/home/rb3434w/CNN-age-inference/runs/q3_sshuffle_realfrac_f50_lr2e5_seed42_v2s_384` |
 | `1051001` | S-shuffle LR-control | 100% | CANCELLED before start; replaced by `1051007` | `/home/rb3434w/CNN-age-inference/runs/q3_sshuffle_realfrac_f100_lr2e5_seed42_v2s_384` |
-| `1051002` | S-shuffle pretraining | n/a | RUNNING on `gpu-standard` | `/home/rb3434w/CNN-age-inference/runs/q3_s_shuffle_synthetic2_only_nll_k5_2gpu_16cpu_20260803_384` |
-| `1051003` | S-shuffle LR-control | 5% | PENDING after `1051002` | `/home/rb3434w/CNN-age-inference/runs/q3_sshuffle_realfrac_f05_lr2e5_seed42_v2s_384` |
-| `1051004` | S-shuffle LR-control | 10% | PENDING after `1051002` | `/home/rb3434w/CNN-age-inference/runs/q3_sshuffle_realfrac_f10_lr2e5_seed42_v2s_384` |
-| `1051005` | S-shuffle LR-control | 25% | PENDING after `1051002` | `/home/rb3434w/CNN-age-inference/runs/q3_sshuffle_realfrac_f25_lr2e5_seed42_v2s_384` |
-| `1051006` | S-shuffle LR-control | 50% | PENDING after `1051002` | `/home/rb3434w/CNN-age-inference/runs/q3_sshuffle_realfrac_f50_lr2e5_seed42_v2s_384` |
-| `1051007` | S-shuffle LR-control | 100% | PENDING after `1051002` | `/home/rb3434w/CNN-age-inference/runs/q3_sshuffle_realfrac_f100_lr2e5_seed42_v2s_384` |
+| `1051002` | S-shuffle pretraining | n/a | COMPLETED | `/home/rb3434w/CNN-age-inference/runs/q3_s_shuffle_synthetic2_only_nll_k5_2gpu_16cpu_20260803_384` |
+| `1051003` | S-shuffle LR-control | 5% | RUNNING on `gpu-standard` | `/home/rb3434w/CNN-age-inference/runs/q3_sshuffle_realfrac_f05_lr2e5_seed42_v2s_384` |
+| `1051004` | S-shuffle LR-control | 10% | RUNNING on `gpu-beast` | `/home/rb3434w/CNN-age-inference/runs/q3_sshuffle_realfrac_f10_lr2e5_seed42_v2s_384` |
+| `1051005` | S-shuffle LR-control | 25% | RUNNING on `gpu-beast` | `/home/rb3434w/CNN-age-inference/runs/q3_sshuffle_realfrac_f25_lr2e5_seed42_v2s_384` |
+| `1051006` | S-shuffle LR-control | 50% | PENDING for resources | `/home/rb3434w/CNN-age-inference/runs/q3_sshuffle_realfrac_f50_lr2e5_seed42_v2s_384` |
+| `1051007` | S-shuffle LR-control | 100% | PENDING for resources | `/home/rb3434w/CNN-age-inference/runs/q3_sshuffle_realfrac_f100_lr2e5_seed42_v2s_384` |
+
+- Held-out result: `1051002` completed the S-shuffle shuffled-label SyntheticDorsalHands2 pretraining control. Five-fold unweighted `n=1` aggregate over 4,423 SyntheticDorsalHands2 held-out samples per fold: MAE 16.158 years, RMSE 18.758 years, adult-gate AUC 0.0000, mean FPR 100.00%, Adult FNR 0.00%. The selected threshold was `tau=10.0` in all folds; this is the expected degenerate behaviour for shuffled synthetic age labels and confirms the age-label signal was destroyed.
 
 ## Completed and failed launches
 

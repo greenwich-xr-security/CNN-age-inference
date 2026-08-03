@@ -50,7 +50,7 @@ the same grid is 150 fold-level jobs.
 | R1 100% | Done | `1050877` | Full-real random-init baseline only; remaining fractions not run |
 | S-age pretraining | Available | `1050939` | Clean SyntheticDorsalHands2-only supervised NLL checkpoints; suitable pretraining source |
 | S-age 100% fine-tune | Needs clean Q3 rerun | `1050819` is related | `1050819` used SyntheticDorsalHands2 initialisation, but not from the clean `1050939` SS source, so do not treat it as the final Q3 S-age cell without caveat |
-| S-shuffle pretraining | Running | `1051002` | Shuffled-label SyntheticDorsalHands2 pretraining on 2 GPUs; replacement for cancelled 4-GPU queue `1050996`; downstream jobs `1051003`-`1051007` depend on this completing successfully |
+| S-shuffle pretraining | Completed | `1051002` | Shuffled-label SyntheticDorsalHands2 pretraining on 2 GPUs; replacement for cancelled 4-GPU queue `1050996`; downstream jobs `1051003`-`1051007` released |
 | S-ssl pretraining | Done | `1050832` | BYOL on SyntheticDorsalHands2 |
 | S-ssl 100% fine-tune | Done | `1050854` | Full-real fine-tune from BYOL; remaining fractions not run |
 | U-ssl pretraining | Missing | none | Need unrelated non-hand, non-age corpus and compute-matched SSL setup |
@@ -70,7 +70,7 @@ Monitor on HPC:
 | R0 | `1050948` | `1050949` | `1050950` | `1050951` | `1050952` |
 | R1 | `1050953` | `1050954` | `1050955` | `1050956` | `1050957` |
 | S-age | `1050958` | `1050959` | `1050960` | `1050961` | `1050962` |
-| S-shuffle | `1051003` pending after `1051002` | `1051004` pending after `1051002` | `1051005` pending after `1051002` | `1051006` pending after `1051002` | `1051007` pending after `1051002` |
+| S-shuffle | `1051003` running on `gpu-standard` | `1051004` running on `gpu-beast` | `1051005` running on `gpu-beast` | `1051006` pending for resources | `1051007` pending for resources |
 | S-ssl | `1050969` | `1050970` | `1050971` | `1050972` | `1050973` |
 | U-ssl | Not implemented | Not implemented | Not implemented | Not implemented | Not implemented |
 
@@ -88,12 +88,12 @@ Monitor on HPC:
 | S-ssl, BYOL synthetic-hand init, LR `2e-5` | 25% | `1050985` | Completed | Match S-age LR-control downstream LR/max epochs while keeping Q3 S-ssl BYOL init |
 | S-ssl, BYOL synthetic-hand init, LR `2e-5` | 50% | `1050986` | Running on `gpu-beast` | Match S-age LR-control downstream LR/max epochs while keeping Q3 S-ssl BYOL init |
 | S-ssl, BYOL synthetic-hand init, LR `2e-5` | 100% | `1050987` | Running on `gpu-beast` | Match S-age LR-control downstream LR/max epochs while keeping Q3 S-ssl BYOL init |
-| S-shuffle, shuffled synthetic-age init, LR `2e-5` | pretraining | `1051002` | Running on `gpu-standard` | SyntheticDorsalHands2-only pure NLL with age labels permuted once; 2-GPU replacement for `1050996` |
-| S-shuffle, shuffled synthetic-age init, LR `2e-5` | 5% | `1051003` | Pending after `1051002` | Match S-age LR-control downstream recipe; tests label signal vs image exposure/schedule |
-| S-shuffle, shuffled synthetic-age init, LR `2e-5` | 10% | `1051004` | Pending after `1051002` | Match S-age LR-control downstream recipe; tests label signal vs image exposure/schedule |
-| S-shuffle, shuffled synthetic-age init, LR `2e-5` | 25% | `1051005` | Pending after `1051002` | Match S-age LR-control downstream recipe; tests label signal vs image exposure/schedule |
-| S-shuffle, shuffled synthetic-age init, LR `2e-5` | 50% | `1051006` | Pending after `1051002` | Match S-age LR-control downstream recipe; tests label signal vs image exposure/schedule |
-| S-shuffle, shuffled synthetic-age init, LR `2e-5` | 100% | `1051007` | Pending after `1051002` | Match S-age LR-control downstream recipe; tests label signal vs image exposure/schedule |
+| S-shuffle, shuffled synthetic-age init, LR `2e-5` | pretraining | `1051002` | Completed | SyntheticDorsalHands2-only pure NLL with age labels permuted once; 2-GPU replacement for `1050996` |
+| S-shuffle, shuffled synthetic-age init, LR `2e-5` | 5% | `1051003` | Running on `gpu-standard` | Match S-age LR-control downstream recipe; tests label signal vs image exposure/schedule |
+| S-shuffle, shuffled synthetic-age init, LR `2e-5` | 10% | `1051004` | Running on `gpu-beast` | Match S-age LR-control downstream recipe; tests label signal vs image exposure/schedule |
+| S-shuffle, shuffled synthetic-age init, LR `2e-5` | 25% | `1051005` | Running on `gpu-beast` | Match S-age LR-control downstream recipe; tests label signal vs image exposure/schedule |
+| S-shuffle, shuffled synthetic-age init, LR `2e-5` | 50% | `1051006` | Pending for resources | Match S-age LR-control downstream recipe; tests label signal vs image exposure/schedule |
+| S-shuffle, shuffled synthetic-age init, LR `2e-5` | 100% | `1051007` | Pending for resources | Match S-age LR-control downstream recipe; tests label signal vs image exposure/schedule |
 
 ## Results
 
@@ -134,11 +134,11 @@ achieved values.
 | S-ssl LR-control | 25% | `1050985` | Completed | 25.792 | 29.625 | 0.0000 | 0.00% | 100.00% |
 | S-ssl LR-control | 50% | `1050986` | Running on `gpu-beast` | - | - | - | - | - |
 | S-ssl LR-control | 100% | `1050987` | Running on `gpu-beast` | - | - | - | - | - |
-| S-shuffle LR-control | 5% | `1051003` | Pending after `1051002` | - | - | - | - | - |
-| S-shuffle LR-control | 10% | `1051004` | Pending after `1051002` | - | - | - | - | - |
-| S-shuffle LR-control | 25% | `1051005` | Pending after `1051002` | - | - | - | - | - |
-| S-shuffle LR-control | 50% | `1051006` | Pending after `1051002` | - | - | - | - | - |
-| S-shuffle LR-control | 100% | `1051007` | Pending after `1051002` | - | - | - | - | - |
+| S-shuffle LR-control | 5% | `1051003` | Running on `gpu-standard` | - | - | - | - | - |
+| S-shuffle LR-control | 10% | `1051004` | Running on `gpu-beast` | - | - | - | - | - |
+| S-shuffle LR-control | 25% | `1051005` | Running on `gpu-beast` | - | - | - | - | - |
+| S-shuffle LR-control | 50% | `1051006` | Pending for resources | - | - | - | - | - |
+| S-shuffle LR-control | 100% | `1051007` | Pending for resources | - | - | - | - | - |
 
 ## Planned Job Accounting
 

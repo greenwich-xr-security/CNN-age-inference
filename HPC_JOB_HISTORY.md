@@ -55,7 +55,7 @@ four GPUs, 16 CPU cores, 64 GB RAM, and batch size 16 per GPU unless noted.
 | `1050971` | Completed / 02:15:22 | Q3 S-ssl, real-label fraction 25%, locked real test | Pure Gaussian NLL; init from BYOL SyntheticDorsalHands2 job `1050832`; `EMBED_DIM=128`; `gpu-standard`, 2 GPUs | Q3 S-ssl label-efficiency sweep |
 | `1050972` | Completed / 02:05:51 | Q3 S-ssl, real-label fraction 50%, locked real test | Pure Gaussian NLL; init from BYOL SyntheticDorsalHands2 job `1050832`; `EMBED_DIM=128`; `gpu-standard`, 2 GPUs | Q3 S-ssl label-efficiency sweep |
 | `1050973` | Completed / 01:57:45 | Q3 S-ssl, real-label fraction 100%, locked real test | Pure Gaussian NLL; init from BYOL SyntheticDorsalHands2 job `1050832`; `EMBED_DIM=128`; `gpu-standard`, 2 GPUs | Q3 S-ssl label-efficiency sweep |
-| `1050975` | Running / initial `00:00:28` | Q3 S-age LR-control, real-label fraction 100%, locked real test | Pure Gaussian NLL; init from clean SyntheticDorsalHands2-only job `1050939`; real fine-tune LR `2e-5`; max 120 epochs | Isolate fine-tuning LR vs `1050962` and compare recipe to `1050819` |
+| `1050975` | Completed / 01:29:59 | Q3 S-age LR-control, real-label fraction 100%, locked real test | Pure Gaussian NLL; init from clean SyntheticDorsalHands2-only job `1050939`; real fine-tune LR `2e-5`; max 120 epochs | Isolate fine-tuning LR vs `1050962` and compare recipe to `1050819` |
 
 Historical mixed loss: NLL 0.6 + MAE 0.9 + prediction spread 0.5 +
 embedding variance 0.8 + embedding contrast 0.8. Pure objectives disable all
@@ -199,6 +199,7 @@ The uncapped runs use 20% held-out real users and five folds over the remaining
 
 - Submission date: 2026-08-03 09:42:04 BST.
 - Initial scheduler state: RUNNING on `gpu-beast`, elapsed `00:00:28`, exit code `0:0`.
+- Terminal scheduler state: COMPLETED, elapsed `01:29:59`, exit code `0:0`.
 - Run directory: `/home/rb3434w/CNN-age-inference/runs/q3_sage_realfrac_f100_lr2e5_seed42_v2s_384`
 - Log file: `/home/rb3434w/CNN-age-inference/logs/q3-sage-f100-lr2e5-1050975.log`
 - Purpose: rerun the clean Q3 S-age 100% cell with the real fine-tuning learning rate used by historical job `1050819`, so the effect of `LR=2e-5` can be separated from the pretraining-source difference.
@@ -206,6 +207,7 @@ The uncapped runs use 20% held-out real users and five folds over the remaining
 - Pretraining/initialisation: fold-matched clean SyntheticDorsalHands2-only supervised NLL checkpoints from job `1050939`, loaded from `/home/rb3434w/CNN-age-inference/runs/q2_ss_synthetic2_only_nll_k5_4gpu_16cpu_20260801_384/fold_*/v2_s_age_regressor_ddp.pth`.
 - Model/objective: EfficientNet-V2-S at 384 px; pure Gaussian NLL (`NLL=1`, CRPS/MSE/MAE/spread/embed losses disabled), LR `2e-5`, maximum 120 epochs, patience 10, image-level training/evaluation (`USER_GROUP_SIZES=1`, `AGG_SIZES=1`), age-threshold adult-gate evaluation.
 - Requested resources: one `gpu-beast` node, 4 GPUs, 16 CPU cores, batch size 16 per GPU; `MASTER_PORT=29630`.
+- Held-out result: five-fold unweighted `n=1` aggregate over 1,624 real held-out samples per fold: MAE 4.817 years, RMSE 6.571 years, adult-gate AUC 0.9526, mean FPR 4.69%, Adult FNR 18.46%. All folds attained an operating point with FPR <= 5%; folds selected age thresholds `22.7`, `20.9`, `23.0`, `22.7`, and `25.0`.
 
 ## Completed and failed launches
 

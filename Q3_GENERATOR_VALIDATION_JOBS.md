@@ -68,7 +68,7 @@ Monitor on HPC:
 
 | Arm / comparison | Real-label fraction | Job | State | Purpose |
 | --- | ---: | --- | --- | --- |
-| S-age, clean synthetic-only init, LR `2e-5` | 100% | `1050975` | Running | Match `1050819` fine-tuning LR/max epochs while keeping Q3 clean `1050939` synthetic-only init |
+| S-age, clean synthetic-only init, LR `2e-5` | 100% | `1050975` | Completed | Match `1050819` fine-tuning LR/max epochs while keeping Q3 clean `1050939` synthetic-only init |
 
 ## Results
 
@@ -99,7 +99,7 @@ achieved values.
 | S-ssl | 25% | `1050971` | Completed | 8.185 | 10.639 | 0.9117 | 4.98% | 27.28% |
 | S-ssl | 50% | `1050972` | Completed | 5.814 | 7.659 | 0.9259 | 4.91% | 22.56% |
 | S-ssl | 100% | `1050973` | Completed | 5.444 | 7.067 | 0.9252 | 4.98% | 22.23% |
-| S-age LR-control | 100% | `1050975` | Running |  |  |  |  |  |
+| S-age LR-control | 100% | `1050975` | Completed | 4.817 | 6.571 | 0.9526 | 4.69% | 18.46% |
 
 ## Planned Job Accounting
 

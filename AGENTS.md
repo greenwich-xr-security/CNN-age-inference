@@ -1,5 +1,13 @@
 # Repository guidance
 
+## HPC command safety
+
+When operating the HPC over SSH, use plain, human-readable commands. Do not use
+base64-encoded command delivery, decoded shell execution, or patterns such as
+`base64 -d ... | bash`, `bash -c "$(base64 -d ...)"`, or equivalent wrappers.
+If quoting becomes awkward, prefer a checked-in script, a temporary script with
+clear text content, or a simpler inline SSH command.
+
 ## HPC job recordkeeping
 
 Whenever you launch an HPC/Slurm training job, update `HPC_JOB_HISTORY.md` in

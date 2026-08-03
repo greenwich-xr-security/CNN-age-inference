@@ -28,6 +28,7 @@ Use this skill when the user asks to inspect or operate on the remote HPC cluste
 ### Operating Rules
 
 - Use a single `ssh` command with the remote command passed inline. Do not start an interactive SSH session.
+- Use plain, human-readable remote commands only. Do not use base64-encoded command delivery, decoded shell execution, or patterns such as `base64 -d ... | bash`, `bash -c "$(base64 -d ...)"`, or equivalent wrappers.
 - `cd ~/CNN-age-inference` before running repo commands on the cluster.
 - Do not assume the remote checkout matches the local workspace. If the user wants newly edited code to run remotely, sync the branch first.
 - For direct remote Python commands, activate the `xr` conda environment first with the same activation path used by `submit_distributed.slurm`.

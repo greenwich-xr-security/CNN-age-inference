@@ -61,10 +61,10 @@ four GPUs, 16 CPU cores, 64 GB RAM, and batch size 16 per GPU unless noted.
 | `1050981` | Completed / 00:49:46 | Q3 S-age LR-control, real-label fraction 25%, locked real test | Pure Gaussian NLL; init from clean SyntheticDorsalHands2-only job `1050939`; real fine-tune LR `2e-5`; max 120 epochs | Complete S-age LR-control label-efficiency sweep |
 | `1050982` | Completed / 01:00:38 | Q3 S-age LR-control, real-label fraction 50%, locked real test | Pure Gaussian NLL; init from clean SyntheticDorsalHands2-only job `1050939`; real fine-tune LR `2e-5`; max 120 epochs | Complete S-age LR-control label-efficiency sweep |
 | `1050983` | Running / 00:00:22 at launch check | Q3 S-ssl LR-control, real-label fraction 5%, locked real test | Pure Gaussian NLL; init from BYOL SyntheticDorsalHands2 job `1050832`; `EMBED_DIM=128`; real fine-tune LR `2e-5`; max 120 epochs; `gpu-standard`, 2 GPUs | S-ssl learning-rate control label-efficiency sweep |
-| `1050984` | Pending / 00:00:00 at launch check | Q3 S-ssl LR-control, real-label fraction 10%, locked real test | Pure Gaussian NLL; init from BYOL SyntheticDorsalHands2 job `1050832`; `EMBED_DIM=128`; real fine-tune LR `2e-5`; max 120 epochs; `gpu-standard`, 2 GPUs | S-ssl learning-rate control label-efficiency sweep |
-| `1050985` | Pending / 00:00:00 at launch check | Q3 S-ssl LR-control, real-label fraction 25%, locked real test | Pure Gaussian NLL; init from BYOL SyntheticDorsalHands2 job `1050832`; `EMBED_DIM=128`; real fine-tune LR `2e-5`; max 120 epochs; `gpu-standard`, 2 GPUs | S-ssl learning-rate control label-efficiency sweep |
-| `1050986` | Pending / 00:00:00 at launch check | Q3 S-ssl LR-control, real-label fraction 50%, locked real test | Pure Gaussian NLL; init from BYOL SyntheticDorsalHands2 job `1050832`; `EMBED_DIM=128`; real fine-tune LR `2e-5`; max 120 epochs; `gpu-standard`, 2 GPUs | S-ssl learning-rate control label-efficiency sweep |
-| `1050987` | Pending / 00:00:00 at launch check | Q3 S-ssl LR-control, real-label fraction 100%, locked real test | Pure Gaussian NLL; init from BYOL SyntheticDorsalHands2 job `1050832`; `EMBED_DIM=128`; real fine-tune LR `2e-5`; max 120 epochs; `gpu-standard`, 2 GPUs | S-ssl learning-rate control label-efficiency sweep |
+| `1050984` | Running on `gpu-beast` / 00:01:23 after reroute check | Q3 S-ssl LR-control, real-label fraction 10%, locked real test | Pure Gaussian NLL; init from BYOL SyntheticDorsalHands2 job `1050832`; `EMBED_DIM=128`; real fine-tune LR `2e-5`; max 120 epochs; rerouted from `gpu-standard` to `gpu-beast`, 2 GPUs | S-ssl learning-rate control label-efficiency sweep |
+| `1050985` | Running on `gpu-beast` / 00:01:22 after reroute check | Q3 S-ssl LR-control, real-label fraction 25%, locked real test | Pure Gaussian NLL; init from BYOL SyntheticDorsalHands2 job `1050832`; `EMBED_DIM=128`; real fine-tune LR `2e-5`; max 120 epochs; rerouted from `gpu-standard` to `gpu-beast`, 2 GPUs | S-ssl learning-rate control label-efficiency sweep |
+| `1050986` | Running on `gpu-beast` / 00:01:22 after reroute check | Q3 S-ssl LR-control, real-label fraction 50%, locked real test | Pure Gaussian NLL; init from BYOL SyntheticDorsalHands2 job `1050832`; `EMBED_DIM=128`; real fine-tune LR `2e-5`; max 120 epochs; rerouted from `gpu-standard` to `gpu-beast`, 2 GPUs | S-ssl learning-rate control label-efficiency sweep |
+| `1050987` | Pending on `gpu-beast` / 00:00:00 after reroute | Q3 S-ssl LR-control, real-label fraction 100%, locked real test | Pure Gaussian NLL; init from BYOL SyntheticDorsalHands2 job `1050832`; `EMBED_DIM=128`; real fine-tune LR `2e-5`; max 120 epochs; rerouted from `gpu-standard` to `gpu-beast`, 2 GPUs | S-ssl learning-rate control label-efficiency sweep |
 
 Historical mixed loss: NLL 0.6 + MAE 0.9 + prediction spread 0.5 +
 embedding variance 0.8 + embedding contrast 0.8. Pure objectives disable all
@@ -245,19 +245,20 @@ The uncapped runs use 20% held-out real users and five folds over the remaining
 
 - Submission date: 2026-08-03 11:29 BST.
 - Initial scheduler state from `sacct` at 2026-08-03 11:30 BST: `1050983` RUNNING on `gpu-standard`, elapsed `00:00:22`; `1050984`-`1050987` PENDING.
+- Reroute update at 2026-08-03 13:21 BST: pending jobs `1050984`-`1050987` were moved in place from `gpu-standard` to `gpu-beast` with their original job IDs and 2-GPU resource requests. `1050984`, `1050985`, and `1050986` started on `gpu-beast` at 13:21 BST; `1050987` remained PENDING for resources. `1050983` remains RUNNING on `gpu-standard`.
 - Purpose: run a downstream learning-rate control for the Q3 S-ssl arm, using the same `LR=2e-5` and maximum 120 epochs as the S-age LR-control sweep while keeping the BYOL synthetic-hand initialisation fixed.
 - Data/split: HandRGBD + ProlificHands only for downstream fine-tuning and locked real testing; no LUICID, HaGRID, 11kHands, archive, or synthetic samples in downstream train/validation/test. Real train subsets come from `splits/q3_real_label_fractions_seed42.json`; validation users come from `splits/folds_k5_uncapped_test20_real_seed42.json`; test users come from `splits/test_users_uncapped_20pct_seed42.json`.
 - Pretraining/initialisation: fold-matched checkpoints converted from BYOL SyntheticDorsalHands2 S-ssl pretraining job `1050832`, loaded from `/home/rb3434w/CNN-age-inference/runs/byol/s_ssl_synthetic2_v2_s/init_checkpoint_root_embed128/fold_*/v2_s_age_regressor_ddp.pth`.
 - Model/objective: EfficientNet-V2-S at 384 px with `EMBED_DIM=128`; pure Gaussian NLL (`NLL=1`, CRPS/MSE/MAE/spread/embed losses disabled), LR `2e-5`, maximum 120 epochs, patience 10, image-level training/evaluation (`USER_GROUP_SIZES=1`, `AGG_SIZES=1`), age-threshold adult-gate evaluation.
-- Requested resources per job: one `gpu-standard` node, 2 GPUs, 16 CPU cores, batch size 16 per GPU; unique `MASTER_PORT` values `29720`-`29724`.
+- Requested resources per job: one node, 2 GPUs, 16 CPU cores, batch size 16 per GPU; `1050983` remains on `gpu-standard`, while `1050984`-`1050987` were rerouted to `gpu-beast`; unique `MASTER_PORT` values `29720`-`29724`.
 
 | Job | Arm | Real-label fraction | Initial state | Run directory |
 | --- | --- | ---: | --- | --- |
 | `1050983` | S-ssl LR-control | 5% | RUNNING | `/home/rb3434w/CNN-age-inference/runs/q3_sssl_realfrac_f05_lr2e5_seed42_v2s_384_embed128_2gpu_standard` |
-| `1050984` | S-ssl LR-control | 10% | PENDING | `/home/rb3434w/CNN-age-inference/runs/q3_sssl_realfrac_f10_lr2e5_seed42_v2s_384_embed128_2gpu_standard` |
-| `1050985` | S-ssl LR-control | 25% | PENDING | `/home/rb3434w/CNN-age-inference/runs/q3_sssl_realfrac_f25_lr2e5_seed42_v2s_384_embed128_2gpu_standard` |
-| `1050986` | S-ssl LR-control | 50% | PENDING | `/home/rb3434w/CNN-age-inference/runs/q3_sssl_realfrac_f50_lr2e5_seed42_v2s_384_embed128_2gpu_standard` |
-| `1050987` | S-ssl LR-control | 100% | PENDING | `/home/rb3434w/CNN-age-inference/runs/q3_sssl_realfrac_f100_lr2e5_seed42_v2s_384_embed128_2gpu_standard` |
+| `1050984` | S-ssl LR-control | 10% | RUNNING on `gpu-beast` | `/home/rb3434w/CNN-age-inference/runs/q3_sssl_realfrac_f10_lr2e5_seed42_v2s_384_embed128_2gpu_standard` |
+| `1050985` | S-ssl LR-control | 25% | RUNNING on `gpu-beast` | `/home/rb3434w/CNN-age-inference/runs/q3_sssl_realfrac_f25_lr2e5_seed42_v2s_384_embed128_2gpu_standard` |
+| `1050986` | S-ssl LR-control | 50% | RUNNING on `gpu-beast` | `/home/rb3434w/CNN-age-inference/runs/q3_sssl_realfrac_f50_lr2e5_seed42_v2s_384_embed128_2gpu_standard` |
+| `1050987` | S-ssl LR-control | 100% | PENDING on `gpu-beast` | `/home/rb3434w/CNN-age-inference/runs/q3_sssl_realfrac_f100_lr2e5_seed42_v2s_384_embed128_2gpu_standard` |
 
 ## Completed and failed launches
 

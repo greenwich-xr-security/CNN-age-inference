@@ -84,7 +84,7 @@ Monitor on HPC:
 | S-age, clean synthetic-only init, LR `2e-5` | 50% | `1050982` | Completed | Match `1050819` fine-tuning LR/max epochs while keeping Q3 clean `1050939` synthetic-only init |
 | S-age, clean synthetic-only init, LR `2e-5` | 100% | `1050975` | Completed | Match `1050819` fine-tuning LR/max epochs while keeping Q3 clean `1050939` synthetic-only init |
 | S-ssl, BYOL synthetic-hand init, LR `2e-5` | 5% | `1050983` | Completed | Match S-age LR-control downstream LR/max epochs while keeping Q3 S-ssl BYOL init |
-| S-ssl, BYOL synthetic-hand init, LR `2e-5` | 10% | `1050984` | Running on `gpu-beast` | Match S-age LR-control downstream LR/max epochs while keeping Q3 S-ssl BYOL init |
+| S-ssl, BYOL synthetic-hand init, LR `2e-5` | 10% | `1050984` | Completed | Match S-age LR-control downstream LR/max epochs while keeping Q3 S-ssl BYOL init |
 | S-ssl, BYOL synthetic-hand init, LR `2e-5` | 25% | `1050985` | Running on `gpu-beast` | Match S-age LR-control downstream LR/max epochs while keeping Q3 S-ssl BYOL init |
 | S-ssl, BYOL synthetic-hand init, LR `2e-5` | 50% | `1050986` | Running on `gpu-beast` | Match S-age LR-control downstream LR/max epochs while keeping Q3 S-ssl BYOL init |
 | S-ssl, BYOL synthetic-hand init, LR `2e-5` | 100% | `1050987` | Running on `gpu-beast` | Match S-age LR-control downstream LR/max epochs while keeping Q3 S-ssl BYOL init |
@@ -124,7 +124,7 @@ achieved values.
 | S-ssl | 50% | `1050972` | Completed | 5.814 | 7.659 | 0.9259 | 4.91% | 22.56% |
 | S-ssl | 100% | `1050973` | Completed | 5.444 | 7.067 | 0.9252 | 4.98% | 22.23% |
 | S-ssl LR-control | 5% | `1050983` | Completed | 30.248 | 33.794 | 0.0000 | 0.00% | 100.00% |
-| S-ssl LR-control | 10% | `1050984` | Running on `gpu-beast` | - | - | - | - | - |
+| S-ssl LR-control | 10% | `1050984` | Completed | 29.589 | 33.160 | 0.0000 | 0.00% | 100.00% |
 | S-ssl LR-control | 25% | `1050985` | Running on `gpu-beast` | - | - | - | - | - |
 | S-ssl LR-control | 50% | `1050986` | Running on `gpu-beast` | - | - | - | - | - |
 | S-ssl LR-control | 100% | `1050987` | Running on `gpu-beast` | - | - | - | - | - |

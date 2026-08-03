@@ -31,6 +31,16 @@ the same grid is 150 fold-level jobs.
 | S-ssl | Self-supervised pretraining on SyntheticDorsalHands2 | 5%, 10%, 25%, 50%, 100% | No; full synthetic corpus for SSL | Removes supervision, keeps dorsal-hand corpus |
 | U-ssl | Same SSL method/update count on unrelated non-hand, non-age corpus | 5%, 10%, 25%, 50%, 100% | No SyntheticDorsalHands2 used | Removes dorsal-hand content; generic compute/corpus control |
 
+## Interpretation Comparisons
+
+| Comparison | What It Tests |
+| --- | --- |
+| S-age vs R0 | Does synthetic supervised age pretraining help over standard init? |
+| S-age vs R1 | Is the gain just any pretraining/default init effect? |
+| S-age vs S-ssl | Is age supervision on synthetic important, or just hand-image representation learning? |
+| S-age vs S-shuffle | Is the synthetic age label signal real, or just image exposure/schedule? |
+| S-ssl vs U-ssl | Is the benefit from dorsal-hand content, or generic SSL compute? |
+
 ## Existing Assets And Jobs
 
 | Arm / asset | Current status | Existing job(s) | Notes |

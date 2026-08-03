@@ -2,8 +2,8 @@
 #SBATCH --job-name=q3-sshuf-pre
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
-#SBATCH --partition=gpu-beast
-#SBATCH --gres=gpu:4
+#SBATCH --partition=gpu-standard,gpu-beast
+#SBATCH --gres=gpu:2
 #SBATCH --cpus-per-task=16
 #SBATCH --mem=64G
 #SBATCH --output=logs/q3-sshuf-pre-%j.log
@@ -19,7 +19,7 @@ PROJECT_ROOT="${PROJECT_ROOT:-$HOME/CNN-age-inference}"
 DATA_ROOT="${DATA_ROOT:-/home/rb3434w/HandsDatasets}"
 OUTPUT_ROOT="${OUTPUT_ROOT:-${PROJECT_ROOT}/runs}"
 TORCH_HOME="${TORCH_HOME:-${PROJECT_ROOT}/.cache/torch}"
-RUN_NAME="${RUN_NAME:-q3_s_shuffle_synthetic2_only_nll_k5_4gpu_16cpu_20260803_384}"
+RUN_NAME="${RUN_NAME:-q3_s_shuffle_synthetic2_only_nll_k5_2gpu_16cpu_20260803_384}"
 RUN_DIR="${OUTPUT_ROOT}/${RUN_NAME}"
 TEST_SPLIT_FILE="${TEST_SPLIT_FILE:-${PROJECT_ROOT}/splits/test_users_synthetic2_20pct_seed42.json}"
 SOURCE_FOLD_FILE="${SOURCE_FOLD_FILE:-${PROJECT_ROOT}/splits/folds_k5_synthetic2_seed42.json}"
@@ -37,7 +37,7 @@ conda activate xr
 
 MASTER_ADDR="${MASTER_ADDR:-$(hostname -s)}"
 NNODES="${SLURM_JOB_NUM_NODES:-1}"
-GPUS_PER_NODE="${GPUS_PER_NODE:-4}"
+GPUS_PER_NODE="${GPUS_PER_NODE:-2}"
 export MASTER_ADDR
 
 cd "${PROJECT_ROOT}"

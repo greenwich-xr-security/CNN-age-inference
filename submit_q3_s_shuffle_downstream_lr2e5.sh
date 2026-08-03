@@ -3,7 +3,7 @@ set -euo pipefail
 
 PROJECT_ROOT="${PROJECT_ROOT:-$HOME/CNN-age-inference}"
 PRETRAIN_JOB_ID="${1:-}"
-INIT_CHECKPOINT_ROOT="${INIT_CHECKPOINT_ROOT:-${PROJECT_ROOT}/runs/q3_s_shuffle_synthetic2_only_nll_k5_4gpu_16cpu_20260803_384}"
+INIT_CHECKPOINT_ROOT="${INIT_CHECKPOINT_ROOT:-${PROJECT_ROOT}/runs/q3_s_shuffle_synthetic2_only_nll_k5_2gpu_16cpu_20260803_384}"
 LABEL_FRACTION_FILE="${LABEL_FRACTION_FILE:-${PROJECT_ROOT}/splits/q3_real_label_fractions_seed42.json}"
 TEST_SPLIT_FILE="${TEST_SPLIT_FILE:-${PROJECT_ROOT}/splits/test_users_uncapped_20pct_seed42.json}"
 
@@ -27,7 +27,7 @@ for IDX in "${!FRACTIONS[@]}"; do
     sbatch --parsable \
       "${DEPENDENCY_ARGS[@]}" \
       --job-name="${JOB_NAME}" \
-      --partition=gpu-beast \
+      --partition=gpu-standard,gpu-beast \
       --gres=gpu:2 \
       --cpus-per-task=16 \
       --mem=64G \

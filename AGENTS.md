@@ -2,8 +2,8 @@
 
 ## HPC command safety
 
-When operating the HPC over SSH, use plain, human-readable commands. Do not use
-base64-encoded command delivery, decoded shell execution, or patterns such as
+When operating the HPC over SSH, **always** use plain, human-readable commands.
+Never use base64-encoded command delivery, decoded shell execution, or patterns such as
 `base64 -d ... | bash`, `bash -c "$(base64 -d ...)"`, or equivalent wrappers.
 If quoting becomes awkward, prefer a checked-in script, a temporary script with
 clear text content, or a simpler inline SSH command.

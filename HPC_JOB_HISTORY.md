@@ -77,6 +77,19 @@ four GPUs, 16 CPU cores, 64 GB RAM, and batch size 16 per GPU unless noted.
 | `1051005` | COMPLETED / 01:41:17 | Q3 S-shuffle LR-control, real-label fraction 25%, locked real test | Pure Gaussian NLL; init from `1051002`; real fine-tune LR `2e-5`; max 120 epochs; 2 GPUs | S-shuffle label-efficiency control |
 | `1051006` | COMPLETED / 02:53:43 | Q3 S-shuffle LR-control, real-label fraction 50%, locked real test | Pure Gaussian NLL; init from `1051002`; real fine-tune LR `2e-5`; max 120 epochs; 2 GPUs | S-shuffle label-efficiency control |
 | `1051007` | COMPLETED / 03:49:03 | Q3 S-shuffle LR-control, real-label fraction 100%, locked real test | Pure Gaussian NLL; init from `1051002`; real fine-tune LR `2e-5`; max 120 epochs; 2 GPUs | S-shuffle label-efficiency control |
+| `1051077` | CANCELLED / 00:00:20 | Q3 U-ssl checkpoint conversion attempt | Launched without the intended pretraining dependency because PowerShell expanded the remote `sbatch` capture locally; cancelled and replaced by `1051084` | Superseded U-ssl launch attempt |
+| `1051078` | CANCELLED / 00:00:00 | Q3 U-ssl LR-control, real-label fraction 5%, locked real test | Depended on cancelled conversion attempt `1051077`; replaced by `1051085` | Superseded U-ssl launch attempt |
+| `1051079` | CANCELLED / 00:00:00 | Q3 U-ssl LR-control, real-label fraction 10%, locked real test | Depended on cancelled conversion attempt `1051077`; replaced by `1051086` | Superseded U-ssl launch attempt |
+| `1051080` | CANCELLED / 00:00:00 | Q3 U-ssl LR-control, real-label fraction 25%, locked real test | Depended on cancelled conversion attempt `1051077`; replaced by `1051087` | Superseded U-ssl launch attempt |
+| `1051081` | CANCELLED / 00:00:00 | Q3 U-ssl LR-control, real-label fraction 50%, locked real test | Depended on cancelled conversion attempt `1051077`; replaced by `1051088` | Superseded U-ssl launch attempt |
+| `1051082` | CANCELLED / 00:00:00 | Q3 U-ssl LR-control, real-label fraction 100%, locked real test | Depended on cancelled conversion attempt `1051077`; replaced by `1051089` | Superseded U-ssl launch attempt |
+| `1051083` | CANCELLED / 00:35:13 | Q3 U-ssl BYOL pretraining on HaGRID stop_inverted + 11kHands + archive dorsal images | BYOL; EfficientNet-V2-S; 76 epochs; batch 32/GPU; 2 GPUs; excludes SyntheticDorsalHands2, HandRGBD, and ProlificHands; cancelled at user request | U-ssl generic SSL corpus/control pretraining |
+| `1051084` | CANCELLED / 00:00:00 | Q3 U-ssl checkpoint conversion | Cancelled after U-ssl pretraining was stopped | U-ssl downstream preparation |
+| `1051085` | CANCELLED / 00:00:00 | Q3 U-ssl LR-control, real-label fraction 5%, locked real test | Cancelled after U-ssl pretraining was stopped | U-ssl label-efficiency control |
+| `1051086` | CANCELLED / 00:00:00 | Q3 U-ssl LR-control, real-label fraction 10%, locked real test | Cancelled after U-ssl pretraining was stopped | U-ssl label-efficiency control |
+| `1051087` | CANCELLED / 00:00:00 | Q3 U-ssl LR-control, real-label fraction 25%, locked real test | Cancelled after U-ssl pretraining was stopped | U-ssl label-efficiency control |
+| `1051088` | CANCELLED / 00:00:00 | Q3 U-ssl LR-control, real-label fraction 50%, locked real test | Cancelled after U-ssl pretraining was stopped | U-ssl label-efficiency control |
+| `1051089` | CANCELLED / 00:00:00 | Q3 U-ssl LR-control, real-label fraction 100%, locked real test | Cancelled after U-ssl pretraining was stopped | U-ssl label-efficiency control |
 
 Historical mixed loss: NLL 0.6 + MAE 0.9 + prediction spread 0.5 +
 embedding variance 0.8 + embedding contrast 0.8. Pure objectives disable all
@@ -319,6 +332,33 @@ The uncapped runs use 20% held-out real users and five folds over the remaining
 - Held-out result so far: `1051005` completed the S-shuffle LR-control 25% cell. Five-fold unweighted `n=1` aggregate over 1,624 real held-out samples per fold: MAE 6.531 years, RMSE 8.668 years, adult-gate AUC 0.8790, mean FPR 0.00%, Adult FNR 100.00%. All folds selected threshold `30.0`, yielding zero false positives but missing all adults.
 - Held-out result: `1051006` completed the S-shuffle LR-control 50% cell. Five-fold unweighted `n=1` aggregate over 1,624 real held-out samples per fold: MAE 5.661 years, RMSE 7.525 years, adult-gate AUC 0.9189, mean FPR 4.83%, Adult FNR 23.26%. The 5% FPR operating point was attainable in folds 0-3; fold 4 used the lowest-FPR available threshold from the 10-30 year age-threshold sweep.
 - Held-out result: `1051007` completed the S-shuffle LR-control 100% cell. Five-fold unweighted `n=1` aggregate over 1,624 real held-out samples per fold: MAE 5.367 years, RMSE 7.227 years, adult-gate AUC 0.9317, mean FPR 4.74%, Adult FNR 20.79%. All folds attained an operating point with FPR <= 5%; folds selected age thresholds `27.0`, `26.0`, `22.6`, `24.5`, and `27.7`.
+
+### Jobs `1051083`-`1051089` - Q3 U-ssl pretraining and LR-control label-fraction sweep
+
+- Submission date: 2026-08-05 11:58 BST.
+- Initial scheduler state from `sacct` at 2026-08-05 11:58 BST: `1051083` RUNNING on `gpu-standard`, node `gm-hpc2-gpu001`, elapsed `00:00:03`; `1051084`-`1051089` PENDING on dependencies.
+- Terminal update at 2026-08-05 12:34 BST: user requested U-ssl stop. `1051083` was cancelled after `00:35:13`; dependent jobs `1051084`-`1051089` were then cancelled before start.
+- Superseded launch attempt: `1051077`-`1051082` were cancelled immediately after a local PowerShell expansion stripped the intended pretraining job dependency from the remote submission. They are not counted as experimental cells.
+- Purpose: run the Q3 U-ssl control, matching the S-age/S-ssl LR-control downstream recipe while replacing SyntheticDorsalHands2 BYOL pretraining with an available no-age corpus that excludes both SyntheticDorsalHands2 and the locked real HandRGBD + ProlificHands evaluation sources.
+- U-ssl pretraining data/configuration: HaGRID stop_inverted + 11kHands primary + archive dorsal images only, filtered through `filter_metadata_ssl`; 14,564 SSL images total (`6,931` HaGRID, `5,654` 11kHands primary, `1,979` archive). No SyntheticDorsalHands2, HandRGBD, ProlificHands, or LUICID samples are used for U-ssl pretraining.
+- U-ssl pretraining model/objective: BYOL with EfficientNet-V2-S at 384 px, no age labels, 76 epochs, batch size 32 per GPU, LR `1e-4`, target momentum `0.996 -> 1.0`, no local crops, augmentation ramp fraction `0.2`, seed 42. The 76-epoch, 2-GPU schedule approximately matches the update count of the 100-epoch, 4-GPU S-ssl BYOL job `1050832` after accounting for the smaller U-ssl corpus.
+- Pretraining resources: one `gpu-standard` or `gpu-beast` node, 2 GPUs, 16 CPU cores, 64 GB RAM; `MASTER_PORT=29532`.
+- Pretraining run directory: `/home/rb3434w/CNN-age-inference/runs/byol/u_ssl_hagrid_primary_archive_v2_s`
+- Pretraining log file: `/home/rb3434w/CNN-age-inference/logs/q3-ussl-pretrain-1051083.log`
+- Conversion job `1051084`: depends on `afterok:1051083`; converts `/home/rb3434w/CNN-age-inference/runs/byol/u_ssl_hagrid_primary_archive_v2_s/byol_v2_s_pretrain_ddp.pth` into fold-matched `EMBED_DIM=128` init checkpoints under `/home/rb3434w/CNN-age-inference/runs/byol/u_ssl_hagrid_primary_archive_v2_s/init_checkpoint_root_embed128`.
+- Downstream jobs `1051085`-`1051089`: depend on `afterok:1051084`; HandRGBD + ProlificHands only for real fine-tuning and locked real testing; no LUICID, HaGRID, 11kHands, archive, or synthetic samples in downstream train/validation/test. Real train subsets come from `splits/q3_real_label_fractions_seed42.json`; test users from `splits/test_users_uncapped_20pct_seed42.json`.
+- Downstream model/objective: fold-matched init from converted U-ssl BYOL checkpoints, pure Gaussian NLL, LR `2e-5`, maximum 120 epochs, patience 10, image-level training/evaluation (`USER_GROUP_SIZES=1`, `AGG_SIZES=1`), age-threshold adult-gate evaluation.
+- Downstream resources per job: one `gpu-standard` or `gpu-beast` node, 2 GPUs, 16 CPU cores, 64 GB RAM, batch size 16 per GPU; unique `MASTER_PORT` values `29533`-`29537`.
+
+| Job | Arm | Real-label fraction | Initial state | Run directory |
+| --- | --- | ---: | --- | --- |
+| `1051083` | U-ssl pretraining | n/a | CANCELLED after `00:35:13` | `/home/rb3434w/CNN-age-inference/runs/byol/u_ssl_hagrid_primary_archive_v2_s` |
+| `1051084` | U-ssl checkpoint conversion | n/a | CANCELLED before start | `/home/rb3434w/CNN-age-inference/runs/byol/u_ssl_hagrid_primary_archive_v2_s/init_checkpoint_root_embed128` |
+| `1051085` | U-ssl LR-control | 5% | CANCELLED before start | `/home/rb3434w/CNN-age-inference/runs/q3_ussl_realfrac_f05_lr2e5_seed42_v2s_384` |
+| `1051086` | U-ssl LR-control | 10% | CANCELLED before start | `/home/rb3434w/CNN-age-inference/runs/q3_ussl_realfrac_f10_lr2e5_seed42_v2s_384` |
+| `1051087` | U-ssl LR-control | 25% | CANCELLED before start | `/home/rb3434w/CNN-age-inference/runs/q3_ussl_realfrac_f25_lr2e5_seed42_v2s_384` |
+| `1051088` | U-ssl LR-control | 50% | CANCELLED before start | `/home/rb3434w/CNN-age-inference/runs/q3_ussl_realfrac_f50_lr2e5_seed42_v2s_384` |
+| `1051089` | U-ssl LR-control | 100% | CANCELLED before start | `/home/rb3434w/CNN-age-inference/runs/q3_ussl_realfrac_f100_lr2e5_seed42_v2s_384` |
 
 ## Completed and failed launches
 

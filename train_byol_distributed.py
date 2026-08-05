@@ -12,9 +12,10 @@ import torch.nn as nn
 from torch.nn.parallel import DistributedDataParallel
 from torch.utils.data import DataLoader, DistributedSampler
 from tqdm import tqdm
+from torchvision import datasets
 
 from dataset.hand_metadata import get_dataset_root, load_combined_metadata, set_dataset_root
-from dataset.ssl import HandSSLPairDataset
+from dataset.ssl import HandSSLPairDataset, SingleImageSSLPairDataset
 from dataset.ssl_transforms import DinoAugmentationConfig, DinoMultiCropTransform
 from dataset.utils import filter_metadata_ssl
 from models import resolve_backbone_builder
@@ -109,6 +110,24 @@ def parse_args() -> argparse.Namespace:
         type=str,
         default="runs/byol_ddp",
         help="Directory where checkpoints and logs will be saved.",
+    )
+    parser.add_argument(
+        "--torchvision-dataset",
+        type=str,
+        default="",
+        choices=["", "stl10_unlabeled"],
+        help="Optional auto-downloaded torchvision dataset for generic SSL pretraining.",
+    )
+    parser.add_argument(
+        "--torchvision-root",
+        type=str,
+        default=None,
+        help="Download/cache root for --torchvision-dataset. Defaults to .data/torchvision.",
+    )
+    parser.add_argument(
+        "--no-torchvision-download",
+        action="store_true",
+        help="Disable torchvision auto-download and require the dataset to already exist.",
     )
     parser.add_argument(
         "--include-handrgbd",
@@ -318,6 +337,22 @@ def init_distributed(args: argparse.Namespace) -> tuple[int, int, int, torch.dev
     return rank, world_size, local_rank, device
 
 
+def build_torchvision_dataset(args: argparse.Namespace, output_dir: Path, *, download: bool):
+    if args.torchvision_dataset == "stl10_unlabeled":
+        root = (
+            Path(args.torchvision_root).expanduser()
+            if args.torchvision_root
+            else Path(".data") / "torchvision"
+        )
+        dataset = datasets.STL10(
+            root=str(root),
+            split="unlabeled",
+            download=download,
+        )
+        return dataset, f"torchvision:STL10/unlabeled ({len(dataset)} images) at {root}"
+    raise ValueError(f"Unsupported torchvision dataset: {args.torchvision_dataset}")
+
+
 def main() -> None:
     args = parse_args()
     rank, world_size, local_rank, device = init_distributed(args)
@@ -332,22 +367,6 @@ def main() -> None:
     img_size = default_size
     local_size = args.local_crop_size if args.local_crop_size else max(64, int(img_size * 0.6))
 
-    if args.data_root:
-        set_dataset_root(args.data_root)
-    active_root = get_dataset_root()
-
-    metadata = filter_metadata_ssl(
-        load_combined_metadata(
-            root=active_root,
-            include_handrgbd=args.include_handrgbd,
-            include_hagrid=args.include_hagrid,
-            include_synthetic_dorsal=args.include_synthetic_dorsal,
-            include_synthetic_dorsal2=args.include_synthetic_dorsal2,
-            include_prolific=args.include_prolific,
-            include_primary=args.include_primary,
-            include_archive=args.include_archive,
-        )
-    )
     output_dir = Path(args.output_dir).expanduser()
     if is_main:
         output_dir.mkdir(parents=True, exist_ok=True)
@@ -362,12 +381,39 @@ def main() -> None:
         config=aug_config,
     )
 
-    dataset = HandSSLPairDataset(
-        metadata,
-        transform=multi_crop,
-        pair_same_hand_prob=args.pair_same_hand_prob,
-        seed=args.seed,
-    )
+    if args.torchvision_dataset:
+        if is_main and not args.no_torchvision_download:
+            build_torchvision_dataset(args, output_dir, download=True)
+        dist.barrier()
+        base_dataset, dataset_desc = build_torchvision_dataset(args, output_dir, download=False)
+        dataset = SingleImageSSLPairDataset(base_dataset, transform=multi_crop)
+        active_root = dataset_desc
+        ssl_image_count = len(dataset)
+        ssl_user_count = None
+    else:
+        if args.data_root:
+            set_dataset_root(args.data_root)
+        active_root = get_dataset_root()
+        metadata = filter_metadata_ssl(
+            load_combined_metadata(
+                root=active_root,
+                include_handrgbd=args.include_handrgbd,
+                include_hagrid=args.include_hagrid,
+                include_synthetic_dorsal=args.include_synthetic_dorsal,
+                include_synthetic_dorsal2=args.include_synthetic_dorsal2,
+                include_prolific=args.include_prolific,
+                include_primary=args.include_primary,
+                include_archive=args.include_archive,
+            )
+        )
+        dataset = HandSSLPairDataset(
+            metadata,
+            transform=multi_crop,
+            pair_same_hand_prob=args.pair_same_hand_prob,
+            seed=args.seed,
+        )
+        ssl_image_count = len(metadata)
+        ssl_user_count = metadata["user_id"].nunique()
     sampler = DistributedSampler(
         dataset,
         num_replicas=world_size,
@@ -389,10 +435,13 @@ def main() -> None:
         print("[byol] Augmentation ramp is most reliable with --num-workers 0.")
 
     if is_main:
+        ssl_count_text = f"SSL images: {ssl_image_count}"
+        if ssl_user_count is not None:
+            ssl_count_text += f" | Users: {ssl_user_count}"
         print(
             f"Using dataset root: {active_root}\n"
             f"Saving artifacts to: {output_dir}\n"
-            f"SSL images: {len(metadata)} | Users: {metadata['user_id'].nunique()}\n"
+            f"{ssl_count_text}\n"
             f"Model: {model_desc} | Image size: {img_size} | Local crop: {local_size}\n"
             f"Per-rank batch size: {args.batch_size} | Epochs: {args.epochs} | Seed: {args.seed} | "
             f"World size: {world_size}"

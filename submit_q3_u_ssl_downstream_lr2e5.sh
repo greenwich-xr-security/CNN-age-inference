@@ -1,0 +1,48 @@
+#!/bin/bash
+set -euo pipefail
+
+PROJECT_ROOT="${PROJECT_ROOT:-$HOME/CNN-age-inference}"
+PRETRAIN_JOB_ID="${1:-}"
+SSL_RUN_ROOT="${SSL_RUN_ROOT:-${PROJECT_ROOT}/runs/byol/u_ssl_stl10_unlabeled_v2_s}"
+SSL_CHECKPOINT="${SSL_CHECKPOINT:-${SSL_RUN_ROOT}/byol_v2_s_pretrain_ddp.pth}"
+INIT_CHECKPOINT_ROOT="${INIT_CHECKPOINT_ROOT:-${SSL_RUN_ROOT}/init_checkpoint_root_embed128}"
+LABEL_FRACTION_FILE="${LABEL_FRACTION_FILE:-${PROJECT_ROOT}/splits/q3_real_label_fractions_seed42.json}"
+TEST_SPLIT_FILE="${TEST_SPLIT_FILE:-${PROJECT_ROOT}/splits/test_users_uncapped_20pct_seed42.json}"
+
+CONVERT_DEPENDENCY_ARGS=()
+if [[ -n "${PRETRAIN_JOB_ID}" ]]; then
+  CONVERT_DEPENDENCY_ARGS=(--dependency="afterok:${PRETRAIN_JOB_ID}")
+fi
+
+CONVERT_JOB_ID="$(
+  sbatch --parsable \
+    "${CONVERT_DEPENDENCY_ARGS[@]}" \
+    --export=ALL,PROJECT_ROOT="${PROJECT_ROOT}",SSL_CHECKPOINT="${SSL_CHECKPOINT}",INIT_CHECKPOINT_ROOT="${INIT_CHECKPOINT_ROOT}",MODEL=v2_s,EMBED_DIM=128 \
+    "${PROJECT_ROOT}/submit_q3_u_ssl_convert_init_embed128.slurm"
+)"
+echo "convert ${CONVERT_JOB_ID} ${INIT_CHECKPOINT_ROOT}"
+
+declare -a FRACTIONS=("0.05" "0.10" "0.25" "0.50" "1.00")
+declare -a TAGS=("f05" "f10" "f25" "f50" "f100")
+declare -a PORTS=("29533" "29534" "29535" "29536" "29537")
+
+for IDX in "${!FRACTIONS[@]}"; do
+  FRACTION="${FRACTIONS[$IDX]}"
+  TAG="${TAGS[$IDX]}"
+  PORT="${PORTS[$IDX]}"
+  RUN_NAME="q3_ussl_realfrac_${TAG}_lr2e5_seed42_v2s_384"
+  JOB_NAME="q3-ussl-${TAG}"
+
+  JOB_ID="$(
+    sbatch --parsable \
+      --dependency="afterok:${CONVERT_JOB_ID}" \
+      --job-name="${JOB_NAME}" \
+      --partition=gpu-standard,gpu-beast \
+      --gres=gpu:2 \
+      --cpus-per-task=16 \
+      --mem=64G \
+      --export=ALL,PROJECT_ROOT="${PROJECT_ROOT}",RUN_NAME="${RUN_NAME}",INIT_CHECKPOINT_ROOT="${INIT_CHECKPOINT_ROOT}",LABEL_FRACTION_FILE="${LABEL_FRACTION_FILE}",LABEL_FRACTION="${FRACTION}",TEST_SPLIT_FILE="${TEST_SPLIT_FILE}",MODELS=v2_s,BATCH_SIZE=16,EPOCHS=120,LR=2e-5,WEIGHT_DECAY=0.2,IMG_SIZE=384,SEED=42,PATIENCE=10,MAX_SAMPLES_PER_USER=0,MAX_SAMPLES_PER_AGE_BIN=0,LOSS_WEIGHT_NLL=1,LOSS_WEIGHT_CRPS=0,LOSS_WEIGHT_MSE=0,LOSS_WEIGHT_MAE=0,LOSS_WEIGHT_SPREAD=0,LOSS_WEIGHT_EMBED_VAR=0,LOSS_WEIGHT_EMBED_CONTRAST=0,USER_GROUP_SIZES=1,AGG_SIZES=1,AGG_SEED=42,EMBED_DIM=128,INCLUDE_HANDRGBD=1,INCLUDE_PROLIFIC=1,INCLUDE_HAGRID=0,INCLUDE_SYNTHETIC_DORSAL=0,INCLUDE_SYNTHETIC_DORSAL2=0,INCLUDE_PRIMARY=0,INCLUDE_ARCHIVE=0,INCLUDE_LUCID=0,RUN_KFOLD_AGG=1,MASTER_PORT="${PORT}" \
+      "${PROJECT_ROOT}/submit_distributed.slurm"
+  )"
+  echo "${TAG} ${FRACTION} ${JOB_ID} ${RUN_NAME}"
+done

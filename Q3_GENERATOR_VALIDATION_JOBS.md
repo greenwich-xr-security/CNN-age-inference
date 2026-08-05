@@ -22,12 +22,11 @@ the same grid is 150 fold-level jobs.
 
 ## Current Status
 
-Checked with `sacct` on 2026-08-05. No Q3 Slurm jobs are currently queued or
-running.
+Checked with `sacct` on 2026-08-05 after cancelling the U-ssl chain. No Q3
+Slurm jobs are currently queued or running.
 
 Completed: R0, R1, S-age, S-ssl, S-shuffle, S-age LR-control, S-ssl
-LR-control, S-shuffle LR-control, and S-shuffle pretraining. Not yet
-implemented: U-ssl pretraining and the U-ssl downstream sweep.
+LR-control, S-shuffle LR-control, and S-shuffle pretraining.
 
 ## Downstream Grid
 
@@ -38,7 +37,7 @@ implemented: U-ssl pretraining and the U-ssl downstream sweep.
 | S-age | Supervised age pretraining on SyntheticDorsalHands2 | 5%, 10%, 25%, 50%, 100% | No; full synthetic corpus for pretraining | Candidate benefit arm |
 | S-shuffle | Same synthetic images/schedule as S-age, but synthetic ages permuted once per seed | 5%, 10%, 25%, 50%, 100% | No; full synthetic corpus with shuffled labels | Removes synthetic age-label signal |
 | S-ssl | Self-supervised pretraining on SyntheticDorsalHands2 | 5%, 10%, 25%, 50%, 100% | No; full synthetic corpus for SSL | Removes supervision, keeps dorsal-hand corpus |
-| U-ssl | Same SSL method/update count on unrelated non-hand, non-age corpus | 5%, 10%, 25%, 50%, 100% | No SyntheticDorsalHands2 used | Removes dorsal-hand content; generic compute/corpus control |
+| U-ssl | Same SSL method/update count on available unrelated no-age hand corpus: HaGRID stop_inverted + 11kHands + archive | 5%, 10%, 25%, 50%, 100% | No SyntheticDorsalHands2 used | Removes SyntheticDorsalHands2 content; generic compute/corpus control |
 
 ## Interpretation Comparisons
 
@@ -63,7 +62,7 @@ implemented: U-ssl pretraining and the U-ssl downstream sweep.
 | S-shuffle downstream sweep | Completed | `1051003`-`1051007` | Full Q3 shuffled synthetic-age LR-control sweep is complete |
 | S-ssl pretraining | Completed | `1050832` | BYOL on SyntheticDorsalHands2 |
 | S-ssl downstream sweep | Completed | `1050969`-`1050973`; LR-control `1050983`-`1050987` | Full Q3 BYOL synthetic-hand sweep and LR-control sweep are complete |
-| U-ssl pretraining | Not started | none | Need unrelated non-hand, non-age corpus and compute-matched SSL setup |
+| U-ssl pretraining | Cancelled | `1051083` | Cancelled after 35:13 at user request; planned BYOL corpus was HaGRID stop_inverted + 11kHands + archive dorsal images |
 
 ## Launched Jobs
 
@@ -75,8 +74,8 @@ five folds for one arm/fraction pair.
 Monitor on HPC:
 `/home/rb3434w/CNN-age-inference/runs/q3_r0_r1_sage_seed42_monitor/q3_status.md`
 
-All launched jobs in the table below are completed. U-ssl cells are not
-implemented.
+All non-U-ssl jobs in the table below are completed. U-ssl jobs were launched
+and then cancelled at user request.
 
 | Arm | 5% | 10% | 25% | 50% | 100% |
 | --- | --- | --- | --- | --- | --- |
@@ -85,7 +84,7 @@ implemented.
 | S-age | `1050958` | `1050959` | `1050960` | `1050961` | `1050962` |
 | S-shuffle | `1051003` | `1051004` | `1051005` | `1051006` | `1051007` |
 | S-ssl | `1050969` | `1050970` | `1050971` | `1050972` | `1050973` |
-| U-ssl | Not implemented | Not implemented | Not implemented | Not implemented | Not implemented |
+| U-ssl | `1051085` cancelled | `1051086` cancelled | `1051087` cancelled | `1051088` cancelled | `1051089` cancelled |
 
 ## LR-Control Reruns
 
@@ -107,6 +106,13 @@ implemented.
 | S-shuffle, shuffled synthetic-age init, LR `2e-5` | 25% | `1051005` | Completed | Match S-age LR-control downstream recipe; tests label signal vs image exposure/schedule |
 | S-shuffle, shuffled synthetic-age init, LR `2e-5` | 50% | `1051006` | Completed | Match S-age LR-control downstream recipe; tests label signal vs image exposure/schedule |
 | S-shuffle, shuffled synthetic-age init, LR `2e-5` | 100% | `1051007` | Completed | Match S-age LR-control downstream recipe; tests label signal vs image exposure/schedule |
+| U-ssl, BYOL init from HaGRID + 11kHands + archive, LR `2e-5` | pretraining | `1051083` | Cancelled | Cancelled after 35:13 at user request |
+| U-ssl, checkpoint conversion to embed-dim 128 init root | conversion | `1051084` | Cancelled | Cancelled after pretraining was stopped |
+| U-ssl, BYOL init from HaGRID + 11kHands + archive, LR `2e-5` | 5% | `1051085` | Cancelled | Cancelled after pretraining was stopped |
+| U-ssl, BYOL init from HaGRID + 11kHands + archive, LR `2e-5` | 10% | `1051086` | Cancelled | Cancelled after pretraining was stopped |
+| U-ssl, BYOL init from HaGRID + 11kHands + archive, LR `2e-5` | 25% | `1051087` | Cancelled | Cancelled after pretraining was stopped |
+| U-ssl, BYOL init from HaGRID + 11kHands + archive, LR `2e-5` | 50% | `1051088` | Cancelled | Cancelled after pretraining was stopped |
+| U-ssl, BYOL init from HaGRID + 11kHands + archive, LR `2e-5` | 100% | `1051089` | Cancelled | Cancelled after pretraining was stopped |
 
 ## Results
 
@@ -127,21 +133,11 @@ achieved values.
 | R1 | 25% | `1050955` | Completed | 27.308 | 38.927 | 0.0169 | 4.28% | 99.34% |
 | R1 | 50% | `1050956` | Completed | 23.084 | 31.710 | 0.1546 | 5.01% | 97.94% |
 | R1 | 100% | `1050957` | Completed | 11.684 | 18.725 | 0.7174 | 6.33% | 42.80% |
-| S-age | 5% | `1050958` | Completed | 6.745 | 8.823 | 0.8878 | 4.69% | 26.48% |
-| S-age | 10% | `1050959` | Completed | 5.841 | 8.015 | 0.8988 | 5.60% | 24.74% |
-| S-age | 25% | `1050960` | Completed | 5.367 | 7.208 | 0.9214 | 4.78% | 23.58% |
-| S-age | 50% | `1050961` | Completed | 5.091 | 6.898 | 0.9317 | 4.69% | 21.97% |
-| S-age | 100% | `1050962` | Completed | 5.024 | 6.811 | 0.9399 | 4.74% | 20.76% |
 | S-age LR-control | 5% | `1050979` | Completed | 6.152 | 8.399 | 0.9133 | 4.69% | 24.17% |
 | S-age LR-control | 10% | `1050980` | Completed | 5.547 | 7.591 | 0.9223 | 4.78% | 23.95% |
 | S-age LR-control | 25% | `1050981` | Completed | 5.357 | 7.190 | 0.9265 | 4.74% | 23.59% |
 | S-age LR-control | 50% | `1050982` | Completed | 5.114 | 6.943 | 0.9363 | 4.78% | 21.91% |
 | S-age LR-control | 100% | `1050975` | Completed | 4.817 | 6.571 | 0.9526 | 4.69% | 18.46% |
-| S-ssl | 5% | `1050969` | Completed | 27.840 | 31.494 | 0.0987 | 1.00% | 96.60% |
-| S-ssl | 10% | `1050970` | Completed | 22.684 | 26.889 | 0.3474 | 2.49% | 88.19% |
-| S-ssl | 25% | `1050971` | Completed | 8.185 | 10.639 | 0.9117 | 4.98% | 27.28% |
-| S-ssl | 50% | `1050972` | Completed | 5.814 | 7.659 | 0.9259 | 4.91% | 22.56% |
-| S-ssl | 100% | `1050973` | Completed | 5.444 | 7.067 | 0.9252 | 4.98% | 22.23% |
 | S-ssl LR-control | 5% | `1050983` | Completed | 30.248 | 33.794 | 0.0000 | 0.00% | 100.00% |
 | S-ssl LR-control | 10% | `1050984` | Completed | 29.589 | 33.160 | 0.0000 | 0.00% | 100.00% |
 | S-ssl LR-control | 25% | `1050985` | Completed | 25.792 | 29.625 | 0.0000 | 0.00% | 100.00% |
@@ -157,9 +153,8 @@ achieved values.
 
 Still running: none.
 
-Not started: U-ssl pretraining and the five U-ssl downstream fine-tuning jobs.
-The unrelated non-hand, non-age corpus still needs to be selected before those
-jobs can be launched.
+Cancelled: U-ssl pretraining job `1051083`, checkpoint conversion job
+`1051084`, and downstream jobs `1051085`-`1051089`.
 
 ## Job Accounting
 
@@ -170,9 +165,9 @@ jobs can be launched.
 | S-age downstream sweep | 5 | Completed | Initialised from clean S-age synthetic checkpoints from `1050939` |
 | S-shuffle downstream sweep | 5 | Completed | Initialised from shuffled-label synthetic pretraining job `1051002` |
 | S-ssl downstream sweep | 5 | Completed | Initialised from BYOL checkpoints from `1050832` |
-| U-ssl downstream sweep | 5 | Not started | Requires U-ssl pretraining first |
+| U-ssl downstream sweep | 5 | Cancelled | Jobs `1051085`-`1051089` were cancelled after U-ssl pretraining was stopped |
 | S-shuffle pretraining | 1 | Completed | Full SyntheticDorsalHands2 corpus, labels permuted once per seed |
-| U-ssl pretraining | 1 | Not started | Same SSL method/update count as S-ssl, unrelated corpus |
+| U-ssl pretraining | 1 | Cancelled | Job `1051083` was cancelled after 35:13 at user request |
 
-Planned downstream fine-tuning jobs: 30. Completed downstream jobs: 25. Not
-started downstream jobs: 5 U-ssl cells.
+Planned downstream fine-tuning jobs: 30. Completed downstream jobs: 25.
+Cancelled downstream jobs: 5 U-ssl cells.

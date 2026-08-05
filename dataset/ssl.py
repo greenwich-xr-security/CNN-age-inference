@@ -111,3 +111,26 @@ class HandSSLPairDataset(Dataset):
         if self.transform is None:
             return [img1, img2]
         return self.transform(img1, img2)
+
+
+class SingleImageSSLPairDataset(Dataset):
+    """Return two augmented views from a generic image dataset."""
+
+    def __init__(self, base_dataset: Dataset, *, transform=None) -> None:
+        self.base_dataset = base_dataset
+        self.transform = transform
+
+    def set_epoch(self, epoch: int) -> None:
+        return None
+
+    def __len__(self) -> int:
+        return len(self.base_dataset)
+
+    def __getitem__(self, idx: int):
+        sample = self.base_dataset[idx]
+        image = sample[0] if isinstance(sample, tuple) else sample
+        image = image.convert("RGB")
+        image2 = image.copy()
+        if self.transform is None:
+            return [image, image2]
+        return self.transform(image, image2)

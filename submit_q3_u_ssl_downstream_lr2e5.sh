@@ -3,11 +3,12 @@ set -euo pipefail
 
 PROJECT_ROOT="${PROJECT_ROOT:-$HOME/CNN-age-inference}"
 PRETRAIN_JOB_ID="${1:-}"
-SSL_RUN_ROOT="${SSL_RUN_ROOT:-${PROJECT_ROOT}/runs/byol/u_ssl_stl10_unlabeled_v2_s}"
+SSL_RUN_ROOT="${SSL_RUN_ROOT:-${PROJECT_ROOT}/runs/byol/u_ssl_stl10_unlabeled_v2_s_8gpu}"
 SSL_CHECKPOINT="${SSL_CHECKPOINT:-${SSL_RUN_ROOT}/byol_v2_s_pretrain_ddp.pth}"
 INIT_CHECKPOINT_ROOT="${INIT_CHECKPOINT_ROOT:-${SSL_RUN_ROOT}/init_checkpoint_root_embed128}"
 LABEL_FRACTION_FILE="${LABEL_FRACTION_FILE:-${PROJECT_ROOT}/splits/q3_real_label_fractions_seed42.json}"
 TEST_SPLIT_FILE="${TEST_SPLIT_FILE:-${PROJECT_ROOT}/splits/test_users_uncapped_20pct_seed42.json}"
+CONVERT_NODELIST="${CONVERT_NODELIST:-gm-hpc2-gpu001}"
 
 CONVERT_DEPENDENCY_ARGS=()
 if [[ -n "${PRETRAIN_JOB_ID}" ]]; then
@@ -17,6 +18,8 @@ fi
 CONVERT_JOB_ID="$(
   sbatch --parsable \
     "${CONVERT_DEPENDENCY_ARGS[@]}" \
+    --partition=gpu-standard \
+    --nodelist="${CONVERT_NODELIST}" \
     --export=ALL,PROJECT_ROOT="${PROJECT_ROOT}",SSL_CHECKPOINT="${SSL_CHECKPOINT}",INIT_CHECKPOINT_ROOT="${INIT_CHECKPOINT_ROOT}",MODEL=v2_s,EMBED_DIM=128 \
     "${PROJECT_ROOT}/submit_q3_u_ssl_convert_init_embed128.slurm"
 )"
@@ -25,19 +28,24 @@ echo "convert ${CONVERT_JOB_ID} ${INIT_CHECKPOINT_ROOT}"
 declare -a FRACTIONS=("0.05" "0.10" "0.25" "0.50" "1.00")
 declare -a TAGS=("f05" "f10" "f25" "f50" "f100")
 declare -a PORTS=("29533" "29534" "29535" "29536" "29537")
+declare -a PARTITIONS=("gpu-standard" "gpu-beast" "gpu-beast" "gpu-beast" "gpu-beast")
+declare -a NODELISTS=("gm-hpc2-gpu001" "gm-hpc2-gpu801" "gm-hpc2-gpu801" "gm-hpc2-gpu801" "gm-hpc2-gpu801")
 
 for IDX in "${!FRACTIONS[@]}"; do
   FRACTION="${FRACTIONS[$IDX]}"
   TAG="${TAGS[$IDX]}"
   PORT="${PORTS[$IDX]}"
-  RUN_NAME="q3_ussl_realfrac_${TAG}_lr2e5_seed42_v2s_384"
+  PARTITION="${PARTITIONS[$IDX]}"
+  NODELIST="${NODELISTS[$IDX]}"
+  RUN_NAME="q3_ussl8_realfrac_${TAG}_lr2e5_seed42_v2s_384"
   JOB_NAME="q3-ussl-${TAG}"
 
   JOB_ID="$(
     sbatch --parsable \
       --dependency="afterok:${CONVERT_JOB_ID}" \
       --job-name="${JOB_NAME}" \
-      --partition=gpu-standard,gpu-beast \
+      --partition="${PARTITION}" \
+      --nodelist="${NODELIST}" \
       --gres=gpu:2 \
       --cpus-per-task=16 \
       --mem=64G \

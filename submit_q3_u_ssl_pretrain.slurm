@@ -2,10 +2,11 @@
 #SBATCH --job-name=q3-ussl-pretrain
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
-#SBATCH --partition=gpu-standard,gpu-beast
-#SBATCH --gres=gpu:2
-#SBATCH --cpus-per-task=16
-#SBATCH --mem=64G
+#SBATCH --partition=gpu-beast
+#SBATCH --nodelist=gm-hpc2-gpu801
+#SBATCH --gres=gpu:8
+#SBATCH --cpus-per-task=32
+#SBATCH --mem=128G
 #SBATCH --output=logs/%x-%j.log
 #SBATCH --mail-type=END,FAIL
 #SBATCH --mail-user=rb3434w@gre.ac.uk
@@ -26,7 +27,7 @@ TORCH_HOME="${TORCH_HOME:-${PROJECT_ROOT}/.cache/torch}"
 
 MODEL="${MODEL:-v2_s}"
 BYOL_EPOCHS="${BYOL_EPOCHS:-22}"
-BYOL_BATCH_SIZE="${BYOL_BATCH_SIZE:-32}"
+BYOL_BATCH_SIZE="${BYOL_BATCH_SIZE:-8}"
 BYOL_NUM_LOCAL_CROPS="${BYOL_NUM_LOCAL_CROPS:-0}"
 BYOL_TARGET_MOMENTUM="${BYOL_TARGET_MOMENTUM:-0.996}"
 BYOL_TARGET_MOMENTUM_END="${BYOL_TARGET_MOMENTUM_END:-1.0}"
@@ -35,7 +36,7 @@ BYOL_AUG_RAMP_FRACTION="${BYOL_AUG_RAMP_FRACTION:-0.2}"
 LR="${LR:-1e-4}"
 SEED="${SEED:-42}"
 
-RUN_NAME="${RUN_NAME:-u_ssl_stl10_unlabeled_${MODEL}}"
+RUN_NAME="${RUN_NAME:-u_ssl_stl10_unlabeled_${MODEL}_8gpu}"
 OUTPUT_DIR="${OUTPUT_DIR:-${PROJECT_ROOT}/runs/byol/${RUN_NAME}}"
 TORCHVISION_ROOT="${TORCHVISION_ROOT:-${PROJECT_ROOT}/.data/torchvision}"
 
@@ -56,7 +57,7 @@ extract_gpu_count() {
 }
 
 MASTER_ADDR=${MASTER_ADDR:-$(hostname -s)}
-MASTER_PORT=${MASTER_PORT:-29532}
+MASTER_PORT=${MASTER_PORT:-29538}
 NNODES=${SLURM_JOB_NUM_NODES:-1}
 if ! GPUS_PER_NODE="$(extract_gpu_count "${SLURM_GPUS_ON_NODE:-}")"; then
   if ! GPUS_PER_NODE="$(extract_gpu_count "${SLURM_GPUS_PER_NODE:-}")"; then
@@ -64,7 +65,7 @@ if ! GPUS_PER_NODE="$(extract_gpu_count "${SLURM_GPUS_ON_NODE:-}")"; then
       IFS=',' read -r -a _CUDA_IDS <<< "${CUDA_VISIBLE_DEVICES}"
       GPUS_PER_NODE="${#_CUDA_IDS[@]}"
     else
-      GPUS_PER_NODE="${GPUS_PER_NODE_OVERRIDE:-2}"
+      GPUS_PER_NODE="${GPUS_PER_NODE_OVERRIDE:-8}"
     fi
   fi
 fi

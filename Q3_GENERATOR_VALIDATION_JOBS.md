@@ -20,6 +20,15 @@ If each Slurm submission runs all five folds for one arm/fraction pair, Q3
 requires 30 downstream fine-tuning jobs. If each fold is submitted separately,
 the same grid is 150 fold-level jobs.
 
+## Current Status
+
+Checked with `sacct` on 2026-08-05. No Q3 Slurm jobs are currently queued or
+running.
+
+Completed: R0, R1, S-age, S-ssl, S-shuffle, S-age LR-control, S-ssl
+LR-control, S-shuffle LR-control, and S-shuffle pretraining. Not yet
+implemented: U-ssl pretraining and the U-ssl downstream sweep.
+
 ## Downstream Grid
 
 | Arm | Pretraining before real fine-tune | Real fine-tune fractions | Synthetic data fractioned? | Role |
@@ -45,15 +54,16 @@ the same grid is 150 fold-level jobs.
 
 | Arm / asset | Current status | Existing job(s) | Notes |
 | --- | --- | --- | --- |
-| Real label-fraction manifest | Done | n/a | `splits/q3_real_label_fractions_seed42.json`; fractions `0.05`, `0.10`, `0.25`, `0.50`, `1.00` |
-| R0 100% | Done | `1050753` | Full-real ImageNet/default-init baseline only; remaining fractions not run |
-| R1 100% | Done | `1050877` | Full-real random-init baseline only; remaining fractions not run |
-| S-age pretraining | Available | `1050939` | Clean SyntheticDorsalHands2-only supervised NLL checkpoints; suitable pretraining source |
-| S-age 100% fine-tune | Needs clean Q3 rerun | `1050819` is related | `1050819` used SyntheticDorsalHands2 initialisation, but not from the clean `1050939` SS source, so do not treat it as the final Q3 S-age cell without caveat |
+| Real label-fraction manifest | Available | n/a | `splits/q3_real_label_fractions_seed42.json`; fractions `0.05`, `0.10`, `0.25`, `0.50`, `1.00` |
+| R0 downstream sweep | Completed | `1050948`-`1050952`; reference `1050753` | Full Q3 ImageNet/default-init label-efficiency sweep is complete; `1050753` remains the earlier full-real reference |
+| R1 downstream sweep | Completed | `1050953`-`1050957`; reference `1050877` | Full Q3 random-init label-efficiency sweep is complete; `1050877` remains the earlier full-real random-init reference |
+| S-age pretraining | Completed | `1050939` | Clean SyntheticDorsalHands2-only supervised NLL checkpoints used as the Q3 S-age pretraining source |
+| S-age downstream sweep | Completed | `1050958`-`1050962`; LR-control `1050975`, `1050979`-`1050982` | Clean Q3 S-age cells initialise from `1050939`; `1050819` remains a related historical run, not the final clean Q3 cell |
 | S-shuffle pretraining | Completed | `1051002` | Shuffled-label SyntheticDorsalHands2 pretraining on 2 GPUs; replacement for cancelled 4-GPU queue `1050996`; downstream jobs `1051003`-`1051007` released |
-| S-ssl pretraining | Done | `1050832` | BYOL on SyntheticDorsalHands2 |
-| S-ssl 100% fine-tune | Done | `1050854` | Full-real fine-tune from BYOL; remaining fractions not run |
-| U-ssl pretraining | Missing | none | Need unrelated non-hand, non-age corpus and compute-matched SSL setup |
+| S-shuffle downstream sweep | Completed | `1051003`-`1051007` | Full Q3 shuffled synthetic-age LR-control sweep is complete |
+| S-ssl pretraining | Completed | `1050832` | BYOL on SyntheticDorsalHands2 |
+| S-ssl downstream sweep | Completed | `1050969`-`1050973`; LR-control `1050983`-`1050987` | Full Q3 BYOL synthetic-hand sweep and LR-control sweep are complete |
+| U-ssl pretraining | Not started | none | Need unrelated non-hand, non-age corpus and compute-matched SSL setup |
 
 ## Launched Jobs
 
@@ -65,12 +75,15 @@ five folds for one arm/fraction pair.
 Monitor on HPC:
 `/home/rb3434w/CNN-age-inference/runs/q3_r0_r1_sage_seed42_monitor/q3_status.md`
 
+All launched jobs in the table below are completed. U-ssl cells are not
+implemented.
+
 | Arm | 5% | 10% | 25% | 50% | 100% |
 | --- | --- | --- | --- | --- | --- |
 | R0 | `1050948` | `1050949` | `1050950` | `1050951` | `1050952` |
 | R1 | `1050953` | `1050954` | `1050955` | `1050956` | `1050957` |
 | S-age | `1050958` | `1050959` | `1050960` | `1050961` | `1050962` |
-| S-shuffle | `1051003` completed | `1051004` completed | `1051005` completed | `1051006` running on `gpu-beast` | `1051007` running on `gpu-beast` |
+| S-shuffle | `1051003` | `1051004` | `1051005` | `1051006` | `1051007` |
 | S-ssl | `1050969` | `1050970` | `1050971` | `1050972` | `1050973` |
 | U-ssl | Not implemented | Not implemented | Not implemented | Not implemented | Not implemented |
 
@@ -87,13 +100,13 @@ Monitor on HPC:
 | S-ssl, BYOL synthetic-hand init, LR `2e-5` | 10% | `1050984` | Completed | Match S-age LR-control downstream LR/max epochs while keeping Q3 S-ssl BYOL init |
 | S-ssl, BYOL synthetic-hand init, LR `2e-5` | 25% | `1050985` | Completed | Match S-age LR-control downstream LR/max epochs while keeping Q3 S-ssl BYOL init |
 | S-ssl, BYOL synthetic-hand init, LR `2e-5` | 50% | `1050986` | Completed | Match S-age LR-control downstream LR/max epochs while keeping Q3 S-ssl BYOL init |
-| S-ssl, BYOL synthetic-hand init, LR `2e-5` | 100% | `1050987` | Running on `gpu-beast` | Match S-age LR-control downstream LR/max epochs while keeping Q3 S-ssl BYOL init |
+| S-ssl, BYOL synthetic-hand init, LR `2e-5` | 100% | `1050987` | Completed | Match S-age LR-control downstream LR/max epochs while keeping Q3 S-ssl BYOL init |
 | S-shuffle, shuffled synthetic-age init, LR `2e-5` | pretraining | `1051002` | Completed | SyntheticDorsalHands2-only pure NLL with age labels permuted once; 2-GPU replacement for `1050996` |
 | S-shuffle, shuffled synthetic-age init, LR `2e-5` | 5% | `1051003` | Completed | Match S-age LR-control downstream recipe; tests label signal vs image exposure/schedule |
 | S-shuffle, shuffled synthetic-age init, LR `2e-5` | 10% | `1051004` | Completed | Match S-age LR-control downstream recipe; tests label signal vs image exposure/schedule |
 | S-shuffle, shuffled synthetic-age init, LR `2e-5` | 25% | `1051005` | Completed | Match S-age LR-control downstream recipe; tests label signal vs image exposure/schedule |
-| S-shuffle, shuffled synthetic-age init, LR `2e-5` | 50% | `1051006` | Running on `gpu-beast` | Match S-age LR-control downstream recipe; tests label signal vs image exposure/schedule |
-| S-shuffle, shuffled synthetic-age init, LR `2e-5` | 100% | `1051007` | Running on `gpu-beast` | Match S-age LR-control downstream recipe; tests label signal vs image exposure/schedule |
+| S-shuffle, shuffled synthetic-age init, LR `2e-5` | 50% | `1051006` | Completed | Match S-age LR-control downstream recipe; tests label signal vs image exposure/schedule |
+| S-shuffle, shuffled synthetic-age init, LR `2e-5` | 100% | `1051007` | Completed | Match S-age LR-control downstream recipe; tests label signal vs image exposure/schedule |
 
 ## Results
 
@@ -133,25 +146,33 @@ achieved values.
 | S-ssl LR-control | 10% | `1050984` | Completed | 29.589 | 33.160 | 0.0000 | 0.00% | 100.00% |
 | S-ssl LR-control | 25% | `1050985` | Completed | 25.792 | 29.625 | 0.0000 | 0.00% | 100.00% |
 | S-ssl LR-control | 50% | `1050986` | Completed | 12.377 | 16.525 | 0.8409 | 0.00% | 100.00% |
-| S-ssl LR-control | 100% | `1050987` | Running on `gpu-beast` | - | - | - | - | - |
+| S-ssl LR-control | 100% | `1050987` | Completed | 5.149 | 6.960 | 0.9510 | 4.69% | 16.69% |
 | S-shuffle LR-control | 5% | `1051003` | Completed | 11.614 | 13.844 | 0.3867 | 0.00% | 100.00% |
 | S-shuffle LR-control | 10% | `1051004` | Completed | 7.370 | 9.716 | 0.8353 | 0.00% | 100.00% |
 | S-shuffle LR-control | 25% | `1051005` | Completed | 6.531 | 8.668 | 0.8790 | 0.00% | 100.00% |
-| S-shuffle LR-control | 50% | `1051006` | Running on `gpu-beast` | - | - | - | - | - |
-| S-shuffle LR-control | 100% | `1051007` | Running on `gpu-beast` | - | - | - | - | - |
+| S-shuffle LR-control | 50% | `1051006` | Completed | 5.661 | 7.525 | 0.9189 | 4.83% | 23.26% |
+| S-shuffle LR-control | 100% | `1051007` | Completed | 5.367 | 7.227 | 0.9317 | 4.74% | 20.79% |
 
-## Planned Job Accounting
+## Remaining Work
 
-| Stage | Jobs needed | Notes |
-| --- | ---: | --- |
-| R0 downstream sweep | 5 | One job per real-label fraction, all five folds per job |
-| R1 downstream sweep | 5 | Same real subsets as R0 |
-| S-age downstream sweep | 5 | Initialise from clean S-age synthetic checkpoints, preferably `1050939` |
-| S-shuffle downstream sweep | 5 | Requires S-shuffle pretraining first; downstream code path is the same as S-age |
-| S-ssl downstream sweep | 5 | Launched on `gpu-standard`, 2 GPUs/job; initialise from BYOL checkpoints from `1050832` |
-| U-ssl downstream sweep | 5 | Requires U-ssl pretraining first |
-| S-shuffle pretraining | 1 | Full SyntheticDorsalHands2 corpus, labels permuted once per seed |
-| U-ssl pretraining | 1 | Same SSL method/update count as S-ssl, unrelated corpus |
+Still running: none.
 
-Total planned downstream fine-tuning jobs: 30, assuming one Slurm job runs all
-five folds for one arm/fraction pair.
+Not started: U-ssl pretraining and the five U-ssl downstream fine-tuning jobs.
+The unrelated non-hand, non-age corpus still needs to be selected before those
+jobs can be launched.
+
+## Job Accounting
+
+| Stage | Jobs in Q3 plan | Current status | Notes |
+| --- | ---: | --- | --- |
+| R0 downstream sweep | 5 | Completed | One job per real-label fraction, all five folds per job |
+| R1 downstream sweep | 5 | Completed | Same real subsets as R0 |
+| S-age downstream sweep | 5 | Completed | Initialised from clean S-age synthetic checkpoints from `1050939` |
+| S-shuffle downstream sweep | 5 | Completed | Initialised from shuffled-label synthetic pretraining job `1051002` |
+| S-ssl downstream sweep | 5 | Completed | Initialised from BYOL checkpoints from `1050832` |
+| U-ssl downstream sweep | 5 | Not started | Requires U-ssl pretraining first |
+| S-shuffle pretraining | 1 | Completed | Full SyntheticDorsalHands2 corpus, labels permuted once per seed |
+| U-ssl pretraining | 1 | Not started | Same SSL method/update count as S-ssl, unrelated corpus |
+
+Planned downstream fine-tuning jobs: 30. Completed downstream jobs: 25. Not
+started downstream jobs: 5 U-ssl cells.

@@ -22,10 +22,10 @@ the same grid is 150 fold-level jobs.
 
 ## Current Status
 
-Checked with `sacct`/`squeue` on 2026-08-05 after launching U-ssl with
-auto-downloaded STL10. U-ssl pretraining job `1051091` is running on
-`gpu-standard`; conversion job `1051092` and downstream jobs `1051093`-`1051097`
-are pending on dependencies.
+Checked with `sacct`/`squeue` on 2026-08-05 after relaunching U-ssl with
+auto-downloaded STL10. U-ssl pretraining job `1051105` is running on
+`gpu-beast`, node `gm-hpc2-gpu801`, with 8 GPUs; conversion job `1051106` and
+downstream jobs `1051107`-`1051111` are pending on dependencies.
 
 Completed: R0, R1, S-age, S-ssl, S-shuffle, S-age LR-control, S-ssl
 LR-control, S-shuffle LR-control, and S-shuffle pretraining.
@@ -64,7 +64,7 @@ LR-control, S-shuffle LR-control, and S-shuffle pretraining.
 | S-shuffle downstream sweep | Completed | `1051003`-`1051007` | Full Q3 shuffled synthetic-age LR-control sweep is complete |
 | S-ssl pretraining | Completed | `1050832` | BYOL on SyntheticDorsalHands2 |
 | S-ssl downstream sweep | Completed | `1050969`-`1050973`; LR-control `1050983`-`1050987` | Full Q3 BYOL synthetic-hand sweep and LR-control sweep are complete |
-| U-ssl pretraining | Running | `1051091` | BYOL on auto-downloaded STL10 unlabeled split; 100,000 generic natural images; 22 epochs on 2 GPUs to approximately match S-ssl update count |
+| U-ssl pretraining | Running | `1051105` | BYOL on auto-downloaded STL10 unlabeled split; 100,000 generic natural images; 22 epochs on 8 GPUs with batch 8/GPU to keep global batch 64 |
 
 ## Launched Jobs
 
@@ -86,7 +86,7 @@ launched and are dependency chained behind U-ssl pretraining/conversion.
 | S-age | `1050958` | `1050959` | `1050960` | `1050961` | `1050962` |
 | S-shuffle | `1051003` | `1051004` | `1051005` | `1051006` | `1051007` |
 | S-ssl | `1050969` | `1050970` | `1050971` | `1050972` | `1050973` |
-| U-ssl | `1051093` pending | `1051094` pending | `1051095` pending | `1051096` pending | `1051097` pending |
+| U-ssl | `1051107` pending | `1051108` pending | `1051109` pending | `1051110` pending | `1051111` pending |
 
 ## LR-Control Reruns
 
@@ -108,13 +108,13 @@ launched and are dependency chained behind U-ssl pretraining/conversion.
 | S-shuffle, shuffled synthetic-age init, LR `2e-5` | 25% | `1051005` | Completed | Match S-age LR-control downstream recipe; tests label signal vs image exposure/schedule |
 | S-shuffle, shuffled synthetic-age init, LR `2e-5` | 50% | `1051006` | Completed | Match S-age LR-control downstream recipe; tests label signal vs image exposure/schedule |
 | S-shuffle, shuffled synthetic-age init, LR `2e-5` | 100% | `1051007` | Completed | Match S-age LR-control downstream recipe; tests label signal vs image exposure/schedule |
-| U-ssl, BYOL init from STL10 unlabeled, LR `2e-5` | pretraining | `1051091` | Running on `gpu-standard` | BYOL on auto-downloaded STL10 unlabeled split; 22 epochs on 2 GPUs to approximately match S-ssl update count |
-| U-ssl, checkpoint conversion to embed-dim 128 init root | conversion | `1051092` | Pending dependency | Converts `1051091` BYOL checkpoint for fold-matched downstream initialisation |
-| U-ssl, BYOL init from STL10 unlabeled, LR `2e-5` | 5% | `1051093` | Pending dependency | Match S-age/S-ssl LR-control downstream recipe |
-| U-ssl, BYOL init from STL10 unlabeled, LR `2e-5` | 10% | `1051094` | Pending dependency | Match S-age/S-ssl LR-control downstream recipe |
-| U-ssl, BYOL init from STL10 unlabeled, LR `2e-5` | 25% | `1051095` | Pending dependency | Match S-age/S-ssl LR-control downstream recipe |
-| U-ssl, BYOL init from STL10 unlabeled, LR `2e-5` | 50% | `1051096` | Pending dependency | Match S-age/S-ssl LR-control downstream recipe |
-| U-ssl, BYOL init from STL10 unlabeled, LR `2e-5` | 100% | `1051097` | Pending dependency | Match S-age/S-ssl LR-control downstream recipe |
+| U-ssl, BYOL init from STL10 unlabeled, LR `2e-5` | pretraining | `1051105` | Running on `gpu-beast` / `gm-hpc2-gpu801` | BYOL on auto-downloaded STL10 unlabeled split; 22 epochs on 8 GPUs |
+| U-ssl, checkpoint conversion to embed-dim 128 init root | conversion | `1051106` | Pending dependency | Converts `1051105` BYOL checkpoint for fold-matched downstream initialisation |
+| U-ssl, BYOL init from STL10 unlabeled, LR `2e-5` | 5% | `1051107` | Pending dependency | 2-GPU downstream job targeted to `gm-hpc2-gpu001` |
+| U-ssl, BYOL init from STL10 unlabeled, LR `2e-5` | 10% | `1051108` | Pending dependency | 2-GPU downstream job targeted to `gm-hpc2-gpu801` |
+| U-ssl, BYOL init from STL10 unlabeled, LR `2e-5` | 25% | `1051109` | Pending dependency | 2-GPU downstream job targeted to `gm-hpc2-gpu801` |
+| U-ssl, BYOL init from STL10 unlabeled, LR `2e-5` | 50% | `1051110` | Pending dependency | 2-GPU downstream job targeted to `gm-hpc2-gpu801` |
+| U-ssl, BYOL init from STL10 unlabeled, LR `2e-5` | 100% | `1051111` | Pending dependency | 2-GPU downstream job targeted to `gm-hpc2-gpu801` |
 
 ## Results
 
@@ -153,10 +153,10 @@ achieved values.
 
 ## Remaining Work
 
-Still running: U-ssl pretraining job `1051091`.
+Still running: U-ssl pretraining job `1051105`.
 
-Pending on dependencies: U-ssl checkpoint conversion job `1051092` and U-ssl
-downstream jobs `1051093`-`1051097`.
+Pending on dependencies: U-ssl checkpoint conversion job `1051106` and U-ssl
+downstream jobs `1051107`-`1051111`.
 
 ## Job Accounting
 
@@ -167,9 +167,9 @@ downstream jobs `1051093`-`1051097`.
 | S-age downstream sweep | 5 | Completed | Initialised from clean S-age synthetic checkpoints from `1050939` |
 | S-shuffle downstream sweep | 5 | Completed | Initialised from shuffled-label synthetic pretraining job `1051002` |
 | S-ssl downstream sweep | 5 | Completed | Initialised from BYOL checkpoints from `1050832` |
-| U-ssl downstream sweep | 5 | Pending dependency | Jobs `1051093`-`1051097`; depend on conversion job `1051092` |
+| U-ssl downstream sweep | 5 | Pending dependency | Jobs `1051107`-`1051111`; depend on conversion job `1051106`; one job targets `gm-hpc2-gpu001`, four target `gm-hpc2-gpu801` |
 | S-shuffle pretraining | 1 | Completed | Full SyntheticDorsalHands2 corpus, labels permuted once per seed |
-| U-ssl pretraining | 1 | Running | Job `1051091`; STL10 unlabeled; 22 BYOL epochs on 2 GPUs |
+| U-ssl pretraining | 1 | Running | Job `1051105`; STL10 unlabeled; 22 BYOL epochs on 8 GPUs |
 
 Planned downstream fine-tuning jobs: 30. Completed downstream jobs: 25.
 Launched and pending downstream jobs: 5 U-ssl cells.

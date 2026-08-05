@@ -22,10 +22,10 @@ the same grid is 150 fold-level jobs.
 
 ## Current Status
 
-Checked with `sacct`/`squeue` on 2026-08-05 20:36 BST. U-ssl pretraining job
+Checked with `sacct`/`squeue` on 2026-08-05 21:13 BST. U-ssl pretraining job
 `1051105` and checkpoint conversion job `1051106` are complete. U-ssl
-downstream jobs `1051107` for 5% and `1051108` for 10% are complete; jobs
-`1051109`, `1051110`, and `1051111` are still running.
+downstream jobs `1051107` for 5%, `1051108` for 10%, and `1051109` for 25%
+are complete; jobs `1051110` and `1051111` are still running.
 
 Completed: R0, R1, S-age, S-ssl, S-shuffle, S-age LR-control, S-ssl
 LR-control, S-shuffle LR-control, and S-shuffle pretraining.
@@ -87,7 +87,7 @@ launched and running after completed U-ssl pretraining/conversion.
 | S-age | `1050958` | `1050959` | `1050960` | `1050961` | `1050962` |
 | S-shuffle | `1051003` | `1051004` | `1051005` | `1051006` | `1051007` |
 | S-ssl | `1050969` | `1050970` | `1050971` | `1050972` | `1050973` |
-| U-ssl | `1051107` completed | `1051108` completed | `1051109` running | `1051110` running | `1051111` running |
+| U-ssl | `1051107` completed | `1051108` completed | `1051109` completed | `1051110` running | `1051111` running |
 
 ## LR-Control Reruns
 
@@ -113,7 +113,7 @@ launched and running after completed U-ssl pretraining/conversion.
 | U-ssl, checkpoint conversion to embed-dim 128 init root | conversion | `1051106` | Completed after `00:01:43` on `gpu-standard` / `gm-hpc2-gpu001` | Converts `1051105` BYOL checkpoint for fold-matched downstream initialisation |
 | U-ssl, BYOL init from STL10 unlabeled, LR `2e-5` | 5% | `1051107` | Completed after `05:11:14` on `gm-hpc2-gpu001` | 2-GPU downstream job targeted to `gm-hpc2-gpu001` |
 | U-ssl, BYOL init from STL10 unlabeled, LR `2e-5` | 10% | `1051108` | Completed after `04:29:01` on `gm-hpc2-gpu801` | 2-GPU downstream job targeted to `gm-hpc2-gpu801` |
-| U-ssl, BYOL init from STL10 unlabeled, LR `2e-5` | 25% | `1051109` | Running on `gm-hpc2-gpu801` | 2-GPU downstream job targeted to `gm-hpc2-gpu801` |
+| U-ssl, BYOL init from STL10 unlabeled, LR `2e-5` | 25% | `1051109` | Completed after `05:59:20` on `gm-hpc2-gpu801` | 2-GPU downstream job targeted to `gm-hpc2-gpu801` |
 | U-ssl, BYOL init from STL10 unlabeled, LR `2e-5` | 50% | `1051110` | Running on `gm-hpc2-gpu801` | 2-GPU downstream job targeted to `gm-hpc2-gpu801` |
 | U-ssl, BYOL init from STL10 unlabeled, LR `2e-5` | 100% | `1051111` | Running on `gm-hpc2-gpu801` | 2-GPU downstream job targeted to `gm-hpc2-gpu801` |
 
@@ -153,16 +153,17 @@ achieved values.
 | S-shuffle LR-control | 100% | `1051007` | Completed | 5.367 | 7.227 | 0.9317 | 4.74% | 20.79% |
 | U-ssl LR-control | 5% | `1051107` | Completed | 30.097 | 33.651 | 0.0000 | 0.00% | 100.00% |
 | U-ssl LR-control | 10% | `1051108` | Completed | 29.278 | 32.865 | 0.0000 | 0.00% | 100.00% |
+| U-ssl LR-control | 25% | `1051109` | Completed | 25.733 | 29.544 | 0.0000 | 0.00% | 100.00% |
 
 ## Remaining Work
 
-Still running: U-ssl downstream jobs `1051109`, `1051110`, and `1051111`.
+Still running: U-ssl downstream jobs `1051110` and `1051111`.
 
 Completed since launch: U-ssl pretraining job `1051105` and checkpoint
 conversion job `1051106`; U-ssl downstream 5% job `1051107` and 10% job
-`1051108` are also complete. Final U-ssl held-out downstream results are not
-available yet because three U-ssl
-downstream jobs are still running.
+`1051108`, and 25% job `1051109` are also complete. Final U-ssl held-out
+downstream results are not available yet because two U-ssl downstream jobs are
+still running.
 
 ## Job Accounting
 
@@ -173,9 +174,9 @@ downstream jobs are still running.
 | S-age downstream sweep | 5 | Completed | Initialised from clean S-age synthetic checkpoints from `1050939` |
 | S-shuffle downstream sweep | 5 | Completed | Initialised from shuffled-label synthetic pretraining job `1051002` |
 | S-ssl downstream sweep | 5 | Completed | Initialised from BYOL checkpoints from `1050832` |
-| U-ssl downstream sweep | 5 | 2 completed, 3 running | `1051107` and `1051108` complete; `1051109`, `1051110`, and `1051111` still running |
+| U-ssl downstream sweep | 5 | 3 completed, 2 running | `1051107`, `1051108`, and `1051109` complete; `1051110` and `1051111` still running |
 | S-shuffle pretraining | 1 | Completed | Full SyntheticDorsalHands2 corpus, labels permuted once per seed |
 | U-ssl pretraining | 1 | Completed | Job `1051105`; STL10 unlabeled; 22 BYOL epochs on 8 GPUs |
 
-Planned downstream fine-tuning jobs: 30. Completed downstream jobs: 27.
-Launched and running downstream jobs: 3 U-ssl cells.
+Planned downstream fine-tuning jobs: 30. Completed downstream jobs: 28.
+Launched and running downstream jobs: 2 U-ssl cells.

@@ -90,6 +90,13 @@ four GPUs, 16 CPU cores, 64 GB RAM, and batch size 16 per GPU unless noted.
 | `1051087` | CANCELLED / 00:00:00 | Q3 U-ssl LR-control, real-label fraction 25%, locked real test | Cancelled after U-ssl pretraining was stopped | U-ssl label-efficiency control |
 | `1051088` | CANCELLED / 00:00:00 | Q3 U-ssl LR-control, real-label fraction 50%, locked real test | Cancelled after U-ssl pretraining was stopped | U-ssl label-efficiency control |
 | `1051089` | CANCELLED / 00:00:00 | Q3 U-ssl LR-control, real-label fraction 100%, locked real test | Cancelled after U-ssl pretraining was stopped | U-ssl label-efficiency control |
+| `1051091` | Running on `gpu-standard` / 00:00:31 at launch check | Q3 U-ssl BYOL pretraining on auto-downloaded STL10 unlabeled images | BYOL; EfficientNet-V2-S; 22 epochs; batch 32/GPU; 2 GPUs; auto-downloads STL10 to `.data/torchvision` | U-ssl generic SSL corpus/control pretraining |
+| `1051092` | PENDING / dependency on `1051091` | Q3 U-ssl checkpoint conversion | Convert `1051091` BYOL checkpoint into fold-matched `EMBED_DIM=128` age-regressor init checkpoints | U-ssl downstream preparation |
+| `1051093` | PENDING / dependency on `1051092` | Q3 U-ssl LR-control, real-label fraction 5%, locked real test | Pure Gaussian NLL; init from converted U-ssl BYOL checkpoint; real fine-tune LR `2e-5`; max 120 epochs; 2 GPUs | U-ssl label-efficiency control |
+| `1051094` | PENDING / dependency on `1051092` | Q3 U-ssl LR-control, real-label fraction 10%, locked real test | Pure Gaussian NLL; init from converted U-ssl BYOL checkpoint; real fine-tune LR `2e-5`; max 120 epochs; 2 GPUs | U-ssl label-efficiency control |
+| `1051095` | PENDING / dependency on `1051092` | Q3 U-ssl LR-control, real-label fraction 25%, locked real test | Pure Gaussian NLL; init from converted U-ssl BYOL checkpoint; real fine-tune LR `2e-5`; max 120 epochs; 2 GPUs | U-ssl label-efficiency control |
+| `1051096` | PENDING / dependency on `1051092` | Q3 U-ssl LR-control, real-label fraction 50%, locked real test | Pure Gaussian NLL; init from converted U-ssl BYOL checkpoint; real fine-tune LR `2e-5`; max 120 epochs; 2 GPUs | U-ssl label-efficiency control |
+| `1051097` | PENDING / dependency on `1051092` | Q3 U-ssl LR-control, real-label fraction 100%, locked real test | Pure Gaussian NLL; init from converted U-ssl BYOL checkpoint; real fine-tune LR `2e-5`; max 120 epochs; 2 GPUs | U-ssl label-efficiency control |
 
 Historical mixed loss: NLL 0.6 + MAE 0.9 + prediction spread 0.5 +
 embedding variance 0.8 + embedding contrast 0.8. Pure objectives disable all
@@ -359,6 +366,32 @@ The uncapped runs use 20% held-out real users and five folds over the remaining
 | `1051087` | U-ssl LR-control | 25% | CANCELLED before start | `/home/rb3434w/CNN-age-inference/runs/q3_ussl_realfrac_f25_lr2e5_seed42_v2s_384` |
 | `1051088` | U-ssl LR-control | 50% | CANCELLED before start | `/home/rb3434w/CNN-age-inference/runs/q3_ussl_realfrac_f50_lr2e5_seed42_v2s_384` |
 | `1051089` | U-ssl LR-control | 100% | CANCELLED before start | `/home/rb3434w/CNN-age-inference/runs/q3_ussl_realfrac_f100_lr2e5_seed42_v2s_384` |
+
+### Jobs `1051091`-`1051097` - Q3 U-ssl STL10 pretraining and LR-control label-fraction sweep
+
+- Submission date: 2026-08-05 12:41 BST.
+- Initial scheduler state from `sacct`/`squeue` at 2026-08-05 12:41 BST: `1051091` RUNNING on `gpu-standard`, node `gm-hpc2-gpu001`, elapsed `00:00:31`; `1051092`-`1051097` PENDING on dependencies.
+- Purpose: run the Q3 U-ssl control using an auto-downloaded generic natural-image corpus, matching the S-age/S-ssl LR-control downstream recipe while excluding SyntheticDorsalHands2 and the locked real HandRGBD + ProlificHands evaluation sources.
+- U-ssl pretraining data/configuration: torchvision STL10 unlabeled split, 100,000 generic natural images, auto-downloaded to `/home/rb3434w/CNN-age-inference/.data/torchvision`. No project hand datasets or age labels are used for U-ssl pretraining.
+- U-ssl pretraining model/objective: BYOL with EfficientNet-V2-S at 384 px, 22 epochs, batch size 32 per GPU, LR `1e-4`, target momentum `0.996 -> 1.0`, no local crops, augmentation ramp fraction `0.2`, seed 42. The 22-epoch, 2-GPU schedule approximately matches the update count of the 100-epoch, 4-GPU S-ssl BYOL job `1050832` after accounting for the larger STL10 corpus.
+- Pretraining resources: one `gpu-standard` or `gpu-beast` node, 2 GPUs, 16 CPU cores, 64 GB RAM; `MASTER_PORT=29532`.
+- Pretraining run directory: `/home/rb3434w/CNN-age-inference/runs/byol/u_ssl_stl10_unlabeled_v2_s`
+- Pretraining log file: `/home/rb3434w/CNN-age-inference/logs/q3-ussl-pretrain-1051091.log`
+- Initial log state: STL10 download from `http://ai.stanford.edu/~acoates/stl10/stl10_binary.tar.gz` started successfully.
+- Conversion job `1051092`: depends on `afterok:1051091`; converts `/home/rb3434w/CNN-age-inference/runs/byol/u_ssl_stl10_unlabeled_v2_s/byol_v2_s_pretrain_ddp.pth` into fold-matched `EMBED_DIM=128` init checkpoints under `/home/rb3434w/CNN-age-inference/runs/byol/u_ssl_stl10_unlabeled_v2_s/init_checkpoint_root_embed128`.
+- Downstream jobs `1051093`-`1051097`: depend on `afterok:1051092`; HandRGBD + ProlificHands only for real fine-tuning and locked real testing; no LUICID, HaGRID, 11kHands, archive, STL10, or synthetic samples in downstream train/validation/test. Real train subsets come from `splits/q3_real_label_fractions_seed42.json`; test users from `splits/test_users_uncapped_20pct_seed42.json`.
+- Downstream model/objective: fold-matched init from converted U-ssl BYOL checkpoints, pure Gaussian NLL, LR `2e-5`, maximum 120 epochs, patience 10, image-level training/evaluation (`USER_GROUP_SIZES=1`, `AGG_SIZES=1`), age-threshold adult-gate evaluation.
+- Downstream resources per job: one `gpu-standard` or `gpu-beast` node, 2 GPUs, 16 CPU cores, 64 GB RAM, batch size 16 per GPU; unique `MASTER_PORT` values `29533`-`29537`.
+
+| Job | Arm | Real-label fraction | Initial state | Run directory |
+| --- | --- | ---: | --- | --- |
+| `1051091` | U-ssl STL10 pretraining | n/a | RUNNING on `gpu-standard` | `/home/rb3434w/CNN-age-inference/runs/byol/u_ssl_stl10_unlabeled_v2_s` |
+| `1051092` | U-ssl checkpoint conversion | n/a | PENDING dependency on `1051091` | `/home/rb3434w/CNN-age-inference/runs/byol/u_ssl_stl10_unlabeled_v2_s/init_checkpoint_root_embed128` |
+| `1051093` | U-ssl LR-control | 5% | PENDING dependency on `1051092` | `/home/rb3434w/CNN-age-inference/runs/q3_ussl_realfrac_f05_lr2e5_seed42_v2s_384` |
+| `1051094` | U-ssl LR-control | 10% | PENDING dependency on `1051092` | `/home/rb3434w/CNN-age-inference/runs/q3_ussl_realfrac_f10_lr2e5_seed42_v2s_384` |
+| `1051095` | U-ssl LR-control | 25% | PENDING dependency on `1051092` | `/home/rb3434w/CNN-age-inference/runs/q3_ussl_realfrac_f25_lr2e5_seed42_v2s_384` |
+| `1051096` | U-ssl LR-control | 50% | PENDING dependency on `1051092` | `/home/rb3434w/CNN-age-inference/runs/q3_ussl_realfrac_f50_lr2e5_seed42_v2s_384` |
+| `1051097` | U-ssl LR-control | 100% | PENDING dependency on `1051092` | `/home/rb3434w/CNN-age-inference/runs/q3_ussl_realfrac_f100_lr2e5_seed42_v2s_384` |
 
 ## Completed and failed launches
 

@@ -102,8 +102,8 @@ four GPUs, 16 CPU cores, 64 GB RAM, and batch size 16 per GPU unless noted.
 | `1051107` | COMPLETED / 05:11:14 | Q3 U-ssl LR-control, real-label fraction 5%, locked real test | Pure Gaussian NLL; init from converted U-ssl BYOL checkpoint; real fine-tune LR `2e-5`; max 120 epochs; 2 GPUs on `gm-hpc2-gpu001` | U-ssl label-efficiency control |
 | `1051108` | COMPLETED / 04:29:01 | Q3 U-ssl LR-control, real-label fraction 10%, locked real test | Pure Gaussian NLL; init from converted U-ssl BYOL checkpoint; real fine-tune LR `2e-5`; max 120 epochs; 2 GPUs on `gm-hpc2-gpu801` | U-ssl label-efficiency control |
 | `1051109` | COMPLETED / 05:59:20 | Q3 U-ssl LR-control, real-label fraction 25%, locked real test | Pure Gaussian NLL; init from converted U-ssl BYOL checkpoint; real fine-tune LR `2e-5`; max 120 epochs; 2 GPUs on `gm-hpc2-gpu801` | U-ssl label-efficiency control |
-| `1051110` | RUNNING on `gm-hpc2-gpu801` since 2026-08-05 14:53:38 | Q3 U-ssl LR-control, real-label fraction 50%, locked real test | Pure Gaussian NLL; init from converted U-ssl BYOL checkpoint; real fine-tune LR `2e-5`; max 120 epochs; 2 GPUs on `gm-hpc2-gpu801` | U-ssl label-efficiency control |
-| `1051111` | RUNNING on `gm-hpc2-gpu801` since 2026-08-05 14:53:38 | Q3 U-ssl LR-control, real-label fraction 100%, locked real test | Pure Gaussian NLL; init from converted U-ssl BYOL checkpoint; real fine-tune LR `2e-5`; max 120 epochs; 2 GPUs on `gm-hpc2-gpu801` | U-ssl label-efficiency control |
+| `1051110` | COMPLETED / 09:13:56 | Q3 U-ssl LR-control, real-label fraction 50%, locked real test | Pure Gaussian NLL; init from converted U-ssl BYOL checkpoint; real fine-tune LR `2e-5`; max 120 epochs; 2 GPUs on `gm-hpc2-gpu801` | U-ssl label-efficiency control |
+| `1051111` | COMPLETED / 09:28:55 | Q3 U-ssl LR-control, real-label fraction 100%, locked real test | Pure Gaussian NLL; init from converted U-ssl BYOL checkpoint; real fine-tune LR `2e-5`; max 120 epochs; 2 GPUs on `gm-hpc2-gpu801` | U-ssl label-efficiency control |
 
 Historical mixed loss: NLL 0.6 + MAE 0.9 + prediction spread 0.5 +
 embedding variance 0.8 + embedding contrast 0.8. Pure objectives disable all
@@ -409,6 +409,7 @@ The uncapped runs use 20% held-out real users and five folds over the remaining
 - Progress update at 2026-08-05 19:31 BST: `1051108` COMPLETED after `04:29:01`; `1051107`, `1051109`, `1051110`, and `1051111` remain RUNNING.
 - Progress update at 2026-08-05 20:36 BST: `1051107` COMPLETED after `05:11:14`; `1051109`, `1051110`, and `1051111` remain RUNNING.
 - Progress update at 2026-08-05 21:13 BST: `1051109` COMPLETED after `05:59:20`; `1051110` and `1051111` remain RUNNING.
+- Terminal update at 2026-08-06 08:25 BST: `1051110` COMPLETED after `09:13:56` on `gm-hpc2-gpu801`, ending at 2026-08-06 00:07:34; `1051111` COMPLETED after `09:28:55` on `gm-hpc2-gpu801`, ending at 2026-08-06 00:22:33. The U-ssl downstream sweep is complete.
 - Purpose: replacement U-ssl control launch that maximizes HPC GPU use while keeping the same global BYOL batch size as the 2-GPU attempt.
 - U-ssl pretraining data/configuration: torchvision STL10 unlabeled split, 100,000 generic natural images, auto-downloaded to `/home/rb3434w/CNN-age-inference/.data/torchvision`. No project hand datasets or age labels are used for U-ssl pretraining.
 - U-ssl pretraining model/objective: BYOL with EfficientNet-V2-S at 384 px, 22 epochs, batch size 8 per GPU on 8 GPUs (global batch 64), LR `1e-4`, target momentum `0.996 -> 1.0`, no local crops, augmentation ramp fraction `0.2`, seed 42.
@@ -420,7 +421,8 @@ The uncapped runs use 20% held-out real users and five folds over the remaining
 - Held-out result so far: `1051107` completed the U-ssl 5% cell. Five-fold unweighted `n=1` aggregate over the locked real held-out split: MAE 30.097 years, RMSE 33.651 years, adult-gate AUC 0.0000, mean FPR 0.00%, Adult FNR 100.00%.
 - Held-out result so far: `1051108` completed the U-ssl 10% cell. Five-fold unweighted `n=1` aggregate over the locked real held-out split: MAE 29.278 years, RMSE 32.865 years, adult-gate AUC 0.0000, mean FPR 0.00%, Adult FNR 100.00%.
 - Held-out result so far: `1051109` completed the U-ssl 25% cell. Five-fold unweighted `n=1` aggregate over the locked real held-out split: MAE 25.733 years, RMSE 29.544 years, adult-gate AUC 0.0000, mean FPR 0.00%, Adult FNR 100.00%.
-- Held-out result status: final U-ssl sweep results are not available yet because `1051110` and `1051111` are still running.
+- Held-out result: `1051110` completed the U-ssl 50% cell. Five-fold unweighted `n=1` aggregate over the locked real held-out split: MAE 7.936 years, RMSE 10.495 years, adult-gate AUC 0.9487, mean FPR 4.65%, Adult FNR 20.29%.
+- Held-out result: `1051111` completed the U-ssl 100% cell. Five-fold unweighted `n=1` aggregate over the locked real held-out split: MAE 5.001 years, RMSE 6.815 years, adult-gate AUC 0.9492, mean FPR 4.74%, Adult FNR 18.48%.
 - Conversion job `1051106`: depends on `afterok:1051105`; targets `gpu-standard`, node `gm-hpc2-gpu001`, 1 GPU; converts `/home/rb3434w/CNN-age-inference/runs/byol/u_ssl_stl10_unlabeled_v2_s_8gpu/byol_v2_s_pretrain_ddp.pth` into fold-matched `EMBED_DIM=128` init checkpoints under `/home/rb3434w/CNN-age-inference/runs/byol/u_ssl_stl10_unlabeled_v2_s_8gpu/init_checkpoint_root_embed128`.
 - Downstream jobs `1051107`-`1051111`: depend on `afterok:1051106`; each requests 2 GPUs. Job `1051107` targets `gpu-standard` node `gm-hpc2-gpu001`; jobs `1051108`-`1051111` target `gpu-beast` node `gm-hpc2-gpu801`, allowing the downstream sweep to use 10 GPUs total if both nodes are free.
 - Downstream data: HandRGBD + ProlificHands only for real fine-tuning and locked real testing; no LUICID, HaGRID, 11kHands, archive, STL10, or synthetic samples in downstream train/validation/test. Real train subsets come from `splits/q3_real_label_fractions_seed42.json`; test users from `splits/test_users_uncapped_20pct_seed42.json`.
@@ -433,8 +435,8 @@ The uncapped runs use 20% held-out real users and five folds over the remaining
 | `1051107` | U-ssl LR-control | 5% | COMPLETED after `05:11:14` on `gm-hpc2-gpu001` | `/home/rb3434w/CNN-age-inference/runs/q3_ussl8_realfrac_f05_lr2e5_seed42_v2s_384` |
 | `1051108` | U-ssl LR-control | 10% | COMPLETED after `04:29:01` on `gm-hpc2-gpu801` | `/home/rb3434w/CNN-age-inference/runs/q3_ussl8_realfrac_f10_lr2e5_seed42_v2s_384` |
 | `1051109` | U-ssl LR-control | 25% | COMPLETED after `05:59:20` on `gm-hpc2-gpu801` | `/home/rb3434w/CNN-age-inference/runs/q3_ussl8_realfrac_f25_lr2e5_seed42_v2s_384` |
-| `1051110` | U-ssl LR-control | 50% | RUNNING on `gm-hpc2-gpu801` | `/home/rb3434w/CNN-age-inference/runs/q3_ussl8_realfrac_f50_lr2e5_seed42_v2s_384` |
-| `1051111` | U-ssl LR-control | 100% | RUNNING on `gm-hpc2-gpu801` | `/home/rb3434w/CNN-age-inference/runs/q3_ussl8_realfrac_f100_lr2e5_seed42_v2s_384` |
+| `1051110` | U-ssl LR-control | 50% | COMPLETED after `09:13:56` on `gm-hpc2-gpu801` | `/home/rb3434w/CNN-age-inference/runs/q3_ussl8_realfrac_f50_lr2e5_seed42_v2s_384` |
+| `1051111` | U-ssl LR-control | 100% | COMPLETED after `09:28:55` on `gm-hpc2-gpu801` | `/home/rb3434w/CNN-age-inference/runs/q3_ussl8_realfrac_f100_lr2e5_seed42_v2s_384` |
 
 ## Completed and failed launches
 

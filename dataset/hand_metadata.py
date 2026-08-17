@@ -469,14 +469,15 @@ def load_primary_metadata(root: Optional[PathLike] = None) -> pd.DataFrame:
 def load_archive_metadata(root: Optional[PathLike] = None) -> pd.DataFrame:
     dataset_root = _resolve_root(root)
     archive_root = dataset_root / "archive" / "Photos"
+    mask_root = dataset_root / "archive" / "Masks"
     archive_csv = dataset_root / "archive" / "annotated_dataset_details.csv"
 
     if not archive_csv.exists():
-        return pd.DataFrame(columns=["source", "user_id", "age", "gender", "aspect", "image_path"])
+        return pd.DataFrame(columns=["source", "user_id", "age", "gender", "aspect", "image_path", "bbox", "landmarks"])
 
     raw_df = pd.read_csv(archive_csv)
     if raw_df.empty or "aspectOfHand" not in raw_df.columns:
-        return pd.DataFrame(columns=["source", "user_id", "age", "gender", "aspect", "image_path"])
+        return pd.DataFrame(columns=["source", "user_id", "age", "gender", "aspect", "image_path", "bbox", "landmarks"])
 
     working_df = raw_df.copy()
     working_df["aspect_norm"] = working_df["aspectOfHand"].apply(_normalise_label)
@@ -503,9 +504,24 @@ def load_archive_metadata(root: Optional[PathLike] = None) -> pd.DataFrame:
     working_df["image_path"] = working_df.apply(resolve_path, axis=1)
     working_df = working_df[working_df["image_path"].notna()]
 
+    def resolve_mask_path(image_path: Path) -> Optional[Path]:
+        if not mask_root.exists():
+            return None
+        for ext in (".png", ".jpg", ".jpeg"):
+            candidate = mask_root / f"{image_path.stem}{ext}"
+            if candidate.is_file():
+                return candidate
+        return None
+
     gender_map = {1: "female", 2: "male"}
     working_df["gender_norm"] = working_df["Gender"].apply(lambda g: gender_map.get(g) if pd.notna(g) else None)
     working_df["age_norm"] = working_df["Age"].apply(lambda a: int(a) if pd.notna(a) else pd.NA)
+    working_df["bbox_tuple"] = (
+        working_df["bbox"].apply(_parse_bbox)
+        if "bbox" in working_df.columns
+        else pd.Series(index=working_df.index, data=[None] * len(working_df), dtype="object")
+    )
+    working_df["landmarks_tuple"] = _extract_landmarks(working_df, "landmarks")
 
     df_out = pd.DataFrame(
         {
@@ -515,6 +531,9 @@ def load_archive_metadata(root: Optional[PathLike] = None) -> pd.DataFrame:
             "gender": working_df["gender_norm"],
             "aspect": working_df["aspect_norm"],
             "image_path": working_df["image_path"].apply(Path),
+            "mask_path": working_df["image_path"].apply(resolve_mask_path),
+            "bbox": working_df["bbox_tuple"],
+            "landmarks": working_df["landmarks_tuple"],
         }
     )
     df_out = df_out.reset_index(drop=True)

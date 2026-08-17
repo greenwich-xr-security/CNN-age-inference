@@ -83,6 +83,15 @@ def parse_args() -> argparse.Namespace:
         help="Model was trained with privileged normals input (6-ch first conv). Zeros are supplied at test time.",
     )
     parser.add_argument(
+        "--no-imagenet-pretrained",
+        action="store_true",
+        default=False,
+        help=(
+            "Construct the backbone without downloading/loading ImageNet weights before "
+            "loading --checkpoint. Useful for offline checkpoint-only evaluation."
+        ),
+    )
+    parser.add_argument(
         "--data-root",
         type=str,
         default=None,
@@ -248,6 +257,7 @@ def main() -> None:
     model_builder, default_size, model_desc, _ = resolve_model_builder(
         args.model, embed_dim=args.embed_dim,
         normals_privileged=getattr(args, "normals_privileged", False),
+        pretrained=not getattr(args, "no_imagenet_pretrained", False),
     )
     img_size = args.img_size if args.img_size is not None else default_size
     _, test_transform = build_transforms(img_size)

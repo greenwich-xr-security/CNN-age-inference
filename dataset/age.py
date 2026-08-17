@@ -62,6 +62,10 @@ class AgeDataset(Dataset):
         # archive: Photos -> Masks
         if parent.name.lower() == "photos":
             candidates.append(parent.with_name("Masks") / name)
+            candidates.extend(
+                parent.with_name("Masks") / f"{image_path.stem}{ext}"
+                for ext in (".png", ".jpg", ".jpeg")
+            )
 
         for cand in candidates:
             if cand.is_file():
@@ -96,8 +100,7 @@ class AgeDataset(Dataset):
                     # binarize
                     mask = mask.point(lambda p: 255 if p >= 128 else 0)
                     # apply
-                    mask_rgb = Image.merge("RGB", (mask, mask, mask))
-                    image = Image.composite(image, Image.new("RGB", image.size, (0, 0, 0)), mask_rgb)
+                    image = Image.composite(image, Image.new("RGB", image.size, (0, 0, 0)), mask)
                 except Exception:
                     # if masking fails, fall back to original image
                     pass

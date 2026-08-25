@@ -795,3 +795,14 @@ The uncapped runs use 20% held-out real users and five folds over the remaining
 - Model/objective: EfficientNet-V2-S at 384 px, frozen backbone; pure Gaussian NLL; LR `1e-3` (higher, head-only), maximum 60 epochs, patience 10, image-level training/evaluation.
 - Requested resources: one `gpu-beast` node, 4 GPUs, 16 CPU cores, 64 GB RAM, batch size 16 per GPU.
 - Partial result (fold 0 only): MAE 24.187 years, RMSE 32.006 years, adult-gate AUC 0.1779. The linear probe failed catastrophically — BYOL representations learned from SyntheticDorsalHands2 without age labels are not linearly separable by age when the backbone is fully frozen. This confirms that SSL pretraining alone does not encode age in a linearly accessible way; the backbone must be fine-tuned end-to-end.
+
+### Jobs `1055773`-`1055776` — Q3 R0/R1 learning-rate sweep at 5% real labels
+
+- Submission date: 2026-08-18.
+- Initial scheduler state: `1055773` (R0, LR `2e-5`) and `1055774` (R0, LR `1e-3`) RUNNING on `gm-hpc2-gpu801`; `1055775` (R1, LR `2e-5`) and `1055776` (R1, LR `1e-3`) PENDING for resources (the two R0 jobs claimed all 8 GPUs on `gpu-beast`).
+- Purpose: isolate learning rate as the single variable behind R0/R1's collapse at low real-label fractions (R0 5% MAE 29.935 in `1050948`; R1 5% MAE 30.177 in `1050953`). Every other Q3 arm (S-age, S-ssl, S-shuffle, U-ssl) already got an LR-control rerun at `2e-5`; R0/R1 had not. `2e-4` (the original, failing LR) is reused from `1050948`/`1050953` rather than rerun; this launch adds `2e-5` and a `1e-3` stress point above the failure.
+- Data/split: same as the original R0/R1 sweep — HandRGBD + ProlificHands only; `splits/q3_real_label_fractions_seed42.json` fraction `0.05`; locked test split `splits/test_users_uncapped_20pct_seed42.json`.
+- Model/objective: EfficientNet-V2-S at 384 px; pure Gaussian NLL; `EPOCHS=240`, `PATIENCE=10`, `WEIGHT_DECAY=0.2` (all `submit_distributed.slurm` defaults, matching the original R0/R1 recipe exactly except for LR); R0 uses default ImageNet init, R1 uses `--no-imagenet-pretrained`.
+- Requested resources per job: one `gpu-beast` node, 4 GPUs, 16 CPU cores, 64 GB RAM, batch size 16 per GPU; `MASTER_PORT` values `29750`-`29753`.
+- Submit script: `submit_q3_r0_r1_lr_sweep_f05.sh`, copied from local [submit_q3_r0_r1_lr_sweep_f05.sh](C:/Users/Staff/Documents/GitHub/CNN-age-inference/submit_q3_r0_r1_lr_sweep_f05.sh).
+- Results tracked in [Q3_R0_R1_LR_SWEEP_RESULTS.md](C:/Users/Staff/Documents/GitHub/CNN-age-inference/Q3_R0_R1_LR_SWEEP_RESULTS.md).

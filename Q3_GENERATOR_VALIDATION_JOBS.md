@@ -119,49 +119,89 @@ All jobs in the table below are completed.
 ## Results
 
 All values are unweighted means of five held-out fold results at image-level
-aggregation (`n=1`) on the locked real test split. FPR and Adult FNR use each
-fold's best operating point with FPR <= 5% when attainable, then average the
-achieved values.
+aggregation (`n=1`) on the locked real test split. Adult-gate AUC, FPR, and
+Adult FNR use a 0--100 year predicted-age sweep with 1,001 thresholds. Each
+fold selects its lowest Adult FNR point with FPR <= 5%, then achieved values
+are averaged.
 
 | Arm | Real-label fraction | Job | State | MAE (years) | RMSE (years) | Adult-gate AUC | Mean FPR | Adult FNR |
 | --- | ---: | --- | --- | ---: | ---: | ---: | ---: | ---: |
-| R0 | 5% | `1050948` | Completed | 29.935 | 33.493 | 0.0000 | 0.00% | 100.00% |
-| R0 | 10% | `1050949` | Completed | 26.846 | 30.901 | 0.0252 | 0.96% | 99.83% |
-| R0 | 25% | `1050950` | Completed | 19.787 | 24.996 | 0.3062 | 3.28% | 95.19% |
-| R0 | 50% | `1050951` | Completed | 10.442 | 14.358 | 0.7921 | 4.51% | 44.59% |
-| R0 | 100% | `1050952` | Completed | 4.903 | 6.546 | 0.9577 | 4.74% | 17.37% |
-| R1 | 5% | `1050953` | Completed | 30.177 | 37.391 | 0.0173 | 5.69% | 97.23% |
-| R1 | 10% | `1050954` | Completed | 28.189 | 34.244 | 0.0001 | 3.96% | 98.40% |
-| R1 | 25% | `1050955` | Completed | 27.308 | 38.927 | 0.0169 | 4.28% | 99.34% |
-| R1 | 50% | `1050956` | Completed | 23.084 | 31.710 | 0.1546 | 5.01% | 97.94% |
-| R1 | 100% | `1050957` | Completed | 11.684 | 18.725 | 0.7174 | 6.33% | 42.80% |
-| S-age LR-control | 5% | `1050979` | Completed | 6.152 | 8.399 | 0.9133 | 4.69% | 24.17% |
-| S-age LR-control | 10% | `1050980` | Completed | 5.547 | 7.591 | 0.9223 | 4.78% | 23.95% |
-| S-age LR-control | 25% | `1050981` | Completed | 5.357 | 7.190 | 0.9265 | 4.74% | 23.59% |
-| S-age LR-control | 50% | `1050982` | Completed | 5.114 | 6.943 | 0.9363 | 4.78% | 21.91% |
-| S-age LR-control | 100% | `1050975` | Completed | 4.817 | 6.571 | 0.9526 | 4.69% | 18.46% |
-| S-ssl LR-control | 5% | `1050983` | Completed | 30.248 | 33.794 | 0.0000 | 0.00% | 100.00% |
-| S-ssl LR-control | 10% | `1050984` | Completed | 29.589 | 33.160 | 0.0000 | 0.00% | 100.00% |
-| S-ssl LR-control | 25% | `1050985` | Completed | 25.792 | 29.625 | 0.0000 | 0.00% | 100.00% |
-| S-ssl LR-control | 50% | `1050986` | Completed | 12.377 | 16.525 | 0.8409 | 0.00% | 100.00% |
-| S-ssl LR-control | 100% | `1050987` | Completed | 5.149 | 6.960 | 0.9510 | 4.69% | 16.69% |
-| S-shuffle LR-control | 5% | `1051003` | Completed | 11.614 | 13.844 | 0.3867 | 0.00% | 100.00% |
-| S-shuffle LR-control | 10% | `1051004` | Completed | 7.370 | 9.716 | 0.8353 | 0.00% | 100.00% |
-| S-shuffle LR-control | 25% | `1051005` | Completed | 6.531 | 8.668 | 0.8790 | 0.00% | 100.00% |
-| S-shuffle LR-control | 50% | `1051006` | Completed | 5.661 | 7.525 | 0.9189 | 4.83% | 23.26% |
-| S-shuffle LR-control | 100% | `1051007` | Completed | 5.367 | 7.227 | 0.9317 | 4.74% | 20.79% |
-| U-ssl LR-control | 5% | `1051107` | Completed | 30.097 | 33.651 | 0.0000 | 0.00% | 100.00% |
-| U-ssl LR-control | 10% | `1051108` | Completed | 29.278 | 32.865 | 0.0000 | 0.00% | 100.00% |
-| U-ssl LR-control | 25% | `1051109` | Completed | 25.733 | 29.544 | 0.0000 | 0.00% | 100.00% |
-| U-ssl LR-control | 50% | `1051110` | Completed | 7.936 | 10.495 | 0.9487 | 4.65% | 20.29% |
-| U-ssl LR-control | 100% | `1051111` | Completed | 5.001 | 6.815 | 0.9492 | 4.74% | 18.48% |
+| R0 | 5% | `1050948` | Completed | 29.935 | 33.493 | 0.8434 | 4.78% | 46.53% |
+| R0 | 10% | `1050949` | Completed | 26.846 | 30.901 | 0.7477 | 4.78% | 45.43% |
+| R0 | 25% | `1050950` | Completed | 19.787 | 24.996 | 0.4965 | 4.78% | 78.63% |
+| R0 | 50% | `1050951` | Completed | 10.442 | 14.358 | 0.7960 | 4.78% | 44.25% |
+| R0 | 100% | `1050952` | Completed | 4.903 | 6.546 | 0.9677 | 4.78% | 17.33% |
+| R1 | 5% | `1050953` | Completed | 30.177 | 37.391 | 0.3198 | 4.78% | 97.06% |
+| R1 | 10% | `1050954` | Completed | 28.189 | 34.244 | 0.3589 | 4.78% | 97.77% |
+| R1 | 25% | `1050955` | Completed | 27.308 | 38.927 | 0.3213 | 4.78% | 98.82% |
+| R1 | 50% | `1050956` | Completed | 23.084 | 31.710 | 0.1840 | 4.78% | 97.79% |
+| R1 | 100% | `1050957` | Completed | 11.684 | 18.725 | 0.7537 | 4.78% | 44.74% |
+| S-age LR-control | 5% | `1050979` | Completed | 6.152 | 8.399 | 0.9232 | 4.78% | 24.03% |
+| S-age LR-control | 10% | `1050980` | Completed | 5.547 | 7.591 | 0.9325 | 4.78% | 23.75% |
+| S-age LR-control | 25% | `1050981` | Completed | 5.357 | 7.190 | 0.9371 | 4.78% | 23.49% |
+| S-age LR-control | 50% | `1050982` | Completed | 5.114 | 6.943 | 0.9466 | 4.78% | 21.79% |
+| S-age LR-control | 100% | `1050975` | Completed | 4.817 | 6.571 | 0.9589 | 4.78% | 18.30% |
+| S-ssl LR-control | 5% | `1050983` | Completed | 30.248 | 33.794 | 0.8107 | 4.78% | 59.17% |
+| S-ssl LR-control | 10% | `1050984` | Completed | 29.589 | 33.160 | 0.8992 | 4.78% | 38.30% |
+| S-ssl LR-control | 25% | `1050985` | Completed | 25.792 | 29.625 | 0.9349 | 4.78% | 27.88% |
+| S-ssl LR-control | 50% | `1050986` | Completed | 12.377 | 16.525 | 0.8420 | 4.78% | 47.58% |
+| S-ssl LR-control | 100% | `1050987` | Completed | 5.149 | 6.960 | 0.9614 | 4.78% | 16.56% |
+| S-shuffle LR-control | 5% | `1051003` | Completed | 11.614 | 13.844 | 0.6071 | 4.78% | 72.17% |
+| S-shuffle LR-control | 10% | `1051004` | Completed | 7.370 | 9.716 | 0.8818 | 4.78% | 39.02% |
+| S-shuffle LR-control | 25% | `1051005` | Completed | 6.531 | 8.668 | 0.9150 | 4.78% | 32.17% |
+| S-shuffle LR-control | 50% | `1051006` | Completed | 5.661 | 7.525 | 0.9406 | 4.78% | 23.29% |
+| S-shuffle LR-control | 100% | `1051007` | Completed | 5.367 | 7.227 | 0.9483 | 4.78% | 20.64% |
+| U-ssl LR-control | 5% | `1051107` | Completed | 30.097 | 33.651 | 0.8158 | 4.78% | 66.70% |
+| U-ssl LR-control | 10% | `1051108` | Completed | 29.278 | 32.865 | 0.8938 | 4.78% | 42.11% |
+| U-ssl LR-control | 25% | `1051109` | Completed | 25.733 | 29.544 | 0.9130 | 4.78% | 32.02% |
+| U-ssl LR-control | 50% | `1051110` | Completed | 7.936 | 10.495 | 0.9559 | 4.78% | 19.80% |
+| U-ssl LR-control | 100% | `1051111` | Completed | 5.001 | 6.815 | 0.9630 | 4.78% | 18.43% |
 
-## Fold Variability
+## Fold Variability: 0--100-Year AUC Sweep
+
+Computed from the five held-out folds at image-level aggregation (`n=1`). The
+MAE variability is unchanged; Adult-gate AUC is recalculated from the 0--100
+year predicted-age sweep.
+
+| Arm | Real-label fraction | Job | Folds | MAE mean ± std | Adult-gate AUC mean ± std |
+| --- | ---: | --- | ---: | ---: | ---: |
+| R0 | 5% | `1050948` | 5 | 29.935 ± 0.383 | 0.8434 ± 0.0444 |
+| R0 | 10% | `1050949` | 5 | 26.846 ± 3.651 | 0.7477 ± 0.3417 |
+| R0 | 25% | `1050950` | 5 | 19.787 ± 4.574 | 0.4965 ± 0.2704 |
+| R0 | 50% | `1050951` | 5 | 10.442 ± 5.117 | 0.7960 ± 0.2640 |
+| R0 | 100% | `1050952` | 5 | 4.903 ± 0.106 | 0.9677 ± 0.0027 |
+| R1 | 5% | `1050953` | 5 | 30.177 ± 1.772 | 0.3198 ± 0.0697 |
+| R1 | 10% | `1050954` | 5 | 28.189 ± 1.438 | 0.3589 ± 0.1647 |
+| R1 | 25% | `1050955` | 5 | 27.308 ± 3.842 | 0.3213 ± 0.1376 |
+| R1 | 50% | `1050956` | 5 | 23.084 ± 2.012 | 0.1840 ± 0.0314 |
+| R1 | 100% | `1050957` | 5 | 11.684 ± 10.777 | 0.7537 ± 0.3397 |
+| S-age LR-control | 5% | `1050979` | 5 | 6.152 ± 0.412 | 0.9232 ± 0.0053 |
+| S-age LR-control | 10% | `1050980` | 5 | 5.547 ± 0.257 | 0.9325 ± 0.0108 |
+| S-age LR-control | 25% | `1050981` | 5 | 5.357 ± 0.162 | 0.9371 ± 0.0105 |
+| S-age LR-control | 50% | `1050982` | 5 | 5.114 ± 0.099 | 0.9466 ± 0.0056 |
+| S-age LR-control | 100% | `1050975` | 5 | 4.817 ± 0.200 | 0.9589 ± 0.0061 |
+| S-ssl LR-control | 5% | `1050983` | 5 | 30.248 ± 0.158 | 0.8107 ± 0.0395 |
+| S-ssl LR-control | 10% | `1050984` | 5 | 29.589 ± 0.375 | 0.8992 ± 0.0298 |
+| S-ssl LR-control | 25% | `1050985` | 5 | 25.792 ± 0.498 | 0.9349 ± 0.0105 |
+| S-ssl LR-control | 50% | `1050986` | 5 | 12.377 ± 3.579 | 0.8420 ± 0.1556 |
+| S-ssl LR-control | 100% | `1050987` | 5 | 5.149 ± 0.567 | 0.9614 ± 0.0036 |
+| S-shuffle LR-control | 5% | `1051003` | 5 | 11.614 ± 3.113 | 0.6071 ± 0.2961 |
+| S-shuffle LR-control | 10% | `1051004` | 5 | 7.370 ± 0.354 | 0.8818 ± 0.0256 |
+| S-shuffle LR-control | 25% | `1051005` | 5 | 6.531 ± 0.445 | 0.9150 ± 0.0191 |
+| S-shuffle LR-control | 50% | `1051006` | 5 | 5.661 ± 0.438 | 0.9406 ± 0.0125 |
+| S-shuffle LR-control | 100% | `1051007` | 5 | 5.367 ± 0.341 | 0.9483 ± 0.0108 |
+| U-ssl LR-control | 5% | `1051107` | 5 | 30.097 ± 0.166 | 0.8158 ± 0.0507 |
+| U-ssl LR-control | 10% | `1051108` | 5 | 29.278 ± 0.267 | 0.8938 ± 0.0254 |
+| U-ssl LR-control | 25% | `1051109` | 5 | 25.733 ± 0.606 | 0.9130 ± 0.0147 |
+| U-ssl LR-control | 50% | `1051110` | 5 | 7.936 ± 3.468 | 0.9559 ± 0.0101 |
+| U-ssl LR-control | 100% | `1051111` | 5 | 5.001 ± 0.172 | 0.9630 ± 0.0045 |
+
+## Fold Variability (Original 10--30-Year AUC Sweep)
 
 Computed from each cell's five `fold_*/test_summary_ddp.csv` files using
-`python tools/q3_fold_variance.py --root runs`. The standard deviation is the
-sample standard deviation across held-out folds at image-level aggregation
-(`n=1`).
+`python tools/q3_fold_variance.py --root runs` before the 0--100 AUC
+recalculation. The standard deviation is the sample standard deviation across
+held-out folds at image-level aggregation (`n=1`).
 
 | Arm | Real-label fraction | Job | Folds | MAE mean ± std | Adult-gate AUC mean ± std |
 | --- | ---: | --- | ---: | ---: | ---: |
